@@ -1,0 +1,12 @@
+name: 'Hello World'
+description: 'Hello World from Rust-generated WebAssembly!'
+inputs:
+  actor:
+    description: 'The user that triggered the workflow'
+    default: ${{ github.actor }}
+outputs:
+  result:
+    description: 'The result of the action execution'
+runs:
+  using: 'node12'
+  main: 'dist/index.js'

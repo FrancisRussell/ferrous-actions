@@ -1,0 +1,35 @@
+{
+  "name": "rust-wasm-action",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Rust-generated WebAssembly GitHub action template",
+  "scripts": {
+    "build": "wasm-pack build -t nodejs --out-name index && ncc build pkg/index.js -o dist",
+    "format": "cargo fmt",
+    "format-check": "cargo fmt -- --check",
+    "lint": "cargo clippy -- -D warnings",
+    "test": "cargo test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/peter-evans/rust-wasm-action.git"
+  },
+  "keywords": [
+    "actions",
+    "rust",
+    "wasm"
+  ],
+  "author": "Peter Evans",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/peter-evans/rust-wasm-action/issues"
+  },
+  "homepage": "https://github.com/peter-evans/rust-wasm-action#readme",
+  "dependencies": {
+    "@actions/core": "1.2.4"
+  },
+  "devDependencies": {
+    "@zeit/ncc": "0.22.3",
+    "wasm-pack": "0.9.1"
+  }
+}
