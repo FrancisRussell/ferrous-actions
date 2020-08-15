@@ -5,7 +5,8 @@ A template to bootstrap the creation of a Rust-generated WebAssembly GitHub acti
 
 ## About
 
-This project is experimental.
+This project is experimental. While it is very much feasible to write a GitHub action in Rust-generated WebAssembly, as this project demonstrates, there are some challenges compared to Javascript/Typescript.
+
 The following is a summary of pain points I discovered, and some caveats when using the template.
 
 - It relies on raw bindings to the official [actions tookit](https://github.com/actions/toolkit) NPM packages. Bindings for this template are defined in [actions-toolkit-bindings](actions-toolkit-bindings) but they are incomplete. I've only defined bindings that are in use by the template. It would be great to have a well maintained set of bindings published as a crate.
