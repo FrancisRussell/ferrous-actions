@@ -9,7 +9,7 @@ This project is experimental. While it is very much feasible to write a GitHub a
 
 The following is a summary of pain points I discovered, and some caveats when using the template.
 
-- It relies on raw bindings to the official [actions tookit](https://github.com/actions/toolkit) NPM packages. Bindings for this template are defined in [actions-toolkit-bindings](actions-toolkit-bindings) but they are incomplete. I've only defined bindings that are in use by the template. It would be great to have a well maintained set of bindings published as a crate.
+- It relies on raw bindings to the official [actions toolkit](https://github.com/actions/toolkit) NPM packages. Bindings for this template are defined in [actions-toolkit-bindings](actions-toolkit-bindings) but they are incomplete. I've only defined bindings that are in use by the template. It would be great to have a well maintained set of bindings published as a crate.
 
 - WebAssembly runs in a safe, sandboxed execution environment. As a result there is no access to files on disks, environment variables, etc. This means bindings to Javascript functions are necessary for some functionality.
 
