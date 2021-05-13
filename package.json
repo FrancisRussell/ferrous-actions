@@ -7,7 +7,7 @@
     "build": "wasm-pack build -t nodejs --out-name index && ncc build pkg/index.js -o dist",
     "format": "cargo fmt",
     "format-check": "cargo fmt -- --check",
-    "lint": "cargo clippy -- -D warnings",
+    "lint": "cargo clippy",
     "test": "cargo test"
   },
   "repository": {
