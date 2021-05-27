@@ -26,10 +26,10 @@
   },
   "homepage": "https://github.com/peter-evans/rust-wasm-action#readme",
   "dependencies": {
-    "@actions/core": "1.2.7"
+    "@actions/core": "1.3.0"
   },
   "devDependencies": {
-    "@vercel/ncc": "0.28.5",
+    "@vercel/ncc": "0.28.6",
     "wasm-pack": "0.9.1"
   }
 }
