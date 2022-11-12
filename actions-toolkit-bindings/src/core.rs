@@ -1,9 +1,6 @@
 use js_sys::JsString;
 use wasm_bindgen::prelude::*;
 
-// These bindings are incomplete.
-// Only bindings used by this example project have been defined.
-
 #[wasm_bindgen]
 pub struct InputOptions {
     pub required: Option<bool>,
