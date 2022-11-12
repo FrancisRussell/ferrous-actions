@@ -1,4 +1,4 @@
-use actions_toolkit_bindings::{core, io};
+use actions_toolkit_bindings::{core, io, tool_cache};
 use std::path::PathBuf;
 use wasm_bindgen::JsValue;
 
@@ -25,7 +25,18 @@ impl Rustup {
 
     pub async fn install() -> Result<Rustup, JsValue> {
         let args = ["--default-toolchain", "none", "-y"];
-        let platform = node_sys::os::platform();
+        let platform = String::from(node_sys::os::platform());
+        match platform.as_str() {
+            "darwin" | "linux" => {
+                let rustup_script = tool_cache::download_tool(
+                    "https://sh.rustup.rs",
+                    &tool_cache::DownloadParams::default(),
+                )
+                .await?;
+                core::info(format!("Downloaded to: {:?}", rustup_script));
+            }
+            _ => panic!("Unsupported platform: {}", platform),
+        }
         core::info(format!("Platform: {:?}", platform));
         todo!("Rustup::install")
     }
