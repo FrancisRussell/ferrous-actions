@@ -32,14 +32,12 @@ async fn run() -> Result<(), Box<dyn Error>> {
     // Greet the workflow actor.
     let greeting = greeter::greet(&actor);
     core::info(greeting);
-    core::info(
-        format!(
-            "Hello there: {:?}",
-            core::get_input("toolchain", None)
-        )
-    );
+    core::info(format!(
+        "Hello there: {:?}",
+        core::get_input("toolchain", None)
+    ));
     println!("What happens to a regular print???");
-    core::info(format!("{:?}", Rustup::get().await));
+    core::info(format!("{:?}", Rustup::install().await));
 
     // Set the action output.
     core::set_output("result", "success");
