@@ -4,3 +4,4 @@ pkg/
 dist/
 
 wasm-pack.log
+.*.swp
