@@ -4,7 +4,6 @@ mod utils;
 
 use crate::rustup::Rustup;
 use actions_toolkit_bindings::core;
-use js_sys::JsString;
 use std::error::Error;
 use wasm_bindgen::prelude::*;
 
@@ -19,32 +18,31 @@ pub async fn main() -> Result<(), JsValue> {
     // an error command for the runner and return exit code 1.
     if let Err(e) = run().await {
         let msg = format!("{}", e);
-        core::set_failed(&JsString::from(msg));
+        core::set_failed(msg);
     }
     Ok(())
 }
 
 async fn run() -> Result<(), Box<dyn Error>> {
     // Get the action input.
-    let actor = core::get_input(&"actor".into(), None)
+    let actor = core::get_input("actor", None)
         .as_string()
         .unwrap_or_default();
 
     // Greet the workflow actor.
     let greeting = greeter::greet(&actor);
-    core::info(&greeting.into());
+    core::info(greeting);
     core::info(
-        &format!(
+        format!(
             "Hello there: {:?}",
-            core::get_input(&"toolchain".into(), None)
+            core::get_input("toolchain", None)
         )
-        .into(),
     );
     println!("What happens to a regular print???");
     Rustup::get().await;
 
     // Set the action output.
-    core::set_output(&"result".into(), &"success".into());
+    core::set_output("result", "success");
 
     Ok(())
 }
