@@ -26,7 +26,7 @@ pub mod ffi {
         pub required: Option<bool>,
 
         #[wasm_bindgen(js_name = "trimWhitespace")]
-        pub trim_whiteSpace: Option<bool>,
+        pub trim_whitespace: Option<bool>,
     }
 
     #[wasm_bindgen(module = "@actions/core")]

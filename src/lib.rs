@@ -39,7 +39,7 @@ async fn run() -> Result<(), Box<dyn Error>> {
         )
     );
     println!("What happens to a regular print???");
-    Rustup::get().await;
+    core::info(format!("{:?}", Rustup::get().await));
 
     // Set the action output.
     core::set_output("result", "success");

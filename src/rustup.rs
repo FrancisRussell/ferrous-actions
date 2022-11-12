@@ -1,6 +1,10 @@
 use actions_toolkit_bindings::{core, io};
+use std::path::PathBuf;
 
-pub struct Rustup {}
+#[derive(Debug)]
+pub struct Rustup {
+    path: PathBuf,
+}
 
 impl Rustup {
     pub async fn get_or_install() -> Rustup {
@@ -8,15 +12,10 @@ impl Rustup {
     }
 
     pub async fn get() -> Option<Rustup> {
-        let name = "rustup".into();
-        let path = io::which(&name, Some(true)).await;
-        core::info(format!("{:?}", path));
-
-        {
-            let name = "rustup-lljsdfl".into();
-            let path = io::which(&name, Some(true)).await;
-            core::info(format!("{:?}", path));
+        if let Ok(path) = io::which("rustup", true).await {
+            Some(Rustup { path })
+        } else {
+            None
         }
-        Some(Rustup {})
     }
 }
