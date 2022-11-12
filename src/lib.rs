@@ -31,6 +31,14 @@ fn run() -> Result<(), Box<dyn Error>> {
     // Greet the workflow actor.
     let greeting = greeter::greet(&actor);
     core::info(&greeting.into());
+    core::info(
+        &format!(
+            "Hello there: {:?}",
+            core::get_input(&"toolchain".into(), None)
+        )
+        .into(),
+    );
+    println!("What happens to a regular print???");
 
     // Set the action output.
     core::set_output(&"result".into(), &"success".into());

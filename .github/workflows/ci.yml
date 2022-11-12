@@ -30,6 +30,10 @@ jobs:
       # Test the action
       - id: hw
         uses: ./
+        with:
+          toolchain: nightly
+          profile: minimal
+          override: true
 
       - if: steps.hw.outputs.result != 'success'
         run: exit 1
