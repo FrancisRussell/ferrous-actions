@@ -1,4 +1,5 @@
 mod greeter;
+mod node;
 mod rustup;
 mod utils;
 
