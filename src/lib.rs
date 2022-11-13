@@ -1,10 +1,11 @@
+pub mod actions;
 mod greeter;
-mod node;
-mod rustup;
-mod utils;
+pub mod node;
+pub mod rustup;
+pub mod utils;
 
+use crate::actions::core;
 use crate::rustup::Rustup;
-use actions_toolkit_bindings::core;
 use std::error::Error;
 use wasm_bindgen::prelude::*;
 

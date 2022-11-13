@@ -1,5 +1,5 @@
 use js_sys::JsString;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use wasm_bindgen::JsValue;
 
 pub async fn exec<S: AsRef<str>, A: IntoIterator<Item = S>>(

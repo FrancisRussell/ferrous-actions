@@ -1,5 +1,4 @@
 pub mod os {
-    use js_sys::JsString;
     pub fn platform() -> String {
         ffi::platform().into()
     }

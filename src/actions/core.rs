@@ -1,5 +1,4 @@
 use js_sys::JsString;
-use wasm_bindgen::prelude::*;
 
 pub fn info<S: Into<JsString>>(message: S) {
     ffi::info(&message.into());

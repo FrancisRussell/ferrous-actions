@@ -1,5 +1,5 @@
+use crate::actions::{core, exec, io, tool_cache};
 use crate::node;
-use actions_toolkit_bindings::{core, exec, io, tool_cache};
 use std::path::PathBuf;
 use wasm_bindgen::JsValue;
 
