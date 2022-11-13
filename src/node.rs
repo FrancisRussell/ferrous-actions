@@ -3,6 +3,10 @@ pub mod os {
         ffi::platform().into()
     }
 
+    pub fn homedir() -> String {
+        ffi::homedir().into()
+    }
+
     pub mod ffi {
         use js_sys::JsString;
         use wasm_bindgen::prelude::*;
@@ -10,6 +14,7 @@ pub mod os {
         #[wasm_bindgen(module = "os")]
         extern "C" {
             pub fn platform() -> JsString;
+            pub fn homedir() -> JsString;
         }
     }
 }
@@ -36,12 +41,13 @@ pub mod fs {
     }
 }
 
+/*
 pub mod process {
     use std::collections::HashMap;
+    use std::ops::Deref;
 
     pub fn env() -> HashMap<String, String> {
-        let env = ffi::env();
-        let env: HashMap<String, String> = serde_wasm_bindgen::from_value(env)
+        let env: HashMap<String, String> = serde_wasm_bindgen::from_value(*ffi::env.deref())
             .expect("Failed to deserialize environment variables");
         env
     }
@@ -52,8 +58,8 @@ pub mod process {
 
         #[wasm_bindgen(module = "process")]
         extern "C" {
-            #[wasm_bindgen(getter)]
-            pub fn env() -> JsValue;
+            pub static env: JsValue;
         }
     }
 }
+*/

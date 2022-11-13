@@ -44,8 +44,8 @@ impl Rustup {
                 exec::exec(rustup_script.as_str(), args)
                     .await
                     .map_err(Error::Js)?;
-                let env = node::process::env();
-                core::info(format!("Environment is {:?}", env));
+                let home_dir = node::os::homedir();
+                core::info(format!("Home dir is {:?}", home_dir));
                 todo!("Add rust to path");
             }
             _ => panic!("Unsupported platform: {}", platform),
