@@ -20,7 +20,10 @@ impl Rustup {
     }
 
     pub async fn get() -> Result<Rustup, Error> {
-        io::which("rustup", true).await.map(|path| Rustup { path }).map_err(Error::Js)
+        io::which("rustup", true)
+            .await
+            .map(|path| Rustup { path })
+            .map_err(Error::Js)
     }
 
     pub async fn install() -> Result<Rustup, Error> {
@@ -32,10 +35,17 @@ impl Rustup {
                     "https://sh.rustup.rs",
                     &tool_cache::DownloadParams::default(),
                 )
-                .await.map_err(Error::Js)?;
+                .await
+                .map_err(Error::Js)?;
                 core::info(format!("Downloaded to: {:?}", rustup_script));
-                node::fs::chmod(rustup_script.as_str(), 0x755).await.map_err(Error::Js)?;
-                exec::exec(rustup_script.as_str(), args).await.map_err(Error::Js)?;
+                node::fs::chmod(rustup_script.as_str(), 0x755)
+                    .await
+                    .map_err(Error::Js)?;
+                exec::exec(rustup_script.as_str(), args)
+                    .await
+                    .map_err(Error::Js)?;
+                let env = node::process::env();
+                core::info(format!("Environment is {:?}", env));
                 todo!("Add rust to path");
             }
             _ => panic!("Unsupported platform: {}", platform),

@@ -16,6 +16,10 @@ pub fn set_failed<M: Into<JsString>>(message: M) {
     ffi::set_failed(&message.into())
 }
 
+pub fn add_path<P: Into<JsString>>(path: P) {
+    ffi::add_path(&path.into())
+}
+
 pub mod ffi {
     use js_sys::JsString;
     use wasm_bindgen::prelude::*;
@@ -50,5 +54,9 @@ pub mod ffi {
         /// Sets the value of an output.
         #[wasm_bindgen(js_name = "setOutput")]
         pub fn set_output(name: &JsString, value: &JsString);
+
+        #[wasm_bindgen(js_name = "addPath")]
+        pub fn add_path(path: &JsString);
+
     }
 }

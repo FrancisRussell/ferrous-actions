@@ -35,3 +35,25 @@ pub mod fs {
         }
     }
 }
+
+pub mod process {
+    use std::collections::HashMap;
+
+    pub fn env() -> HashMap<String, String> {
+        let env = ffi::env();
+        let env: HashMap<String, String> = serde_wasm_bindgen::from_value(env)
+            .expect("Failed to deserialize environment variables");
+        env
+    }
+
+    pub mod ffi {
+        use js_sys::JsString;
+        use wasm_bindgen::prelude::*;
+
+        #[wasm_bindgen(module = "process")]
+        extern "C" {
+            #[wasm_bindgen(getter)]
+            pub fn env() -> JsValue;
+        }
+    }
+}

@@ -1,12 +1,12 @@
 pub mod actions;
+pub mod error;
 mod greeter;
 pub mod node;
 pub mod rustup;
 pub mod utils;
-pub mod error;
 
-use crate::error::Error;
 use crate::actions::core;
+use crate::error::Error;
 use crate::rustup::Rustup;
 use wasm_bindgen::prelude::*;
 
