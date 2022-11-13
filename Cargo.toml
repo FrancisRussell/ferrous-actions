@@ -1,10 +1,10 @@
 [package]
-name = "rust-wasm-action"
-description = "Rust-generated WebAssembly GitHub action template"
-version = "1.0.0"
-repository = "https://github.com/peter-evans/rust-wasm-action"
+name = "github-rust-actions"
+description = "GitHub actions for Rust written in Rust and compiled to WebAssembly"
+version = "0.1.0"
+repository = "https://github.com/FrancisRussell/github-rust-actions"
 license = "MIT"
-edition = "2018"
+edition = "2021"
 
 [lib]
 crate-type = ["cdylib"]

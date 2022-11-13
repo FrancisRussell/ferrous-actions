@@ -1,8 +1,8 @@
 {
-  "name": "rust-wasm-action",
-  "version": "1.0.0",
+  "name": "github-rust-actions",
+  "version": "0.1.0",
   "private": true,
-  "description": "Rust-generated WebAssembly GitHub action template",
+  "description": "GitHub actions for Rust written in Rust and compiled to WebAssembly",
   "scripts": {
     "build": "wasm-pack build -t nodejs --out-name index && ncc build pkg/index.js -o dist",
     "format": "cargo fmt",
@@ -12,19 +12,20 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/peter-evans/rust-wasm-action.git"
+    "url": "git@github.com:FrancisRussell/github-rust-actions.git"
   },
   "keywords": [
     "actions",
     "rust",
+    "github",
     "wasm"
   ],
-  "author": "Peter Evans",
+  "author": "Francis Russell",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/peter-evans/rust-wasm-action/issues"
+    "url": "https://github.com/FrancisRussell/github-rust-actions/issues"
   },
-  "homepage": "https://github.com/peter-evans/rust-wasm-action#readme",
+  "homepage": "https://github.com/FrancisRussell/github-rust-actions/",
   "dependencies": {
     "@actions/core": "^1.10.0",
     "@actions/io": "^1.1.2",
