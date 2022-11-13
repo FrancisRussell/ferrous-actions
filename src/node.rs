@@ -16,12 +16,9 @@ pub mod os {
 
 pub mod fs {
     use js_sys::JsString;
-    use std::path::Path;
     use wasm_bindgen::JsValue;
 
-    pub async fn chmod<P: AsRef<Path>>(path: P, mode: u16) -> Result<(), JsValue> {
-        let path = path.as_ref();
-        let path: String = path.to_string_lossy().into();
+    pub async fn chmod<P: Into<JsString>>(path: P, mode: u16) -> Result<(), JsValue> {
         let path: JsString = path.into();
         ffi::chmod(&path, mode).await.map(|_| ())
     }

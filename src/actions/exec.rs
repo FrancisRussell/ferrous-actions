@@ -1,13 +1,12 @@
 use js_sys::JsString;
-use std::path::Path;
 use wasm_bindgen::JsValue;
 
-pub async fn exec<S: AsRef<str>, A: IntoIterator<Item = S>>(
-    command_line: &Path,
+pub async fn exec<C: Into<JsString>, S: Into<JsString>, A: IntoIterator<Item = S>>(
+    command_line: C,
     args: A,
 ) -> Result<i32, JsValue> {
-    let command_line: JsString = command_line.to_string_lossy().to_string().into();
-    let args: Vec<JsString> = args.into_iter().map(|a| a.as_ref().into()).collect();
+    let command_line: JsString = command_line.into();
+    let args: Vec<JsString> = args.into_iter().map(|a| a.into()).collect();
     ffi::exec(&command_line, Some(args), None)
         .await
         .map(|r| r.as_f64().expect("exec didn't return a number") as i32)

@@ -1,12 +1,10 @@
 use js_sys::JsString;
-use std::path::PathBuf;
 use wasm_bindgen::JsValue;
 
-pub async fn which<T: Into<JsString>>(tool: T, check: bool) -> Result<PathBuf, JsValue> {
+pub async fn which<T: Into<JsString>>(tool: T, check: bool) -> Result<String, JsValue> {
     let path = ffi::which(&tool.into(), Some(check)).await?;
     let path: JsString = path.into();
-    let path: String = path.into();
-    Ok(PathBuf::from(path))
+    Ok(path.into())
 }
 
 pub mod ffi {

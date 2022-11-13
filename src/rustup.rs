@@ -1,11 +1,10 @@
 use crate::actions::{core, exec, io, tool_cache};
 use crate::node;
-use std::path::PathBuf;
 use wasm_bindgen::JsValue;
 
 #[derive(Debug)]
 pub struct Rustup {
-    path: PathBuf,
+    path: String,
 }
 
 impl Rustup {
@@ -35,8 +34,8 @@ impl Rustup {
                 )
                 .await?;
                 core::info(format!("Downloaded to: {:?}", rustup_script));
-                node::fs::chmod(&rustup_script, 0x755).await?;
-                exec::exec(&rustup_script, args).await?;
+                node::fs::chmod(rustup_script.as_str(), 0x755).await?;
+                exec::exec(rustup_script.as_str(), args).await?;
                 todo!("Add rust to path");
             }
             _ => panic!("Unsupported platform: {}", platform),
