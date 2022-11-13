@@ -3,10 +3,11 @@ mod greeter;
 pub mod node;
 pub mod rustup;
 pub mod utils;
+pub mod error;
 
+use crate::error::Error;
 use crate::actions::core;
 use crate::rustup::Rustup;
-use std::error::Error;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen(start)]
@@ -25,7 +26,7 @@ pub async fn main() -> Result<(), JsValue> {
     Ok(())
 }
 
-async fn run() -> Result<(), Box<dyn Error>> {
+async fn run() -> Result<(), Error> {
     // Get the action input.
     let actor = core::get_input("actor", None)
         .as_string()
