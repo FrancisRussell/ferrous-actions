@@ -1,3 +1,4 @@
+use crate::node::path::Path;
 use js_sys::JsString;
 
 pub fn info<S: Into<JsString>>(message: S) {
@@ -16,7 +17,7 @@ pub fn set_failed<M: Into<JsString>>(message: M) {
     ffi::set_failed(&message.into())
 }
 
-pub fn add_path<P: Into<JsString>>(path: P) {
+pub fn add_path(path: &Path) {
     ffi::add_path(&path.into())
 }
 

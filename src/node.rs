@@ -1,10 +1,12 @@
 pub mod os {
+    use super::path;
+
     pub fn platform() -> String {
         ffi::platform().into()
     }
 
-    pub fn homedir() -> String {
-        ffi::homedir().into()
+    pub fn homedir() -> path::Path {
+        path::Path::from(ffi::homedir())
     }
 
     pub mod ffi {
@@ -41,25 +43,60 @@ pub mod fs {
     }
 }
 
-/*
-pub mod process {
-    use std::collections::HashMap;
-    use std::ops::Deref;
+pub mod path {
+    use js_sys::JsString;
 
-    pub fn env() -> HashMap<String, String> {
-        let env: HashMap<String, String> = serde_wasm_bindgen::from_value(*ffi::env.deref())
-            .expect("Failed to deserialize environment variables");
-        env
+    pub struct Path {
+        inner: JsString,
+    }
+
+    impl Path {
+        pub fn to_string(&self) -> String {
+            String::from(&self.inner)
+        }
+
+        pub fn push<S: Into<JsString>>(&mut self, segment: S) {
+            let joined = ffi::join(vec![self.inner.to_string(), segment.into()]);
+            self.inner = joined;
+        }
+    }
+
+    impl std::fmt::Debug for Path {
+        fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+            write!(formatter, "{}", self.to_string())
+        }
+    }
+
+    impl Clone for Path {
+        fn clone(&self) -> Path {
+            Path {
+                inner: self.inner.to_string(),
+            }
+        }
+    }
+
+    impl From<JsString> for Path {
+        fn from(path: JsString) -> Path {
+            let path = ffi::normalize(&path);
+            Path { inner: path }
+        }
+    }
+
+    impl From<&Path> for JsString {
+        fn from(path: &Path) -> JsString {
+            path.inner.to_string()
+        }
     }
 
     pub mod ffi {
         use js_sys::JsString;
         use wasm_bindgen::prelude::*;
 
-        #[wasm_bindgen(module = "process")]
+        #[wasm_bindgen(module = "path")]
         extern "C" {
-            pub static env: JsValue;
+            pub fn normalize(path: &JsString) -> JsString;
+            #[wasm_bindgen(variadic)]
+            pub fn join(paths: Vec<JsString>) -> JsString;
         }
     }
 }
-*/

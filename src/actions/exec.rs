@@ -1,8 +1,9 @@
+use crate::node::path::Path;
 use js_sys::JsString;
 use wasm_bindgen::JsValue;
 
-pub async fn exec<C: Into<JsString>, S: Into<JsString>, A: IntoIterator<Item = S>>(
-    command_line: C,
+pub async fn exec<S: Into<JsString>, A: IntoIterator<Item = S>>(
+    command_line: &Path,
     args: A,
 ) -> Result<i32, JsValue> {
     let command_line: JsString = command_line.into();

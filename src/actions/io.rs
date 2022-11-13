@@ -1,10 +1,11 @@
+use crate::node::path::Path;
 use js_sys::JsString;
 use wasm_bindgen::JsValue;
 
-pub async fn which<T: Into<JsString>>(tool: T, check: bool) -> Result<String, JsValue> {
+pub async fn which<T: Into<JsString>>(tool: T, check: bool) -> Result<Path, JsValue> {
     let path = ffi::which(&tool.into(), Some(check)).await?;
     let path: JsString = path.into();
-    Ok(path.into())
+    Ok(Path::from(path))
 }
 
 pub mod ffi {

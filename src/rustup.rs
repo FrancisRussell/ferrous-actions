@@ -1,10 +1,11 @@
 use crate::actions::{core, exec, io, tool_cache};
 use crate::node;
+use crate::node::path::Path;
 use crate::Error;
 
 #[derive(Debug)]
 pub struct Rustup {
-    path: String,
+    path: Path,
 }
 
 impl Rustup {
@@ -29,6 +30,7 @@ impl Rustup {
     pub async fn install() -> Result<Rustup, Error> {
         let args = ["--default-toolchain", "none", "-y"];
         let platform = String::from(node::os::platform());
+        core::info(format!("Getting rustup for platform: {:?}", platform));
         match platform.as_str() {
             "darwin" | "linux" => {
                 let rustup_script = tool_cache::download_tool(
@@ -38,18 +40,18 @@ impl Rustup {
                 .await
                 .map_err(Error::Js)?;
                 core::info(format!("Downloaded to: {:?}", rustup_script));
-                node::fs::chmod(rustup_script.as_str(), 0x755)
+                node::fs::chmod(&rustup_script, 0x755)
                     .await
                     .map_err(Error::Js)?;
-                exec::exec(rustup_script.as_str(), args)
-                    .await
-                    .map_err(Error::Js)?;
-                let home_dir = node::os::homedir();
-                core::info(format!("Home dir is {:?}", home_dir));
-                todo!("Add rust to path");
+                exec::exec(&rustup_script, args).await.map_err(Error::Js)?;
+                let mut cargo_path = node::os::homedir();
+                cargo_path.push(".cargo");
+                cargo_path.push("bin");
+                core::info(format!("Adding to path {:?}", cargo_path));
+                core::add_path(&cargo_path);
             }
             _ => panic!("Unsupported platform: {}", platform),
         }
-        core::info(format!("Platform: {:?}", platform));
+        Self::get().await
     }
 }

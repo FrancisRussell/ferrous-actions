@@ -1,3 +1,4 @@
+use crate::node::path::Path;
 use js_sys::JsString;
 use std::convert::Into;
 use wasm_bindgen::prelude::*;
@@ -11,12 +12,12 @@ pub struct DownloadParams {
 pub async fn download_tool<U: Into<JsString>>(
     url: U,
     params: &DownloadParams,
-) -> Result<String, JsValue> {
+) -> Result<Path, JsValue> {
     let url = url.into();
     ffi::download_tool(&url, params.dest.as_ref(), params.auth.as_ref(), None)
         .await
         .map(Into::<JsString>::into)
-        .map(Into::<String>::into)
+        .map(Path::from)
 }
 
 pub mod ffi {
