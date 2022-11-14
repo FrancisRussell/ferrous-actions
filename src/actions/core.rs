@@ -9,8 +9,8 @@ pub fn set_output<N: Into<JsString>, V: Into<JsString>>(name: N, value: V) {
     ffi::set_output(&name.into(), &value.into())
 }
 
-pub fn get_input<N: Into<JsString>>(name: N, options: Option<ffi::InputOptions>) -> JsString {
-    ffi::get_input(&name.into(), options)
+pub fn get_input<N: Into<JsString>>(name: N, options: Option<ffi::InputOptions>) -> String {
+    ffi::get_input(&name.into(), options).into()
 }
 
 pub fn set_failed<M: Into<JsString>>(message: M) {

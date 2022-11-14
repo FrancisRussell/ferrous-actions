@@ -54,4 +54,11 @@ impl Rustup {
         }
         Self::get().await
     }
+
+    pub async fn update(&self) -> Result<(), Error> {
+        exec::exec(&self.path, ["update"])
+            .await
+            .map_err(Error::Js)?;
+        Ok(())
+    }
 }

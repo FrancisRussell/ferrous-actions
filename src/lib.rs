@@ -1,14 +1,14 @@
-pub mod actions;
-pub mod error;
-mod greeter;
-pub mod node;
-pub mod rustup;
-pub mod utils;
+mod actions;
+mod error;
+mod node;
+mod run;
+mod rustup;
+mod utils;
 
 use crate::actions::core;
 use crate::error::Error;
 use crate::rustup::Rustup;
-use wasm_bindgen::prelude::*;
+use wasm_bindgen::prelude::{wasm_bindgen, JsValue};
 
 #[wasm_bindgen(start)]
 pub async fn main() -> Result<(), JsValue> {
@@ -17,33 +17,9 @@ pub async fn main() -> Result<(), JsValue> {
     // the runner and returns exit code 1.
     utils::set_panic_hook();
 
-    // Unhandled errors raised by the action call set_failed to output
-    // an error command for the runner and return exit code 1.
-    if let Err(e) = run().await {
+    if let Err(e) = run::run().await {
         let msg = format!("{}", e);
         core::set_failed(msg);
     }
-    Ok(())
-}
-
-async fn run() -> Result<(), Error> {
-    // Get the action input.
-    let actor = core::get_input("actor", None)
-        .as_string()
-        .unwrap_or_default();
-
-    // Greet the workflow actor.
-    let greeting = greeter::greet(&actor);
-    core::info(greeting);
-    core::info(format!(
-        "Hello there: {:?}",
-        core::get_input("toolchain", None)
-    ));
-    println!("What happens to a regular print???");
-    core::info(format!("{:?}", Rustup::install().await));
-
-    // Set the action output.
-    core::set_output("result", "success");
-
     Ok(())
 }

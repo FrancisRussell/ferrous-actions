@@ -30,9 +30,7 @@ jobs:
       - id: hw
         uses: ./
         with:
-          toolchain: nightly
-          profile: minimal
-          override: true
+          command: install-rustup
 
       - if: steps.hw.outputs.result != 'success'
         run: exit 1
