@@ -8,7 +8,7 @@
     "format": "cargo fmt",
     "format-check": "cargo fmt -- --check",
     "lint": "cargo clippy",
-    "test": "cargo test"
+    "test": "wasm-pack test --node"
   },
   "repository": {
     "type": "git",

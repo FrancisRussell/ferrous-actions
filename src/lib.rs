@@ -11,7 +11,7 @@ use crate::rustup::Rustup;
 use wasm_bindgen::prelude::{wasm_bindgen, JsValue};
 
 #[wasm_bindgen(start)]
-pub async fn main() -> Result<(), JsValue> {
+pub async fn start() -> Result<(), JsValue> {
     // Perhaps we need a hook that calls core::set_failed() on panic.
     // This would make sure the action outputs an error command for
     // the runner and returns exit code 1.
