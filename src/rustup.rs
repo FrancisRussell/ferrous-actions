@@ -4,6 +4,25 @@ use crate::node;
 use crate::node::path::Path;
 use crate::Error;
 
+#[derive(Clone, Debug)]
+pub struct ToolchainConfig {
+    pub name: String,
+    pub profile: String,
+    pub components: Vec<String>,
+    pub targets: Vec<String>,
+}
+
+impl Default for ToolchainConfig {
+    fn default() -> ToolchainConfig {
+        ToolchainConfig {
+            name: "stable".into(),
+            profile: "default".into(),
+            components: Vec::new(),
+            targets: Vec::new(),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Rustup {
     path: Path,
@@ -60,6 +79,23 @@ impl Rustup {
         exec::exec(&self.path, ["update"])
             .await
             .map_err(Error::Js)?;
+        Ok(())
+    }
+
+    pub async fn install_toolchain(&self, config: &ToolchainConfig) -> Result<(), Error> {
+        let mut args: Vec<_> = ["toolchain", "install"]
+            .into_iter()
+            .map(String::from)
+            .collect();
+        args.extend(["--profile".into(), config.profile.clone()]);
+        for component in &config.components {
+            args.extend(["-c".into(), component.clone()]);
+        }
+        for target in &config.targets {
+            args.extend(["-t".into(), target.clone()]);
+        }
+        args.push(config.name.clone());
+        exec::exec(&self.path, args).await.map_err(Error::Js)?;
         Ok(())
     }
 

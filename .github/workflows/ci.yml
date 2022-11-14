@@ -31,6 +31,9 @@ jobs:
         uses: ./
         with:
           command: install-rustup
+          toolchain: nightly
+          profile: minimal
+          targets: wasm32-unknown-unknown
 
       - if: steps.hw.outputs.result != 'success'
         run: exit 1
