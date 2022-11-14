@@ -1,6 +1,13 @@
 use crate::node::path::Path;
 use js_sys::JsString;
 
+#[macro_export]
+macro_rules! info {
+    ($($arg:tt)*) => {{
+        $crate::actions::core::info(std::format!($($arg)*).as_str());
+    }};
+}
+
 pub fn info<S: Into<JsString>>(message: S) {
     ffi::info(&message.into());
 }
