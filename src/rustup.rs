@@ -89,11 +89,13 @@ impl Rustup {
             .collect();
         args.push(config.name.clone());
         args.extend(["--profile".into(), config.profile.clone()]);
-        for component in &config.components {
-            args.extend(["-c".into(), component.clone()]);
-        }
         for target in &config.targets {
             args.extend(["-t".into(), target.clone()]);
+        }
+        // It seems that components can take multiple arguments so the toolchain name
+        // must be present before this
+        for component in &config.components {
+            args.extend(["-c".into(), component.clone()]);
         }
         exec::exec(&self.path, args).await.map_err(Error::Js)?;
         Ok(())
