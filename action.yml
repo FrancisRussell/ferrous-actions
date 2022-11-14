@@ -4,6 +4,21 @@ inputs:
   actor:
     description: 'The user that triggered the workflow'
     default: ${{ github.actor }}
+  command:
+    description: 'The command to run'
+    required: true
+  toolchain:
+    description: 'The toolchain to install e.g. nightly'
+    required: false
+  components:
+    description: 'The components to install e.g. rustc'
+    required: false
+  profile:
+    description: 'A profile that selects components (minimal, default, complete)'
+    required: false
+  targets:
+    description: 'Targets to install e.g. x86_64-unknown-linux-gnu'
+    required: false
 outputs:
   result:
     description: 'The result of the action execution'
