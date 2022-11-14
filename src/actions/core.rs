@@ -16,8 +16,13 @@ pub fn set_output<N: Into<JsString>, V: Into<JsString>>(name: N, value: V) {
     ffi::set_output(&name.into(), &value.into())
 }
 
-pub fn get_input<N: Into<JsString>>(name: N, options: Option<ffi::InputOptions>) -> String {
-    ffi::get_input(&name.into(), options).into()
+pub fn get_input<N: Into<JsString>>(name: N, options: Option<ffi::InputOptions>) -> Option<String> {
+    let value: String = ffi::get_input(&name.into(), options).into();
+    if value.is_empty() {
+        None
+    } else {
+        Some(value)
+    }
 }
 
 pub fn set_failed<M: Into<JsString>>(message: M) {
