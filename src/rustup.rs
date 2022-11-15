@@ -70,6 +70,16 @@ impl Rustup {
                 info!("Adding to path {:?}", cargo_path);
                 core::add_path(&cargo_path);
             }
+            "windows" => {
+                let rustup_exe = tool_cache::download_tool(
+                    "https://win.rustup.rs",
+                    &tool_cache::DownloadParams::default(),
+                )
+                .await
+                .map_err(Error::Js)?;
+                info!("Downloaded to: {:?}", rustup_exe);
+                exec::exec(&rustup_exe, args).await.map_err(Error::Js)?;
+            }
             _ => panic!("Unsupported platform: {}", platform),
         }
         Self::get().await
