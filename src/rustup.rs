@@ -1,4 +1,5 @@
-use crate::actions::{core, exec, io, tool_cache};
+use crate::actions::exec::Command;
+use crate::actions::{core, io, tool_cache};
 use crate::info;
 use crate::node;
 use crate::node::path::Path;
@@ -60,7 +61,11 @@ impl Rustup {
                 node::fs::chmod(&rustup_script, 0x755)
                     .await
                     .map_err(Error::Js)?;
-                exec::exec(&rustup_script, args).await.map_err(Error::Js)?;
+                Command::from(&rustup_script)
+                    .args(args)
+                    .exec()
+                    .await
+                    .map_err(Error::Js)?;
                 let mut cargo_path = node::os::homedir();
                 cargo_path.push(".cargo");
                 cargo_path.push("bin");
@@ -72,7 +77,11 @@ impl Rustup {
                     .await
                     .map_err(Error::Js)?;
                 info!("Downloaded to: {:?}", rustup_exe);
-                exec::exec(&rustup_exe, args).await.map_err(Error::Js)?;
+                Command::from(&rustup_exe)
+                    .args(args)
+                    .exec()
+                    .await
+                    .map_err(Error::Js)?;
             }
             _ => panic!("Unsupported platform: {}", platform),
         }
@@ -80,7 +89,9 @@ impl Rustup {
     }
 
     pub async fn update(&self) -> Result<(), Error> {
-        exec::exec(&self.path, ["update"])
+        Command::from(&self.path)
+            .arg("update")
+            .exec()
             .await
             .map_err(Error::Js)?;
         Ok(())
@@ -101,7 +112,11 @@ impl Rustup {
         for component in &config.components {
             args.extend(["-c".into(), component.clone()]);
         }
-        exec::exec(&self.path, args).await.map_err(Error::Js)?;
+        Command::from(&self.path)
+            .args(args)
+            .exec()
+            .await
+            .map_err(Error::Js)?;
         Ok(())
     }
 
