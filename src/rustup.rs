@@ -53,12 +53,9 @@ impl Rustup {
         info!("Getting rustup for platform: {:?}", platform);
         match platform.as_str() {
             "darwin" | "linux" => {
-                let rustup_script = tool_cache::download_tool(
-                    "https://sh.rustup.rs",
-                    &tool_cache::DownloadParams::default(),
-                )
-                .await
-                .map_err(Error::Js)?;
+                let rustup_script = tool_cache::download_tool("https://sh.rustup.rs")
+                    .await
+                    .map_err(Error::Js)?;
                 info!("Downloaded to: {:?}", rustup_script);
                 node::fs::chmod(&rustup_script, 0x755)
                     .await
@@ -71,12 +68,9 @@ impl Rustup {
                 core::add_path(&cargo_path);
             }
             "windows" => {
-                let rustup_exe = tool_cache::download_tool(
-                    "https://win.rustup.rs",
-                    &tool_cache::DownloadParams::default(),
-                )
-                .await
-                .map_err(Error::Js)?;
+                let rustup_exe = tool_cache::download_tool("https://win.rustup.rs")
+                    .await
+                    .map_err(Error::Js)?;
                 info!("Downloaded to: {:?}", rustup_exe);
                 exec::exec(&rustup_exe, args).await.map_err(Error::Js)?;
             }
