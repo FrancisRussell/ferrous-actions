@@ -5,7 +5,7 @@ use crate::{rustup::ToolchainConfig, Rustup};
 
 pub async fn run() -> Result<(), Error> {
     // Get the action input.
-    let actor = core::get_input("actor", None).unwrap_or(String::from("world"));
+    let actor = core::get_input("actor", None).unwrap_or_else(|| String::from("world"));
 
     // Greet the workflow actor.
     info!("Hello, {}!", actor);

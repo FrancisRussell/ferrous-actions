@@ -33,6 +33,7 @@ pub fn add_path(path: &Path) {
     ffi::add_path(&path.into())
 }
 
+#[allow(clippy::drop_non_drop)]
 pub mod ffi {
     use js_sys::JsString;
     use wasm_bindgen::prelude::*;

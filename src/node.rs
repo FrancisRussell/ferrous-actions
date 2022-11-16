@@ -50,11 +50,14 @@ pub mod path {
         inner: JsString,
     }
 
-    impl Path {
-        pub fn to_string(&self) -> String {
-            String::from(&self.inner)
+    impl std::fmt::Display for Path {
+        fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+            let string = String::from(&self.inner);
+            formatter.write_str(string.as_str())
         }
+    }
 
+    impl Path {
         pub fn push<S: Into<JsString>>(&mut self, segment: S) {
             let joined = ffi::join(vec![self.inner.to_string(), segment.into()]);
             self.inner = joined;

@@ -1,4 +1,3 @@
-use crate::info;
 use crate::node::path::Path;
 use js_sys::JsString;
 use js_sys::Object;

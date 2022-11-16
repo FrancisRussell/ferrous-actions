@@ -1,6 +1,6 @@
-mod actions;
+pub mod actions;
 mod error;
-mod node;
+pub mod node;
 mod run;
 mod rustup;
 mod utils;

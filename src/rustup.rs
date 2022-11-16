@@ -50,7 +50,7 @@ impl Rustup {
 
     pub async fn install() -> Result<Rustup, Error> {
         let args = ["--default-toolchain", "none", "-y"];
-        let platform = String::from(node::os::platform());
+        let platform = node::os::platform();
         info!("Getting rustup for platform: {:?}", platform);
         match platform.as_str() {
             "darwin" | "linux" => {
