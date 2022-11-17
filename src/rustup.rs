@@ -5,6 +5,8 @@ use crate::node;
 use crate::node::path::Path;
 use crate::Error;
 
+const NO_DEFAULT_TOOLCHAIN_NAME: &str = "none";
+
 #[derive(Clone, Debug)]
 pub struct ToolchainConfig {
     pub name: String,
@@ -98,6 +100,9 @@ impl Rustup {
     }
 
     pub async fn install_toolchain(&self, config: &ToolchainConfig) -> Result<(), Error> {
+        if config.name == NO_DEFAULT_TOOLCHAIN_NAME {
+            return Ok(())
+        }
         let mut args: Vec<_> = ["toolchain", "install"]
             .into_iter()
             .map(String::from)
