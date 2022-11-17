@@ -5,4 +5,7 @@ use wasm_bindgen::JsValue;
 pub enum Error {
     #[error("{0:?}")]
     Js(JsValue),
+
+    #[error("Unable to parse option `{0}`, which was supplied as `{1}`")]
+    OptionParseError(String, String),
 }

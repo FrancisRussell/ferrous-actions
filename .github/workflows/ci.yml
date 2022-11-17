@@ -33,6 +33,7 @@ jobs:
           toolchain: nightly
           profile: minimal
           targets: wasm32-unknown-unknown
+          default: true
 
       - if: steps.hw.outputs.result != 'success'
         run: exit 1

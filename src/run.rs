@@ -39,6 +39,12 @@ async fn install_rustup() -> Result<(), Error> {
     if let Some(targets) = core::get_input("targets") {
         toolchain_config.targets = targets.split_whitespace().map(String::from).collect();
     }
+    if let Some(set_default) = core::get_input("default") {
+        let set_default = set_default
+            .parse::<bool>()
+            .map_err(|_| Error::OptionParseError("default".into(), set_default.clone()))?;
+        toolchain_config.default = set_default;
+    }
     rustup.install_toolchain(&toolchain_config).await?;
     Ok(())
 }

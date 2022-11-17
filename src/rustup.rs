@@ -13,6 +13,7 @@ pub struct ToolchainConfig {
     pub profile: String,
     pub components: Vec<String>,
     pub targets: Vec<String>,
+    pub default: bool,
 }
 
 impl Default for ToolchainConfig {
@@ -22,6 +23,7 @@ impl Default for ToolchainConfig {
             profile: "default".into(),
             components: Vec::new(),
             targets: Vec::new(),
+            default: false,
         }
     }
 }
@@ -101,7 +103,7 @@ impl Rustup {
 
     pub async fn install_toolchain(&self, config: &ToolchainConfig) -> Result<(), Error> {
         if config.name == NO_DEFAULT_TOOLCHAIN_NAME {
-            return Ok(())
+            return Ok(());
         }
         let mut args: Vec<_> = ["toolchain", "install"]
             .into_iter()
@@ -122,6 +124,14 @@ impl Rustup {
             .exec()
             .await
             .map_err(Error::Js)?;
+        if config.default {
+            Command::from(&self.path)
+                .arg("default")
+                .arg(config.name.clone())
+                .exec()
+                .await
+                .map_err(Error::Js)?;
+        }
         Ok(())
     }
 
