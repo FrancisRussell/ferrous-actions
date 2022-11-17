@@ -1,4 +1,5 @@
 use crate::node::path::Path;
+use crate::node::process;
 use js_sys::JsString;
 use std::convert::Into;
 use wasm_bindgen::prelude::*;
@@ -6,7 +7,7 @@ use wasm_bindgen::prelude::*;
 #[derive(Debug)]
 pub struct DownloadTool {
     url: JsString,
-    dest: Option<JsString>,
+    dest: Option<Path>,
     auth: Option<JsString>,
 }
 
@@ -21,7 +22,7 @@ impl<U: Into<JsString>> From<U> for DownloadTool {
 }
 
 impl DownloadTool {
-    pub fn dest<D: Into<JsString>>(&mut self, dest: D) -> &mut Self {
+    pub fn dest<D: Into<Path>>(&mut self, dest: D) -> &mut Self {
         self.dest = Some(dest.into());
         self
     }
@@ -32,7 +33,12 @@ impl DownloadTool {
     }
 
     pub async fn download(&mut self) -> Result<Path, JsValue> {
-        ffi::download_tool(&self.url, self.dest.as_ref(), self.auth.as_ref(), None)
+        let dest = self.dest.as_ref().map(|dest| {
+            let mut resolved = process::cwd();
+            resolved.push(dest.clone());
+            JsString::from(&resolved)
+        });
+        ffi::download_tool(&self.url, dest.as_ref(), self.auth.as_ref(), None)
             .await
             .map(Into::<JsString>::into)
             .map(Into::<Path>::into)

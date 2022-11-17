@@ -58,8 +58,9 @@ pub mod path {
     }
 
     impl Path {
-        pub fn push<S: Into<JsString>>(&mut self, segment: S) {
-            let joined = ffi::join(vec![self.inner.to_string(), segment.into()]);
+        pub fn push<P: Into<Path>>(&mut self, path: P) {
+            let path = path.into();
+            let joined = ffi::resolve(vec![self.inner.to_string(), path.inner.to_string()]);
             self.inner = joined;
         }
     }
@@ -85,6 +86,14 @@ pub mod path {
         }
     }
 
+    impl From<&str> for Path {
+        fn from(path: &str) -> Path {
+            let path: JsString = path.into();
+            let path = ffi::normalize(&path);
+            Path { inner: path }
+        }
+    }
+
     impl From<&Path> for JsString {
         fn from(path: &Path) -> JsString {
             path.inner.to_string()
@@ -100,6 +109,26 @@ pub mod path {
             pub fn normalize(path: &JsString) -> JsString;
             #[wasm_bindgen(variadic)]
             pub fn join(paths: Vec<JsString>) -> JsString;
+            #[wasm_bindgen(variadic)]
+            pub fn resolve(paths: Vec<JsString>) -> JsString;
+        }
+    }
+}
+
+pub mod process {
+    use super::path;
+
+    pub fn cwd() -> path::Path {
+        path::Path::from(ffi::cwd())
+    }
+
+    pub mod ffi {
+        use js_sys::JsString;
+        use wasm_bindgen::prelude::*;
+
+        #[wasm_bindgen(module = "process")]
+        extern "C" {
+            pub fn cwd() -> JsString;
         }
     }
 }
