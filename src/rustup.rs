@@ -135,6 +135,17 @@ impl Rustup {
         Ok(())
     }
 
+    pub async fn install_component(&self, name: &str) -> Result<(), Error> {
+        Command::from(&self.path)
+            .arg("component")
+            .arg("add")
+            .arg(name)
+            .exec()
+            .await
+            .map_err(Error::Js)?;
+        Ok(())
+    }
+
     pub fn get_path(&self) -> &Path {
         &self.path
     }
