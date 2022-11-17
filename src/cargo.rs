@@ -18,7 +18,18 @@ impl Cargo {
     }
 
     fn process_json_record(line: &str) {
-        info!("Got a JSON line: {}", line);
+        use cargo_metadata::Message;
+
+        let metadata: Message = match serde_json::from_str(line) {
+            Ok(metadata) => metadata,
+            Err(e) => {
+                info!("Unable to cargo output line as JSON metadata record: {}", e);
+                return;
+            }
+        };
+        if let Message::CompilerMessage(compiler_message) = metadata {
+            info!("Compiler message: {:?}", compiler_message);
+        }
     }
 
     pub async fn run<'a, I>(&'a mut self, subcommand: &'a str, args: I) -> Result<(), Error>
