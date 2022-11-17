@@ -16,13 +16,61 @@ pub fn set_output<N: Into<JsString>, V: Into<JsString>>(name: N, value: V) {
     ffi::set_output(&name.into(), &value.into())
 }
 
-pub fn get_input<N: Into<JsString>>(name: N, options: Option<ffi::InputOptions>) -> Option<String> {
-    let value: String = ffi::get_input(&name.into(), options).into();
-    if value.is_empty() {
-        None
-    } else {
-        Some(value)
+#[derive(Debug)]
+pub struct Input {
+    name: JsString,
+    required: bool,
+    trim_whitespace: bool,
+}
+
+impl<N: Into<JsString>> From<N> for Input {
+    fn from(name: N) -> Input {
+        Input {
+            name: name.into(),
+            required: false,
+            trim_whitespace: true,
+        }
     }
+}
+
+impl Input {
+    pub fn required(&mut self, value: bool) -> &mut Input {
+        self.required = value;
+        self
+    }
+
+    pub fn trim_whitespace(&mut self, value: bool) -> &mut Input {
+        self.trim_whitespace = value;
+        self
+    }
+
+    fn to_ffi(&self) -> ffi::InputOptions {
+        ffi::InputOptions {
+            required: Some(self.required),
+            trim_whitespace: Some(self.trim_whitespace),
+        }
+    }
+
+    pub fn get(&mut self) -> Option<String> {
+        let ffi = self.to_ffi();
+        let value = String::from(ffi::get_input(&self.name, Some(ffi)));
+        if value.is_empty() {
+            None
+        } else {
+            Some(value)
+        }
+    }
+
+    pub fn get_required(&mut self) -> String {
+        let mut ffi = self.to_ffi();
+        ffi.required = Some(true);
+        String::from(ffi::get_input(&self.name, Some(ffi)))
+    }
+}
+
+pub fn get_input<I: Into<Input>>(input: I) -> Option<String> {
+    let mut input = input.into();
+    input.get()
 }
 
 pub fn set_failed<M: Into<JsString>>(message: M) {
