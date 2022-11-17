@@ -26,7 +26,7 @@ jobs:
       - run: npm run test
 
       # Test the action
-      - id: hw
+      - id: install-rustup
         uses: ./
         with:
           command: install-rustup
@@ -34,6 +34,9 @@ jobs:
           profile: minimal
           targets: wasm32-unknown-unknown
           default: true
-
+      - id: cargo-build
+        uses: ./
+        with:
+          command: cargo build
       - if: steps.hw.outputs.result != 'success'
         run: exit 1

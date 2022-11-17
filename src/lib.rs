@@ -1,4 +1,5 @@
 pub mod actions;
+mod cargo;
 mod error;
 pub mod node;
 mod noop_stream;
@@ -7,6 +8,7 @@ mod rustup;
 mod utils;
 
 use crate::actions::core;
+use crate::cargo::Cargo;
 use crate::error::Error;
 use crate::rustup::Rustup;
 use wasm_bindgen::prelude::{wasm_bindgen, JsValue};

@@ -1,7 +1,7 @@
 use crate::actions::core::{self, Input};
 use crate::info;
 use crate::Error;
-use crate::{rustup::ToolchainConfig, Rustup};
+use crate::{rustup::ToolchainConfig, Cargo, Rustup};
 
 pub async fn run() -> Result<(), Error> {
     // Get the action input.
@@ -10,9 +10,14 @@ pub async fn run() -> Result<(), Error> {
     // Greet the workflow actor.
     info!("Hello, {}!", actor);
 
-    let command = Input::from("command").get_required();
-    match command.as_str() {
-        "install-rustup" => install_rustup().await?,
+    let command: String = Input::from("command").get_required();
+    let split: Vec<&str> = command.split_whitespace().collect();
+    match split[..] {
+        ["install-rustup"] => install_rustup().await?,
+        ["cargo", cargo_subcommand] => {
+            let mut cargo = Cargo::from_environment().await?;
+            cargo.run(cargo_subcommand, Vec::new()).await?;
+        }
         _ => panic!("Unknown command: {}", command),
     }
 
