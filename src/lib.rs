@@ -1,6 +1,7 @@
 pub mod actions;
 mod error;
 pub mod node;
+mod noop_stream;
 mod run;
 mod rustup;
 mod utils;

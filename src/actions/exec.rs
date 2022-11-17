@@ -1,14 +1,42 @@
 use crate::node::path::Path;
+use crate::noop_stream;
 use js_sys::JsString;
 use js_sys::Object;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::JsValue;
+
+#[derive(Debug, Clone, Copy)]
+enum StdioEnum {
+    Inherit,
+    Null,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Stdio {
+    inner: StdioEnum,
+}
+
+impl Stdio {
+    pub fn null() -> Stdio {
+        Stdio {
+            inner: StdioEnum::Null,
+        }
+    }
+
+    pub fn inherit() -> Stdio {
+        Stdio {
+            inner: StdioEnum::Inherit,
+        }
+    }
+}
 
 pub struct Command {
     command: Path,
     args: Vec<JsString>,
     outline: Option<Closure<dyn Fn(JsString)>>,
     errline: Option<Closure<dyn Fn(JsString)>>,
+    stdout: Stdio,
+    stderr: Stdio,
 }
 
 impl Command {
@@ -39,6 +67,12 @@ impl Command {
         if let Some(callback) = &self.errline {
             listeners.set(&"errline".into(), callback.as_ref());
         }
+        if let StdioEnum::Null = self.stdout.inner {
+            options.set(&"outStream".into(), &noop_stream::ffi::writable());
+        }
+        if let StdioEnum::Null = self.stderr.inner {
+            options.set(&"errStream".into(), &noop_stream::ffi::writable());
+        }
         let listeners =
             Object::from_entries(&listeners).expect("Failed to convert listeners map to object");
         options.set(&"listeners".into(), &listeners);
@@ -62,6 +96,16 @@ impl Command {
             let line: String = line.into();
             callback(line.as_str());
         }));
+        self
+    }
+
+    pub fn stdout(&mut self, redirect: Stdio) -> &mut Command {
+        self.stdout = redirect;
+        self
+    }
+
+    pub fn stderr(&mut self, redirect: Stdio) -> &mut Command {
+        self.stderr = redirect;
         self
     }
 
@@ -95,6 +139,8 @@ impl<'a> From<&'a Path> for Command {
             args: Vec::new(),
             outline: None,
             errline: None,
+            stdout: Stdio::inherit(),
+            stderr: Stdio::inherit(),
         }
     }
 }
