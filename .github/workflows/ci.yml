@@ -33,6 +33,7 @@ jobs:
           toolchain: nightly
           profile: minimal
           targets: wasm32-unknown-unknown
+          components: clippy
           default: true
       - id: cargo-build
         uses: ./
