@@ -31,7 +31,7 @@ impl DownloadTool {
         self
     }
 
-    pub async fn download(self) -> Result<Path, JsValue> {
+    pub async fn download(&mut self) -> Result<Path, JsValue> {
         ffi::download_tool(&self.url, self.dest.as_ref(), self.auth.as_ref(), None)
             .await
             .map(Into::<JsString>::into)
