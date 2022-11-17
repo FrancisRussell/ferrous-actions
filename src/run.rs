@@ -27,7 +27,7 @@ pub async fn run() -> Result<(), Error> {
     }
 
     // Set the action output.
-    // core::set_output("result", "success");
+    core::set_output("result", "success");
 
     Ok(())
 }
