@@ -38,5 +38,6 @@ jobs:
         uses: ./
         with:
           command: cargo build
+          args: --target=wasm32-unknown-unknown
       - if: steps.hw.outputs.result != 'success'
         run: exit 1

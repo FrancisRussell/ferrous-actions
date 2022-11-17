@@ -16,7 +16,12 @@ pub async fn run() -> Result<(), Error> {
         ["install-rustup"] => install_rustup().await?,
         ["cargo", cargo_subcommand] => {
             let mut cargo = Cargo::from_environment().await?;
-            cargo.run(cargo_subcommand, Vec::new()).await?;
+            let cargo_args = Input::from("args").get().unwrap_or_default();
+            let cargo_args = shlex::split(&cargo_args)
+                .ok_or_else(|| Error::ArgumentsParseError(cargo_args.clone()))?;
+            cargo
+                .run(cargo_subcommand, cargo_args.iter().map(String::as_str))
+                .await?;
         }
         _ => panic!("Unknown command: {}", command),
     }

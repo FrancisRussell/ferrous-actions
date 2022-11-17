@@ -67,7 +67,7 @@ pub mod path {
 
     impl std::fmt::Debug for Path {
         fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-            write!(formatter, "{}", self.to_string())
+            write!(formatter, "{}", self)
         }
     }
 
