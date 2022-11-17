@@ -44,5 +44,5 @@ jobs:
         uses: ./
         with:
           command: cargo clippy
-      - if: steps.hw.outputs.result != 'success'
+      - if: steps.cargo-build.outputs.result != 'success'
         run: exit 1
