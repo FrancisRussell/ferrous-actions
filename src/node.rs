@@ -63,6 +63,10 @@ pub mod path {
             let joined = ffi::resolve(vec![self.inner.to_string(), path.inner.to_string()]);
             self.inner = joined;
         }
+
+        pub fn to_js_string(&self) -> JsString {
+            self.inner.to_string()
+        }
     }
 
     impl std::fmt::Debug for Path {

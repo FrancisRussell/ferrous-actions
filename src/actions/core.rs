@@ -1,5 +1,5 @@
 use crate::node::path::Path;
-use js_sys::JsString;
+use js_sys::{JsString, Number, Object};
 
 #[macro_export]
 macro_rules! info {
@@ -122,6 +122,31 @@ impl Annotation {
     pub fn end_column(&mut self, end_column: usize) -> &mut Annotation {
         self.end_column = Some(end_column);
         self
+    }
+
+    fn build_js_properties(&self) -> Object {
+        let properties = js_sys::Map::new();
+        if let Some(title) = &self.title {
+            properties.set(&"title".into(), JsString::from(title.as_str()).as_ref());
+        }
+        if let Some(file) = &self.file {
+            properties.set(&"file".into(), file.to_js_string().as_ref());
+        }
+        for (name, value) in [
+            ("start_line", &self.start_line),
+            ("end_line", &self.end_line),
+            ("start_column", &self.start_column),
+            ("end_column", &self.end_column),
+        ] {
+            if let Some(number) = value.and_then(|n| TryInto::<u32>::try_into(n).ok()) {
+                properties.set(&name.into(), Number::from(number).as_ref());
+            }
+        }
+        Object::from_entries(&properties).expect("Failed to convert options map to object")
+    }
+
+    fn build_js_message(&self) -> JsString {
+        JsString::from(self.message.as_str())
     }
 }
 
