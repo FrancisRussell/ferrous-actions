@@ -33,7 +33,7 @@
     "noop-stream": "^1.0.0"
   },
   "devDependencies": {
-    "@vercel/ncc": "^0.31.1",
+    "@vercel/ncc": "^0.34.0",
     "wasm-pack": "^0.10.1"
   }
 }
