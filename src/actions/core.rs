@@ -68,6 +68,63 @@ impl Input {
     }
 }
 
+#[derive(Debug)]
+pub struct Annotation {
+    message: String,
+    title: Option<String>,
+    file: Option<Path>,
+    start_line: Option<usize>,
+    end_line: Option<usize>,
+    start_column: Option<usize>,
+    end_column: Option<usize>,
+}
+
+impl<M: Into<String>> From<M> for Annotation {
+    fn from(message: M) -> Annotation {
+        Annotation {
+            message: message.into(),
+            title: None,
+            file: None,
+            start_line: None,
+            end_line: None,
+            start_column: None,
+            end_column: None,
+        }
+    }
+}
+
+impl Annotation {
+    pub fn title(&mut self, title: &str) -> &mut Annotation {
+        self.title = Some(title.to_string());
+        self
+    }
+
+    pub fn file(&mut self, path: &Path) -> &mut Annotation {
+        self.file = Some(path.clone());
+        self
+    }
+
+    pub fn start_line(&mut self, start_line: usize) -> &mut Annotation {
+        self.start_line = Some(start_line);
+        self
+    }
+
+    pub fn end_line(&mut self, end_line: usize) -> &mut Annotation {
+        self.end_line = Some(end_line);
+        self
+    }
+
+    pub fn start_column(&mut self, start_column: usize) -> &mut Annotation {
+        self.start_column = Some(start_column);
+        self
+    }
+
+    pub fn end_column(&mut self, end_column: usize) -> &mut Annotation {
+        self.end_column = Some(end_column);
+        self
+    }
+}
+
 pub fn get_input<I: Into<Input>>(input: I) -> Option<String> {
     let mut input = input.into();
     input.get()
