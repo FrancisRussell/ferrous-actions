@@ -8,8 +8,19 @@ macro_rules! info {
     }};
 }
 
+#[macro_export]
+macro_rules! debug {
+    ($($arg:tt)*) => {{
+        $crate::actions::core::debug(std::format!($($arg)*).as_str());
+    }};
+}
+
 pub fn info<S: Into<JsString>>(message: S) {
     ffi::info(&message.into());
+}
+
+pub fn debug<S: Into<JsString>>(message: S) {
+    ffi::debug(&message.into());
 }
 
 pub fn set_output<N: Into<JsString>, V: Into<JsString>>(name: N, value: V) {
@@ -182,11 +193,11 @@ pub mod ffi {
         #[wasm_bindgen(js_name = "getInput")]
         pub fn get_input(name: &JsString, options: Option<InputOptions>) -> JsString;
 
-        /// Writes info to log with console.log.
+        /// Writes info
         #[wasm_bindgen]
         pub fn info(message: &JsString);
 
-        /// Writes debug to log with console.log.
+        /// Writes debug
         #[wasm_bindgen]
         pub fn debug(message: &JsString);
 

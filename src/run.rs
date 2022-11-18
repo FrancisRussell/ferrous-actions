@@ -1,6 +1,6 @@
 use crate::actions::core::{self, Input};
-use crate::info;
 use crate::Error;
+use crate::{debug, info};
 use crate::{rustup::ToolchainConfig, Cargo, Rustup};
 
 pub async fn run() -> Result<(), Error> {
@@ -34,7 +34,7 @@ pub async fn run() -> Result<(), Error> {
 
 async fn install_rustup() -> Result<(), Error> {
     let rustup = Rustup::get_or_install().await?;
-    info!("Rustup installed at: {:?}", rustup);
+    debug!("Rustup installed at: {}", rustup.get_path());
     rustup.update().await?;
     let mut toolchain_config = ToolchainConfig::default();
     if let Some(toolchain) = core::get_input("toolchain") {
