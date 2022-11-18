@@ -37,7 +37,7 @@ impl Cargo {
         spans.iter().find(|s| s.is_primary)
     }
 
-    fn process_json_record(line: &str) {
+    fn process_json_record(cargo_subcommand: &str, line: &str) {
         use cargo_metadata::Message;
 
         let metadata: Message = match serde_json::from_str(line) {
@@ -52,10 +52,15 @@ impl Cargo {
             let level = Self::annotation_level(diagnostic.level);
             let mut annotation = if let Some(rendered) = &diagnostic.rendered {
                 let mut annotation = Annotation::from(rendered.as_str());
-                annotation.title(diagnostic.message.as_str());
+                annotation.title(&format!(
+                    "cargo-{}: {}",
+                    cargo_subcommand, diagnostic.message
+                ));
                 annotation
             } else {
-                Annotation::from(diagnostic.message.as_str())
+                let mut annotation = Annotation::from(diagnostic.message.as_str());
+                annotation.title(&format!("cargo-{}", cargo_subcommand));
+                annotation
             };
             if let Some(span) = Self::get_primary_span(&diagnostic.spans) {
                 let file_name = Path::from(span.file_name.as_str());
@@ -88,7 +93,8 @@ impl Cargo {
         let mut command = Command::from(&self.path);
         command.args(final_args);
         if process_json {
-            command.outline(|line| Self::process_json_record(line));
+            let subcommand = subcommand.to_string();
+            command.outline(move |line| Self::process_json_record(&subcommand, line));
             command.stdout(Stdio::null());
         }
         command.exec().await.map_err(Error::Js)?;
