@@ -4,6 +4,7 @@ use crate::actions::io;
 use crate::info;
 use crate::node::path::Path;
 use crate::Error;
+use cargo_metadata::diagnostic::DiagnosticSpan;
 
 #[derive(Debug)]
 pub struct Cargo {
@@ -32,6 +33,10 @@ impl Cargo {
         }
     }
 
+    fn get_primary_span(spans: &[DiagnosticSpan]) -> Option<&DiagnosticSpan> {
+        spans.iter().find(|s| s.is_primary)
+    }
+
     fn process_json_record(line: &str) {
         use cargo_metadata::Message;
 
@@ -50,7 +55,16 @@ impl Cargo {
                 .as_ref()
                 .map(|s| s.as_str())
                 .unwrap_or(diagnostic.message.as_str());
-            Annotation::from(message).output(level);
+            let mut annotation = Annotation::from(message);
+            if let Some(span) = Self::get_primary_span(&diagnostic.spans) {
+                let file_name = Path::from(span.file_name.as_str());
+                annotation.file(&file_name);
+                annotation.start_line(span.line_start);
+                annotation.end_line(span.line_end);
+                annotation.start_column(span.column_start);
+                annotation.end_column(span.column_end);
+            }
+            annotation.output(level);
         }
     }
 
