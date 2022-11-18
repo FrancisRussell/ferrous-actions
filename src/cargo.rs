@@ -45,7 +45,12 @@ impl Cargo {
         if let Message::CompilerMessage(compiler_message) = metadata {
             let diagnostic = &compiler_message.message;
             let level = Self::annotation_level(diagnostic.level);
-            Annotation::from(diagnostic.message.as_str()).output(level);
+            let message = diagnostic
+                .rendered
+                .as_ref()
+                .map(|s| s.as_str())
+                .unwrap_or(diagnostic.message.as_str());
+            Annotation::from(message).output(level);
         }
     }
 
