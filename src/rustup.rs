@@ -53,7 +53,7 @@ impl Rustup {
     }
 
     pub async fn install() -> Result<Rustup, Error> {
-        let args = ["--default-toolchain", "none", "-y"];
+        let args = ["--default-toolchain", NO_DEFAULT_TOOLCHAIN_NAME, "-y"];
         let platform = node::os::platform();
         info!("Getting rustup for platform: {:?}", platform);
         match platform.as_str() {
