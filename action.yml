@@ -19,6 +19,9 @@ inputs:
   targets:
     description: 'Targets to install e.g. x86_64-unknown-linux-gnu'
     required: false
+  default:
+    description: 'Whether this toolchain should be set as the default'
+    required: false
 outputs:
   result:
     description: 'The result of the action execution'
