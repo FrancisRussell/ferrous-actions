@@ -62,11 +62,12 @@ impl Cargo {
             };
             if let Some(span) = Self::get_primary_span(&diagnostic.spans) {
                 let file_name = Path::from(span.file_name.as_str());
-                annotation.file(&file_name);
-                annotation.start_line(span.line_start);
-                annotation.end_line(span.line_end);
-                annotation.start_column(span.column_start);
-                annotation.end_column(span.column_end);
+                annotation
+                    .file(&file_name)
+                    .start_line(span.line_start)
+                    .end_line(span.line_end)
+                    .start_column(span.column_start)
+                    .end_column(span.column_end);
             }
             annotation.output(level);
         }
