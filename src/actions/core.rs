@@ -151,10 +151,10 @@ impl Annotation {
             properties.set(&"file".into(), file.to_js_string().as_ref());
         }
         for (name, value) in [
-            ("start_line", &self.start_line),
-            ("end_line", &self.end_line),
-            ("start_column", &self.start_column),
-            ("end_column", &self.end_column),
+            ("startLine", &self.start_line),
+            ("endLine", &self.end_line),
+            ("startColumn", &self.start_column),
+            ("endColumn", &self.end_column),
         ] {
             if let Some(number) = value.and_then(|n| TryInto::<u32>::try_into(n).ok()) {
                 properties.set(&name.into(), Number::from(number).as_ref());
