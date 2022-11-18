@@ -1,4 +1,4 @@
-use crate::actions::core::Annotation;
+use crate::actions::core::{Annotation, AnnotationLevel};
 use crate::actions::exec::{Command, Stdio};
 use crate::actions::io;
 use crate::info;
@@ -18,6 +18,20 @@ impl Cargo {
             .map_err(Error::Js)
     }
 
+    fn annotation_level(level: cargo_metadata::diagnostic::DiagnosticLevel) -> AnnotationLevel {
+        use cargo_metadata::diagnostic::DiagnosticLevel;
+
+        match level {
+            DiagnosticLevel::Ice => AnnotationLevel::Error,
+            DiagnosticLevel::Error => AnnotationLevel::Error,
+            DiagnosticLevel::Warning => AnnotationLevel::Warning,
+            DiagnosticLevel::FailureNote => AnnotationLevel::Notice,
+            DiagnosticLevel::Note => AnnotationLevel::Notice,
+            DiagnosticLevel::Help => AnnotationLevel::Notice,
+            _ => AnnotationLevel::Warning,
+        }
+    }
+
     fn process_json_record(line: &str) {
         use cargo_metadata::Message;
 
@@ -29,9 +43,9 @@ impl Cargo {
             }
         };
         if let Message::CompilerMessage(compiler_message) = metadata {
-            let diagnostic = compiler_message.message;
-            let annotation = Annotation::from(diagnostic.message);
-            annotation.warning();
+            let diagnostic = &compiler_message.message;
+            let level = Self::annotation_level(diagnostic.level);
+            Annotation::from(diagnostic.message.as_str()).output(level);
         }
     }
 
