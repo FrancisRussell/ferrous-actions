@@ -13,8 +13,13 @@ platforms and more easily maintainable by developers who only know Rust.
 
 ## Status
 
-Not yet usable in any form as an action but basic Rustup download and execution
-functionality has been implemented.
+- [ ] CI builds can produce commits in a release repository so that action can be used
+- [x] `rustup` installation
+- [x] `rustup` installation of specified toolchains
+- [ ] `cross` support
+- [x] Invoking `cargo` commands
+- [ ] Annotation generation from `cargo clippy`
+
 
 ## Acknowledements
 
