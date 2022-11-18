@@ -1,6 +1,6 @@
 use crate::actions::core::{Annotation, AnnotationLevel};
 use crate::actions::exec::{Command, Stdio};
-use crate::actions::io;
+use crate::actions::{core, io};
 use crate::info;
 use crate::node::path::Path;
 use crate::Error;
@@ -81,6 +81,9 @@ impl Cargo {
         let subcommand = subcommand.to_string();
         let args: Vec<String> = args.into_iter().map(Into::into).collect();
         let mut final_args = Vec::new();
+        if let Some(toolchain) = core::get_input("toolchain") {
+            final_args.push(format!("+{}", toolchain));
+        }
         final_args.push(subcommand.clone());
         let process_json = if subcommand == "clippy" {
             final_args.push("--message-format=json".into());
