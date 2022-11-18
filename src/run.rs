@@ -23,7 +23,7 @@ pub async fn run() -> Result<(), Error> {
                 .run(cargo_subcommand, cargo_args.iter().map(String::as_str))
                 .await?;
         }
-        _ => panic!("Unknown command: {}", command),
+        _ => return Err(Error::UnknownCommand(command)),
     }
 
     // Set the action output.

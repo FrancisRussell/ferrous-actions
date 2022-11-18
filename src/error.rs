@@ -11,4 +11,7 @@ pub enum Error {
 
     #[error("Unable to parse as an argument list: `{0}`")]
     ArgumentsParseError(String),
+
+    #[error("Unknown command: {0}")]
+    UnknownCommand(String),
 }
