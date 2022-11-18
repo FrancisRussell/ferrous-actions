@@ -22,6 +22,9 @@ inputs:
   default:
     description: 'Whether this toolchain should be set as the default'
     required: false
+  args:
+    description: 'Additional arguments to supply to the command'
+    required: false
 outputs:
   result:
     description: 'The result of the action execution'
