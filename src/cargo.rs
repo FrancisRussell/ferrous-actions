@@ -50,12 +50,13 @@ impl Cargo {
         if let Message::CompilerMessage(compiler_message) = metadata {
             let diagnostic = &compiler_message.message;
             let level = Self::annotation_level(diagnostic.level);
-            let message = diagnostic
-                .rendered
-                .as_ref()
-                .map(|s| s.as_str())
-                .unwrap_or(diagnostic.message.as_str());
-            let mut annotation = Annotation::from(message);
+            let mut annotation = if let Some(rendered) = &diagnostic.rendered {
+                let mut annotation = Annotation::from(rendered.as_str());
+                annotation.title(diagnostic.message.as_str());
+                annotation
+            } else {
+                Annotation::from(diagnostic.message.as_str())
+            };
             if let Some(span) = Self::get_primary_span(&diagnostic.spans) {
                 let file_name = Path::from(span.file_name.as_str());
                 annotation.file(&file_name);
