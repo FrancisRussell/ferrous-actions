@@ -104,6 +104,13 @@ impl<M: Into<String>> From<M> for Annotation {
     }
 }
 
+#[derive(Copy, Clone, Debug)]
+pub enum AnnotationLevel {
+    Notice,
+    Warning,
+    Error,
+}
+
 impl Annotation {
     pub fn title(&mut self, title: &str) -> &mut Annotation {
         self.title = Some(title.to_string());
@@ -156,8 +163,26 @@ impl Annotation {
         Object::from_entries(&properties).expect("Failed to convert options map to object")
     }
 
-    fn build_js_message(&self) -> JsString {
-        JsString::from(self.message.as_str())
+    pub fn error(&self) {
+        self.output(AnnotationLevel::Error);
+    }
+
+    pub fn notice(&self) {
+        self.output(AnnotationLevel::Notice);
+    }
+
+    pub fn warning(&self) {
+        self.output(AnnotationLevel::Warning);
+    }
+
+    pub fn output(&self, level: AnnotationLevel) {
+        let message = JsString::from(self.message.as_str());
+        let properties = self.build_js_properties();
+        match level {
+            AnnotationLevel::Error => ffi::error(&message, Some(properties)),
+            AnnotationLevel::Warning => ffi::warning(&message, Some(properties)),
+            AnnotationLevel::Notice => ffi::notice(&message, Some(properties)),
+        }
     }
 }
 
@@ -177,6 +202,7 @@ pub fn add_path(path: &Path) {
 #[allow(clippy::drop_non_drop)]
 pub mod ffi {
     use js_sys::JsString;
+    use js_sys::Object;
     use wasm_bindgen::prelude::*;
 
     #[wasm_bindgen]
@@ -200,6 +226,18 @@ pub mod ffi {
         /// Writes debug
         #[wasm_bindgen]
         pub fn debug(message: &JsString);
+
+        /// Writes an error with an optional annotation
+        #[wasm_bindgen]
+        pub fn error(message: &JsString, annotation: Option<Object>);
+
+        /// Writes a warning with an optional annotation
+        #[wasm_bindgen]
+        pub fn warning(message: &JsString, annotation: Option<Object>);
+
+        /// Writes a notice with an optional annotation
+        #[wasm_bindgen]
+        pub fn notice(message: &JsString, annotation: Option<Object>);
 
         /// Sets the action status to failed.
         /// When the action exits it will be with an exit code of 1.

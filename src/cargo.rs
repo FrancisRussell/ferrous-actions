@@ -1,3 +1,4 @@
+use crate::actions::core::Annotation;
 use crate::actions::exec::{Command, Stdio};
 use crate::actions::io;
 use crate::info;
@@ -28,7 +29,9 @@ impl Cargo {
             }
         };
         if let Message::CompilerMessage(compiler_message) = metadata {
-            info!("Compiler message: {:?}", compiler_message);
+            let diagnostic = compiler_message.message;
+            let annotation = Annotation::from(diagnostic.message);
+            annotation.warning();
         }
     }
 
