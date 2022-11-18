@@ -6,10 +6,20 @@ updates:
       interval: "weekly"
     labels:
       - "dependencies"
+      - "github-actions"
 
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
       interval: "weekly"
-    allow:
-      - dependency-name: "@actions/*"
+    labels:
+      - "dependencies"
+      - "npm"
+
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "cargo"
