@@ -4,7 +4,7 @@ use crate::actions::{core, io};
 use crate::info;
 use crate::node::path::Path;
 use crate::Error;
-use cargo_metadata::diagnostic::DiagnosticSpan;
+use cargo_metadata::diagnostic::{DiagnosticLevel, DiagnosticSpan};
 
 #[derive(Debug)]
 pub struct Cargo {
@@ -19,9 +19,7 @@ impl Cargo {
             .map_err(Error::Js)
     }
 
-    fn annotation_level(level: cargo_metadata::diagnostic::DiagnosticLevel) -> AnnotationLevel {
-        use cargo_metadata::diagnostic::DiagnosticLevel;
-
+    fn annotation_level(level: DiagnosticLevel) -> AnnotationLevel {
         match level {
             DiagnosticLevel::Ice => AnnotationLevel::Error,
             DiagnosticLevel::Error => AnnotationLevel::Error,
