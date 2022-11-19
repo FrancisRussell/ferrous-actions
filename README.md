@@ -7,7 +7,7 @@ GitHub action for Rust, written in Rust and compiled to WebAssembly.
 
 [actions-rs](https://github.com/actions-rs), the de-facto default for
 Rust-related GitHub actions appears to be all but abandoned. This repository is
-an experiement in replacing those actions with ones written in Rust, but
+an experiment in replacing those actions with ones written in Rust, but
 compiled down to WebAssembly. This should make them both portable across
 platforms and more easily maintainable by developers who only know Rust.
 
@@ -18,10 +18,11 @@ platforms and more easily maintainable by developers who only know Rust.
 - [x] `rustup` installation of specified toolchains
 - [ ] `cross` support
 - [x] Invoking `cargo` commands
-- [ ] Annotation generation from `cargo clippy`
+- [x] Annotation generation from `cargo` commands
+- [ ] Validate that all known supplied parameters are used
+- [ ] Handle conflicts between `cargo` and `rustup` installs of the same component.
 
-
-## Acknowledements
+## Acknowledgements
 
 This repository is based off the template created by Peter Evans
 ([@peter-evans](https://github.com/peter-evans))
