@@ -35,6 +35,12 @@ impl Cargo {
         spans.iter().find(|s| s.is_primary)
     }
 
+    fn supports_json_message_format(subcommand: &str) -> bool {
+        ["build", "check", "clippy"]
+            .iter()
+            .any(|s| s == &subcommand)
+    }
+
     fn process_json_record(cargo_subcommand: &str, line: &str) {
         use cargo_metadata::Message;
 
@@ -88,13 +94,16 @@ impl Cargo {
         if let Some(toolchain) = toolchain {
             final_args.push(format!("+{}", toolchain));
         }
-        let annotations_enabled = if let Some(enabled) = core::get_input("annotations")? {
-            enabled
-                .parse::<bool>()
-                .map_err(|_| Error::OptionParseError("annotations".into(), enabled.clone()))?
-        } else {
-            true
-        };
+
+        let annotations_enabled = Self::supports_json_message_format(subcommand.as_str());
+        let annotations_enabled = annotations_enabled
+            && if let Some(enabled) = core::get_input("annotations")? {
+                enabled
+                    .parse::<bool>()
+                    .map_err(|_| Error::OptionParseError("annotations".into(), enabled.clone()))?
+            } else {
+                true
+            };
         final_args.push(subcommand.clone());
         if annotations_enabled {
             final_args.push("--message-format=json".into());
