@@ -73,14 +73,19 @@ impl Cargo {
         }
     }
 
-    pub async fn run<'a, I>(&'a mut self, subcommand: &'a str, args: I) -> Result<(), Error>
+    pub async fn run<'a, I>(
+        &'a mut self,
+        toolchain: Option<&str>,
+        subcommand: &'a str,
+        args: I,
+    ) -> Result<(), Error>
     where
         I: IntoIterator<Item = &'a str>,
     {
         let subcommand = subcommand.to_string();
         let args: Vec<String> = args.into_iter().map(Into::into).collect();
         let mut final_args = Vec::new();
-        if let Some(toolchain) = core::get_input("toolchain")? {
+        if let Some(toolchain) = toolchain {
             final_args.push(format!("+{}", toolchain));
         }
         let annotations_enabled = if let Some(enabled) = core::get_input("annotations")? {

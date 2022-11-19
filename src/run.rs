@@ -19,8 +19,13 @@ pub async fn run() -> Result<(), Error> {
             let cargo_args = Input::from("args").get()?.unwrap_or_default();
             let cargo_args = shlex::split(&cargo_args)
                 .ok_or_else(|| Error::ArgumentsParseError(cargo_args.clone()))?;
+            let toolchain = core::get_input("toolchain")?;
             cargo
-                .run(cargo_subcommand, cargo_args.iter().map(String::as_str))
+                .run(
+                    toolchain.as_deref(),
+                    cargo_subcommand,
+                    cargo_args.iter().map(String::as_str),
+                )
                 .await?;
         }
         _ => return Err(Error::UnknownCommand(command)),
