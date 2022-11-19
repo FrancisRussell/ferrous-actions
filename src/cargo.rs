@@ -80,10 +80,10 @@ impl Cargo {
         let subcommand = subcommand.to_string();
         let args: Vec<String> = args.into_iter().map(Into::into).collect();
         let mut final_args = Vec::new();
-        if let Some(toolchain) = core::get_input("toolchain") {
+        if let Some(toolchain) = core::get_input("toolchain")? {
             final_args.push(format!("+{}", toolchain));
         }
-        let annotations_enabled = if let Some(enabled) = core::get_input("annotations") {
+        let annotations_enabled = if let Some(enabled) = core::get_input("annotations")? {
             enabled
                 .parse::<bool>()
                 .map_err(|_| Error::OptionParseError("annotations".into(), enabled.clone()))?

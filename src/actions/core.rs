@@ -1,5 +1,6 @@
 use crate::node::path::Path;
 use js_sys::{JsString, Number, Object};
+use wasm_bindgen::JsValue;
 
 #[macro_export]
 macro_rules! info {
@@ -62,20 +63,16 @@ impl Input {
         }
     }
 
-    pub fn get(&mut self) -> Option<String> {
+    pub fn get(&mut self) -> Result<Option<String>, JsValue> {
         let ffi = self.to_ffi();
-        let value = String::from(ffi::get_input(&self.name, Some(ffi)));
-        if value.is_empty() {
-            None
-        } else {
-            Some(value)
-        }
+        let value = String::from(ffi::get_input(&self.name, Some(ffi))?);
+        Ok(if value.is_empty() { None } else { Some(value) })
     }
 
-    pub fn get_required(&mut self) -> String {
+    pub fn get_required(&mut self) -> Result<String, JsValue> {
         let mut ffi = self.to_ffi();
         ffi.required = Some(true);
-        String::from(ffi::get_input(&self.name, Some(ffi)))
+        ffi::get_input(&self.name, Some(ffi)).map(String::from)
     }
 }
 
@@ -186,7 +183,7 @@ impl Annotation {
     }
 }
 
-pub fn get_input<I: Into<Input>>(input: I) -> Option<String> {
+pub fn get_input<I: Into<Input>>(input: I) -> Result<Option<String>, JsValue> {
     let mut input = input.into();
     input.get()
 }
@@ -216,8 +213,11 @@ pub mod ffi {
     #[wasm_bindgen(module = "@actions/core")]
     extern "C" {
         /// Gets the value of an input. The value is also trimmed.
-        #[wasm_bindgen(js_name = "getInput")]
-        pub fn get_input(name: &JsString, options: Option<InputOptions>) -> JsString;
+        #[wasm_bindgen(js_name = "getInput", catch)]
+        pub fn get_input(
+            name: &JsString,
+            options: Option<InputOptions>,
+        ) -> Result<JsString, JsValue>;
 
         /// Writes info
         #[wasm_bindgen]
