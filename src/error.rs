@@ -15,3 +15,9 @@ pub enum Error {
     #[error("Unknown command: {0}")]
     UnknownCommand(String),
 }
+
+impl From<JsValue> for Error {
+    fn from(value: JsValue) -> Error {
+        Error::Js(value)
+    }
+}
