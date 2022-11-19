@@ -3,6 +3,13 @@ use js_sys::{JsString, Number, Object};
 use wasm_bindgen::JsValue;
 
 #[macro_export]
+macro_rules! debug {
+    ($($arg:tt)*) => {{
+        $crate::actions::core::debug(std::format!($($arg)*).as_str());
+    }};
+}
+
+#[macro_export]
 macro_rules! info {
     ($($arg:tt)*) => {{
         $crate::actions::core::info(std::format!($($arg)*).as_str());
@@ -10,18 +17,44 @@ macro_rules! info {
 }
 
 #[macro_export]
-macro_rules! debug {
+macro_rules! notice {
     ($($arg:tt)*) => {{
-        $crate::actions::core::debug(std::format!($($arg)*).as_str());
+        $crate::actions::core::notice(std::format!($($arg)*).as_str());
     }};
+}
+
+#[macro_export]
+macro_rules! warning {
+    ($($arg:tt)*) => {{
+        $crate::actions::core::warning(std::format!($($arg)*).as_str());
+    }};
+}
+
+#[macro_export]
+macro_rules! error {
+    ($($arg:tt)*) => {{
+        $crate::actions::core::error(std::format!($($arg)*).as_str());
+    }};
+}
+
+pub fn debug<S: Into<JsString>>(message: S) {
+    ffi::debug(&message.into());
 }
 
 pub fn info<S: Into<JsString>>(message: S) {
     ffi::info(&message.into());
 }
 
-pub fn debug<S: Into<JsString>>(message: S) {
-    ffi::debug(&message.into());
+pub fn notice<A: Into<Annotation>>(message: A) {
+    message.into().notice()
+}
+
+pub fn warning<A: Into<Annotation>>(message: A) {
+    message.into().warning()
+}
+
+pub fn error<A: Into<Annotation>>(message: A) {
+    message.into().error()
 }
 
 pub fn set_output<N: Into<JsString>, V: Into<JsString>>(name: N, value: V) {

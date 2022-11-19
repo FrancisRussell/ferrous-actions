@@ -1,8 +1,8 @@
 use crate::actions::core::{Annotation, AnnotationLevel};
 use crate::actions::exec::{Command, Stdio};
 use crate::actions::{core, io};
-use crate::info;
 use crate::node::path::Path;
+use crate::warning;
 use crate::Error;
 use cargo_metadata::diagnostic::{DiagnosticLevel, DiagnosticSpan};
 
@@ -47,7 +47,7 @@ impl Cargo {
         let metadata: Message = match serde_json::from_str(line) {
             Ok(metadata) => metadata,
             Err(e) => {
-                info!("Unable to cargo output line as JSON metadata record: {}", e);
+                warning!("Unable to cargo output line as JSON metadata record: {}", e);
                 return;
             }
         };
@@ -94,7 +94,6 @@ impl Cargo {
         if let Some(toolchain) = toolchain {
             final_args.push(format!("+{}", toolchain));
         }
-
         let annotations_enabled = Self::supports_json_message_format(subcommand.as_str());
         let annotations_enabled = annotations_enabled
             && if let Some(enabled) = core::get_input("annotations")? {
@@ -109,7 +108,6 @@ impl Cargo {
             final_args.push("--message-format=json".into());
         }
         final_args.extend(args);
-
         let mut command = Command::from(&self.path);
         command.args(final_args);
         if annotations_enabled {
