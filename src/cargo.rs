@@ -83,21 +83,26 @@ impl Cargo {
         if let Some(toolchain) = core::get_input("toolchain") {
             final_args.push(format!("+{}", toolchain));
         }
-        final_args.push(subcommand.clone());
-        let process_json = if subcommand == "clippy" {
-            final_args.push("--message-format=json".into());
-            true
+        let annotations_enabled = if let Some(enabled) = core::get_input("annotations") {
+            enabled
+                .parse::<bool>()
+                .map_err(|_| Error::OptionParseError("annotations".into(), enabled.clone()))?
         } else {
-            false
+            true
         };
+        final_args.push(subcommand.clone());
+        if annotations_enabled {
+            final_args.push("--message-format=json".into());
+        }
         final_args.extend(args);
 
         let mut command = Command::from(&self.path);
         command.args(final_args);
-        if process_json {
+        if annotations_enabled {
             let subcommand = subcommand.to_string();
-            command.outline(move |line| Self::process_json_record(&subcommand, line));
-            command.stdout(Stdio::null());
+            command
+                .outline(move |line| Self::process_json_record(&subcommand, line))
+                .stdout(Stdio::null());
         }
         command.exec().await.map_err(Error::Js)?;
         Ok(())

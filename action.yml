@@ -25,6 +25,9 @@ inputs:
   args:
     description: 'Additional arguments to supply to the command'
     required: false
+  annotations:
+    description: 'Should GitHub annotations be generated for this command'
+    required: false
 outputs:
   result:
     description: 'The result of the action execution'
