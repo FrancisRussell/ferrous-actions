@@ -17,6 +17,12 @@ pub enum Error {
 
     #[error("Toolchain parse error: {0}")]
     ToolchainParse(#[from] rust_toolchain_manifest::toolchain::ToolchainParseError),
+
+    #[error("Manifest file not UTF-8")]
+    ManifestNotUtf8,
+
+    #[error("Manifest error: {0}")]
+    ManifestError(#[from] rust_toolchain_manifest::Error),
 }
 
 impl From<JsValue> for Error {

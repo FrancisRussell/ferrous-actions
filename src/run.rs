@@ -68,7 +68,7 @@ async fn install_rustup() -> Result<(), Error> {
 async fn install_toolchain() -> Result<(), Error> {
     use crate::actions::tool_cache;
     use crate::node;
-    use rust_toolchain_manifest::Toolchain;
+    use rust_toolchain_manifest::{Manifest, Toolchain};
     use std::str::FromStr;
 
     let toolchain = core::get_input("toolchain")?.unwrap_or_else(|| String::from("stable"));
@@ -83,7 +83,8 @@ async fn install_toolchain() -> Result<(), Error> {
         .map_err(Error::Js)?;
     info!("Downloaded manifest to {}", manifest_path);
     let manifest = node::fs::read_file(&manifest_path).await?;
-    let manifest = String::from_utf8_lossy(&manifest).into_owned();
-    info!("Manifest content:\n{}", manifest);
+    let manifest = String::from_utf8(manifest).map_err(|_| Error::ManifestNotUtf8)?;
+    let manifest = Manifest::try_from(manifest.as_str())?;
+    info!("Manifest content:\n{:#?}", manifest);
     Ok(())
 }
