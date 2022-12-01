@@ -22,12 +22,24 @@ pub mod os {
 }
 
 pub mod fs {
-    use js_sys::JsString;
-    use wasm_bindgen::JsValue;
+    use js_sys::{JsString, Uint8Array};
+    use wasm_bindgen::{JsCast, JsError, JsValue};
 
     pub async fn chmod<P: Into<JsString>>(path: P, mode: u16) -> Result<(), JsValue> {
         let path: JsString = path.into();
         ffi::chmod(&path, mode).await.map(|_| ())
+    }
+
+    pub async fn read_file<P: Into<JsString>>(path: P) -> Result<Vec<u8>, JsValue> {
+        let path: JsString = path.into();
+        let buffer = ffi::read_file(&path).await?;
+        let buffer = buffer
+            .dyn_ref::<Uint8Array>()
+            .ok_or_else(|| JsError::new("readFile didn't return an array"))?;
+        let length = buffer.length();
+        let mut result = vec![0u8; length as usize];
+        buffer.copy_to(&mut result);
+        Ok(result)
     }
 
     pub mod ffi {
@@ -39,6 +51,9 @@ pub mod fs {
         extern "C" {
             #[wasm_bindgen(catch)]
             pub async fn chmod(path: &JsString, mode: u16) -> Result<JsValue, JsValue>;
+
+            #[wasm_bindgen(catch, js_name = "readFile")]
+            pub async fn read_file(path: &JsString) -> Result<JsValue, JsValue>;
         }
     }
 }
