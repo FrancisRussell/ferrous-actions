@@ -2,6 +2,7 @@ use crate::actions::core::{self, Input};
 use crate::Error;
 use crate::{debug, info};
 use crate::{rustup::ToolchainConfig, Cargo, Rustup};
+use target_lexicon::Triple;
 
 pub async fn run() -> Result<(), Error> {
     // Get the action input.
@@ -38,10 +39,27 @@ pub async fn run() -> Result<(), Error> {
     Ok(())
 }
 
-async fn install_rustup() -> Result<(), Error> {
-    let rustup = Rustup::get_or_install().await?;
-    debug!("Rustup installed at: {}", rustup.get_path());
-    rustup.update().await?;
+fn default_target_for_platform() -> Result<Triple, Error> {
+    use crate::node;
+    use std::str::FromStr;
+    let target = Triple::from_str(
+        match (node::os::arch().as_str(), node::os::platform().as_str()) {
+            ("arm64", "linux") => "aarch64-unknown-linux-gnu",
+            ("ia32", "linux") => "i686-unknown-linux-gnu",
+            ("ia32", "win32") => "i686-pc-windows-msvc",
+            ("x64", "darwin") => "x86_64-apple-darwin",
+            ("x64", "linux") => "x86_64-unknown-linux-gnu",
+            ("x64", "win32") => "x86_64-pc-windows-msvc",
+            (arch, platform) => {
+                return Err(Error::UnsupportedPlatform(format!("{}-{}", platform, arch)))
+            }
+        },
+    )
+    .expect("Failed to parse hardcoded platform triple");
+    Ok(target)
+}
+
+fn get_toolchain_config() -> Result<ToolchainConfig, Error> {
     let mut toolchain_config = ToolchainConfig::default();
     if let Some(toolchain) = core::get_input("toolchain")? {
         toolchain_config.name = toolchain;
@@ -61,6 +79,14 @@ async fn install_rustup() -> Result<(), Error> {
             .map_err(|_| Error::OptionParseError("default".into(), set_default.clone()))?;
         toolchain_config.default = set_default;
     }
+    Ok(toolchain_config)
+}
+
+async fn install_rustup() -> Result<(), Error> {
+    let rustup = Rustup::get_or_install().await?;
+    debug!("Rustup installed at: {}", rustup.get_path());
+    rustup.update().await?;
+    let toolchain_config = get_toolchain_config()?;
     rustup.install_toolchain(&toolchain_config).await?;
     Ok(())
 }
@@ -68,14 +94,14 @@ async fn install_rustup() -> Result<(), Error> {
 async fn install_toolchain() -> Result<(), Error> {
     use crate::actions::tool_cache;
     use crate::node;
-    use rust_toolchain_manifest::{Manifest, Toolchain};
+    use rust_toolchain_manifest::{InstallSpec, Manifest, Toolchain};
     use std::str::FromStr;
 
-    let toolchain = core::get_input("toolchain")?.unwrap_or_else(|| String::from("stable"));
-    let toolchain = Toolchain::from_str(&toolchain)?;
+    let toolchain_config = get_toolchain_config()?;
+    let toolchain = Toolchain::from_str(&toolchain_config.name)?;
     let manifest_url = toolchain.manifest_url();
     info!(
-        "Need to download manifest for toolchain {} from {}",
+        "Will download manifest for toolchain {} from {}",
         toolchain, manifest_url
     );
     let manifest_path = tool_cache::download_tool(manifest_url.as_str())
@@ -85,6 +111,14 @@ async fn install_toolchain() -> Result<(), Error> {
     let manifest = node::fs::read_file(&manifest_path).await?;
     let manifest = String::from_utf8(manifest).map_err(|_| Error::ManifestNotUtf8)?;
     let manifest = Manifest::try_from(manifest.as_str())?;
-    info!("Manifest content:\n{:#?}", manifest);
+    let target = toolchain.host.unwrap_or(default_target_for_platform()?);
+    info!("Attempting to find toolchain for target {}", target);
+    let install_spec = InstallSpec {
+        profile: toolchain_config.profile.clone(),
+        components: toolchain_config.components.iter().cloned().collect(),
+        targets: toolchain_config.targets.iter().cloned().collect(),
+    };
+    let downloads = manifest.find_downloads_for_install(&target, &install_spec)?;
+    info!("Will need to download the following: {:#?}", downloads);
     Ok(())
 }

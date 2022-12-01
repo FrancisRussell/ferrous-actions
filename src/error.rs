@@ -23,6 +23,9 @@ pub enum Error {
 
     #[error("Manifest error: {0}")]
     ManifestError(#[from] rust_toolchain_manifest::Error),
+
+    #[error("Unsupported platform: {0}")]
+    UnsupportedPlatform(String),
 }
 
 impl From<JsValue> for Error {

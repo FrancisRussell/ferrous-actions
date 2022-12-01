@@ -89,7 +89,7 @@ impl Rustup {
                     .await
                     .map_err(Error::Js)?;
             }
-            _ => panic!("Unsupported platform: {}", platform),
+            _ => return Err(Error::UnsupportedPlatform(platform)),
         }
         Self::get().await
     }

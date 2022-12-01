@@ -231,6 +231,7 @@ dependencies = [
  "serde-wasm-bindgen",
  "serde_json",
  "shlex",
+ "target-lexicon",
  "thiserror",
  "wasm-bindgen",
  "wasm-bindgen-futures",
