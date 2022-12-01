@@ -14,6 +14,7 @@ pub async fn run() -> Result<(), Error> {
     let split: Vec<&str> = command.split_whitespace().collect();
     match split[..] {
         ["install-rustup"] => install_rustup().await?,
+        ["toolchain"] => install_toolchain().await?,
         ["cargo", cargo_subcommand] => {
             let mut cargo = Cargo::from_environment().await?;
             let cargo_args = Input::from("args").get()?.unwrap_or_default();
@@ -61,5 +62,24 @@ async fn install_rustup() -> Result<(), Error> {
         toolchain_config.default = set_default;
     }
     rustup.install_toolchain(&toolchain_config).await?;
+    Ok(())
+}
+
+async fn install_toolchain() -> Result<(), Error> {
+    use crate::actions::tool_cache;
+    use rust_toolchain_manifest::Toolchain;
+    use std::str::FromStr;
+
+    let toolchain = core::get_input("toolchain")?.unwrap_or_else(|| String::from("stable"));
+    let toolchain = Toolchain::from_str(&toolchain)?;
+    let manifest_url = toolchain.manifest_url();
+    info!(
+        "Need to download manifest for toolchain {} from {}",
+        toolchain, manifest_url
+    );
+    let manifest_path = tool_cache::download_tool(manifest_url.as_str())
+        .await
+        .map_err(Error::Js)?;
+    info!("Downloaded manifest to {}", manifest_path);
     Ok(())
 }

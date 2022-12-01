@@ -14,6 +14,9 @@ pub enum Error {
 
     #[error("Unknown command: {0}")]
     UnknownCommand(String),
+
+    #[error("Toolchain parse error: {0}")]
+    ToolchainParse(#[from] rust_toolchain_manifest::toolchain::ToolchainParseError),
 }
 
 impl From<JsValue> for Error {
