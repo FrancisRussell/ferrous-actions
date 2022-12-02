@@ -49,6 +49,14 @@ pub async fn download_tool<O: Into<DownloadTool>>(options: O) -> Result<Path, Js
     options.into().download().await
 }
 
+pub async fn extract_tar(path: &Path, dest: Option<&str>) -> Result<Path, JsValue> {
+    let path: JsString = path.into();
+    let dest = dest.map(Into::<JsString>::into);
+    let dest = ffi::extract_tar(&path, dest.as_ref(), None).await?;
+    let dest: JsString = dest.into();
+    Ok(dest.into())
+}
+
 pub mod ffi {
     use js_sys::{JsString, Map};
     use wasm_bindgen::prelude::*;
@@ -61,6 +69,21 @@ pub mod ffi {
             dest: Option<&JsString>,
             auth: Option<&JsString>,
             headers: Option<&Map>,
+        ) -> Result<JsValue, JsValue>;
+
+        #[wasm_bindgen(js_name = "cacheDir", catch)]
+        pub async fn cache_dir(
+            source_dir: &JsString,
+            tool: &JsString,
+            version: &JsString,
+            arch: Option<&JsString>,
+        ) -> Result<JsValue, JsValue>;
+
+        #[wasm_bindgen(js_name = "extractTar", catch)]
+        pub async fn extract_tar(
+            file: &JsString,
+            dest: Option<&JsString>,
+            flags: Option<Vec<JsString>>,
         ) -> Result<JsValue, JsValue>;
     }
 }

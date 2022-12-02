@@ -104,6 +104,8 @@ async fn install_package(package: &PackageBuild) -> Result<(), Error> {
         .await
         .map_err(Error::Js)?;
     info!("Downloaded tarball to {}", tarball_path);
+    let extracted = tool_cache::extract_tar(&tarball_path, None).await?;
+    info!("Extracted to {}", extracted);
     Ok(())
 }
 
