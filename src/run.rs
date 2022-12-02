@@ -178,7 +178,7 @@ async fn install_toolchain() -> Result<(), Error> {
         targets: toolchain_config.targets.iter().cloned().collect(),
     };
     let downloads = manifest.find_downloads_for_install(&target, &install_spec)?;
-    for download in downloads.iter().take(1) {
+    for download in downloads.iter() {
         install_package(download).await?;
     }
     Ok(())
