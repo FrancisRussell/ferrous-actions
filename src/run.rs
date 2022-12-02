@@ -115,16 +115,16 @@ fn compute_cache_key(package: &ManifestPackage) -> String {
 }
 
 async fn install_package(package: &ManifestPackage) -> Result<(), Error> {
-    use crate::actions::cache;
+    use crate::actions::cache::CacheEntry;
     use crate::actions::tool_cache::{self, StreamCompression};
     use rust_toolchain_manifest::manifest::Compression;
 
     let key = compute_cache_key(package);
     let package_hash = package.unique_identifier();
     let extract_path = get_cacheable_path(&package_hash).await?;
-    let paths = [&extract_path];
-    let restore_keys: [&str; 0] = [];
-    if let Some(key) = cache::restore_cache(&paths, &key, &restore_keys).await? {
+    let mut cache_entry = CacheEntry::new(key.as_str());
+    cache_entry.path(&extract_path);
+    if let Some(key) = cache_entry.restore().await? {
         info!("Restored files from cache with key {}", key);
     } else {
         let remote_binary = package
@@ -143,8 +143,7 @@ async fn install_package(package: &ManifestPackage) -> Result<(), Error> {
         tool_cache::extract_tar(&tarball_path, StreamCompression::Gzip, Some(&extract_path))
             .await?;
         info!("Extracted to {}", extract_path);
-        let paths = [extract_path];
-        let cache_id = cache::save_cache(&paths, &key).await?;
+        let cache_id = cache_entry.save().await?;
         info!("Saved as {}", cache_id);
     }
     Ok(())
