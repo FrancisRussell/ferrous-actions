@@ -105,14 +105,13 @@ async fn install_rustup() -> Result<(), Error> {
 
 fn compute_cache_key(package: &ManifestPackage) -> String {
     let package_hash = package.unique_identifier();
-    let package_hash = base64::encode_config(&package_hash, base64::URL_SAFE);
+    let package_hash = base64::encode_config(package_hash, base64::URL_SAFE);
     let key = format!(
         "{} ({}, {}) - {}",
         package.name, package.supported_target, package.version, package_hash
     );
     // Keys cannot contain commas. Of course this is not documented.
-    let key = key.replace(",", ";");
-    key
+    key.replace(',', ";")
 }
 
 async fn install_package(package: &ManifestPackage) -> Result<(), Error> {
