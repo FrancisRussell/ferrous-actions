@@ -5,6 +5,7 @@ pub mod node;
 mod noop_stream;
 mod run;
 mod rustup;
+mod toolchain;
 mod utils;
 
 use crate::actions::core;
