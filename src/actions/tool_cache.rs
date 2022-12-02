@@ -73,7 +73,7 @@ impl StreamCompression {
 pub async fn extract_tar(
     path: &Path,
     compression: StreamCompression,
-    dest: Option<&str>,
+    dest: Option<&Path>,
 ) -> Result<Path, JsValue> {
     let mut tar_option = String::from("x");
     tar_option += &compression.tar_flag();

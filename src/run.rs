@@ -1,8 +1,10 @@
 use crate::actions::core::{self, Input};
+use crate::node::path::Path;
 use crate::Error;
 use crate::{debug, info};
 use crate::{rustup::ToolchainConfig, Cargo, Rustup};
-use rust_toolchain_manifest::manifest::PackageBuild;
+use rust_toolchain_manifest::manifest::ManifestPackage;
+use rust_toolchain_manifest::HashValue;
 use target_lexicon::Triple;
 
 pub async fn run() -> Result<(), Error> {
@@ -83,6 +85,15 @@ fn get_toolchain_config() -> Result<ToolchainConfig, Error> {
     Ok(toolchain_config)
 }
 
+async fn get_cacheable_path(key: HashValue) -> Result<Path, Error> {
+    use crate::node;
+    let mut dir = node::os::homedir();
+    dir.push(".cache");
+    dir.push("github-rust-actions");
+    dir.push(key.to_string().as_str());
+    Ok(dir)
+}
+
 async fn install_rustup() -> Result<(), Error> {
     let rustup = Rustup::get_or_install().await?;
     debug!("Rustup installed at: {}", rustup.get_path());
@@ -92,22 +103,28 @@ async fn install_rustup() -> Result<(), Error> {
     Ok(())
 }
 
-async fn install_package(package: &PackageBuild) -> Result<(), Error> {
+async fn install_package(package: &ManifestPackage) -> Result<(), Error> {
     use crate::actions::tool_cache::{self, StreamCompression};
     use rust_toolchain_manifest::manifest::Compression;
 
     let remote_binary = package
-        .artifacts
-        .get(&Compression::Gzip)
-        .expect("Unable to find tar.gz");
+        .tarballs
+        .iter()
+        .find(|(c, _)| *c == Compression::Gzip)
+        .expect("Unable to find tar.gz")
+        .1
+        .clone();
     info!("Will need to download the following: {:#?}", remote_binary);
     let tarball_path = tool_cache::download_tool(remote_binary.url.as_str())
         .await
         .map_err(Error::Js)?;
     info!("Downloaded tarball to {}", tarball_path);
-    let extracted = tool_cache::extract_tar(&tarball_path, StreamCompression::Gzip, None).await?;
+    let extract_path = get_cacheable_path(package.unique_identifier()).await?;
+    info!("Will extract to {}", extract_path);
+    let extracted =
+        tool_cache::extract_tar(&tarball_path, StreamCompression::Gzip, Some(&extract_path))
+            .await?;
     info!("Extracted to {}", extracted);
-    tool_cache::cache_dir("my_tool", "my_version", &extracted, None).await?;
     Ok(())
 }
 

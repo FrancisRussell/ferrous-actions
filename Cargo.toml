@@ -29,7 +29,7 @@ target-lexicon = "0.12.5"
 
 [dependencies.rust-toolchain-manifest]
 git = "https://github.com/FrancisRussell/rust-toolchain-manifest.git"
-rev = "4024322e44e212b9fa0758faf8ca56fca8dd6c98"
+rev = "22bb7a54a6aaaeaba2dc89ec53a95654cc6b6364"
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3"
