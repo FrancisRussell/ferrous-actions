@@ -103,6 +103,17 @@ async fn install_rustup() -> Result<(), Error> {
     Ok(())
 }
 
+fn compute_cache_key(package: &ManifestPackage) -> String {
+    let package_hash = package.unique_identifier();
+    let key = format!(
+        "{} ({}, {}) - {}",
+        package.name, package.supported_target, package.version, package_hash
+    );
+    // Keys cannot contain commas. Of course this is not documented.
+    let key = key.replace(",", ";");
+    key
+}
+
 async fn install_package(package: &ManifestPackage) -> Result<(), Error> {
     use crate::actions::cache;
     use crate::actions::tool_cache::{self, StreamCompression};
@@ -127,7 +138,7 @@ async fn install_package(package: &ManifestPackage) -> Result<(), Error> {
         tool_cache::extract_tar(&tarball_path, StreamCompression::Gzip, Some(&extract_path))
             .await?;
     info!("Extracted to {}", extracted);
-    let key = format!("{} ({}) - {}", package.name, package.version, package_hash);
+    let key = compute_cache_key(package);
     let paths = [extracted];
     let cache_id = cache::save_cache(&paths, &key).await?;
     info!("Saved as {}", cache_id);
