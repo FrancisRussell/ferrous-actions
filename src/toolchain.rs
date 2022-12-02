@@ -76,6 +76,8 @@ async fn fetch_and_decompress_package(package: &ManifestPackage) -> Result<(), E
         let cache_id = cache_entry.save().await?;
         info!("Saved as {}", cache_id);
     }
+    let dir_contents = node::fs::read_dir(&extract_path).await?;
+    info!("Directory contents: {:?}", dir_contents);
     Ok(())
 }
 

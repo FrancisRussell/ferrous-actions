@@ -52,8 +52,22 @@ pub mod fs {
         Ok(result)
     }
 
+    pub async fn read_dir<P: Into<JsString>>(path: P) -> Result<Vec<String>, JsValue> {
+        let path: JsString = path.into();
+        let entries = ffi::read_dir(&path, None).await?;
+        let entries: Vec<String> = entries
+            .dyn_into::<js_sys::Array>()
+            .map_err(|_| JsError::new("read_dir didn't return an array"))?
+            .iter()
+            .map(Into::<JsString>::into)
+            .map(Into::<String>::into)
+            .collect();
+        Ok(entries)
+    }
+
     pub mod ffi {
         use js_sys::JsString;
+        use js_sys::Object;
         use wasm_bindgen::prelude::*;
         use wasm_bindgen::JsValue;
 
@@ -64,6 +78,12 @@ pub mod fs {
 
             #[wasm_bindgen(catch, js_name = "readFile")]
             pub async fn read_file(path: &JsString) -> Result<JsValue, JsValue>;
+
+            #[wasm_bindgen(catch, js_name = "readdir")]
+            pub async fn read_dir(
+                path: &JsString,
+                options: Option<Object>,
+            ) -> Result<JsValue, JsValue>;
         }
     }
 }
