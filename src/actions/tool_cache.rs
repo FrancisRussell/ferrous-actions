@@ -1,6 +1,7 @@
 use crate::node::path::Path;
 use crate::node::process;
 use js_sys::JsString;
+use std::borrow::Cow;
 use std::convert::Into;
 use wasm_bindgen::prelude::*;
 
@@ -49,10 +50,38 @@ pub async fn download_tool<O: Into<DownloadTool>>(options: O) -> Result<Path, Js
     options.into().download().await
 }
 
-pub async fn extract_tar(path: &Path, dest: Option<&str>) -> Result<Path, JsValue> {
+#[derive(Debug, Copy, Clone)]
+pub enum StreamCompression {
+    None,
+    Gzip,
+    Bzip2,
+    Xz,
+}
+
+impl StreamCompression {
+    fn tar_flag(&self) -> Cow<str> {
+        match self {
+            StreamCompression::None => "",
+            StreamCompression::Gzip => "z",
+            StreamCompression::Bzip2 => "j",
+            StreamCompression::Xz => "J",
+        }
+        .into()
+    }
+}
+
+pub async fn extract_tar(
+    path: &Path,
+    compression: StreamCompression,
+    dest: Option<&str>,
+) -> Result<Path, JsValue> {
+    let mut tar_option = String::from("x");
+    tar_option += &compression.tar_flag();
+    let tar_option = vec![JsString::from(tar_option)];
+
     let path: JsString = path.into();
     let dest = dest.map(Into::<JsString>::into);
-    let dest = ffi::extract_tar(&path, dest.as_ref(), None).await?;
+    let dest = ffi::extract_tar(&path, dest.as_ref(), Some(tar_option)).await?;
     let dest: JsString = dest.into();
     Ok(dest.into())
 }

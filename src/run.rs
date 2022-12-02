@@ -93,8 +93,9 @@ async fn install_rustup() -> Result<(), Error> {
 }
 
 async fn install_package(package: &PackageBuild) -> Result<(), Error> {
-    use crate::actions::tool_cache;
+    use crate::actions::tool_cache::{self, StreamCompression};
     use rust_toolchain_manifest::manifest::Compression;
+
     let remote_binary = package
         .artifacts
         .get(&Compression::Gzip)
@@ -104,7 +105,7 @@ async fn install_package(package: &PackageBuild) -> Result<(), Error> {
         .await
         .map_err(Error::Js)?;
     info!("Downloaded tarball to {}", tarball_path);
-    let extracted = tool_cache::extract_tar(&tarball_path, None).await?;
+    let extracted = tool_cache::extract_tar(&tarball_path, StreamCompression::Gzip, None).await?;
     info!("Extracted to {}", extracted);
     Ok(())
 }
