@@ -2,6 +2,7 @@ use crate::actions::core::{self, Input};
 use crate::Error;
 use crate::{debug, info};
 use crate::{rustup::ToolchainConfig, Cargo, Rustup};
+use rust_toolchain_manifest::manifest::PackageBuild;
 use target_lexicon::Triple;
 
 pub async fn run() -> Result<(), Error> {
@@ -91,6 +92,21 @@ async fn install_rustup() -> Result<(), Error> {
     Ok(())
 }
 
+async fn install_package(package: &PackageBuild) -> Result<(), Error> {
+    use crate::actions::tool_cache;
+    use rust_toolchain_manifest::manifest::Compression;
+    let remote_binary = package
+        .artifacts
+        .get(&Compression::Gzip)
+        .expect("Unable to find tar.gz");
+    info!("Will need to download the following: {:#?}", remote_binary);
+    let tarball_path = tool_cache::download_tool(remote_binary.url.as_str())
+        .await
+        .map_err(Error::Js)?;
+    info!("Downloaded tarball to {}", tarball_path);
+    Ok(())
+}
+
 async fn install_toolchain() -> Result<(), Error> {
     use crate::actions::tool_cache;
     use crate::node;
@@ -119,6 +135,8 @@ async fn install_toolchain() -> Result<(), Error> {
         targets: toolchain_config.targets.iter().cloned().collect(),
     };
     let downloads = manifest.find_downloads_for_install(&target, &install_spec)?;
-    info!("Will need to download the following: {:#?}", downloads);
+    for download in &downloads {
+        install_package(download).await?;
+    }
     Ok(())
 }

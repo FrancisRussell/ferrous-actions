@@ -477,7 +477,7 @@ checksum = "456c603be3e8d448b072f410900c09faf164fbce2d480456f50eea6e25f9c848"
 [[package]]
 name = "rust-toolchain-manifest"
 version = "0.1.0"
-source = "git+https://github.com/FrancisRussell/rust-toolchain-manifest.git?rev=f199afcd847b6a7d8fd14ed1ce9413cf8076a1c2#f199afcd847b6a7d8fd14ed1ce9413cf8076a1c2"
+source = "git+https://github.com/FrancisRussell/rust-toolchain-manifest.git?rev=4024322e44e212b9fa0758faf8ca56fca8dd6c98#4024322e44e212b9fa0758faf8ca56fca8dd6c98"
 dependencies = [
  "chrono",
  "clap",
