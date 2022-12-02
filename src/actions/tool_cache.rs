@@ -86,6 +86,21 @@ pub async fn extract_tar(
     Ok(dest.into())
 }
 
+pub async fn cache_dir(
+    tool: &str,
+    version: &str,
+    path: &Path,
+    arch: Option<&str>,
+) -> Result<Path, JsValue> {
+    let path: JsString = path.into();
+    let tool: JsString = tool.into();
+    let version: JsString = version.into();
+    let arch: Option<JsString> = arch.map(Into::into);
+    let dest = ffi::cache_dir(&path, &tool, &version, arch.as_ref()).await?;
+    let dest: JsString = dest.into();
+    Ok(dest.into())
+}
+
 pub mod ffi {
     use js_sys::{JsString, Map};
     use wasm_bindgen::prelude::*;

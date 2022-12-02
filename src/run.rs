@@ -107,6 +107,7 @@ async fn install_package(package: &PackageBuild) -> Result<(), Error> {
     info!("Downloaded tarball to {}", tarball_path);
     let extracted = tool_cache::extract_tar(&tarball_path, StreamCompression::Gzip, None).await?;
     info!("Extracted to {}", extracted);
+    tool_cache::cache_dir("my_tool", "my_version", &extracted, None).await?;
     Ok(())
 }
 
@@ -138,7 +139,7 @@ async fn install_toolchain() -> Result<(), Error> {
         targets: toolchain_config.targets.iter().cloned().collect(),
     };
     let downloads = manifest.find_downloads_for_install(&target, &install_spec)?;
-    for download in &downloads {
+    for download in downloads.iter().take(1) {
         install_package(download).await?;
     }
     Ok(())
