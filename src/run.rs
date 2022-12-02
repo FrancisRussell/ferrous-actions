@@ -85,7 +85,7 @@ fn get_toolchain_config() -> Result<ToolchainConfig, Error> {
     Ok(toolchain_config)
 }
 
-async fn get_cacheable_path(key: HashValue) -> Result<Path, Error> {
+async fn get_cacheable_path(key: &HashValue) -> Result<Path, Error> {
     use crate::node;
     let mut dir = node::os::homedir();
     dir.push(".cache");
@@ -104,9 +104,11 @@ async fn install_rustup() -> Result<(), Error> {
 }
 
 async fn install_package(package: &ManifestPackage) -> Result<(), Error> {
+    use crate::actions::cache;
     use crate::actions::tool_cache::{self, StreamCompression};
     use rust_toolchain_manifest::manifest::Compression;
 
+    let package_hash = package.unique_identifier();
     let remote_binary = package
         .tarballs
         .iter()
@@ -119,12 +121,16 @@ async fn install_package(package: &ManifestPackage) -> Result<(), Error> {
         .await
         .map_err(Error::Js)?;
     info!("Downloaded tarball to {}", tarball_path);
-    let extract_path = get_cacheable_path(package.unique_identifier()).await?;
+    let extract_path = get_cacheable_path(&package_hash).await?;
     info!("Will extract to {}", extract_path);
     let extracted =
         tool_cache::extract_tar(&tarball_path, StreamCompression::Gzip, Some(&extract_path))
             .await?;
     info!("Extracted to {}", extracted);
+    let key = format!("{} ({}) - {}", package.name, package.version, package_hash);
+    let paths = [extracted];
+    let cache_id = cache::save_cache(&paths, &key).await?;
+    info!("Saved as {}", cache_id);
     Ok(())
 }
 
