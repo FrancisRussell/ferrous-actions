@@ -119,29 +119,34 @@ async fn install_package(package: &ManifestPackage) -> Result<(), Error> {
     use crate::actions::tool_cache::{self, StreamCompression};
     use rust_toolchain_manifest::manifest::Compression;
 
+    let key = compute_cache_key(package);
     let package_hash = package.unique_identifier();
-    let remote_binary = package
-        .tarballs
-        .iter()
-        .find(|(c, _)| *c == Compression::Gzip)
-        .expect("Unable to find tar.gz")
-        .1
-        .clone();
-    info!("Will need to download the following: {:#?}", remote_binary);
-    let tarball_path = tool_cache::download_tool(remote_binary.url.as_str())
-        .await
-        .map_err(Error::Js)?;
-    info!("Downloaded tarball to {}", tarball_path);
     let extract_path = get_cacheable_path(&package_hash).await?;
-    info!("Will extract to {}", extract_path);
-    let extracted =
+    let paths = [&extract_path];
+    let restore_keys: [&str; 0] = [];
+    if let Some(key) = cache::restore_cache(&paths, &key, &restore_keys).await? {
+        info!("Restored files from cache with key {}", key);
+    } else {
+        let remote_binary = package
+            .tarballs
+            .iter()
+            .find(|(c, _)| *c == Compression::Gzip)
+            .expect("Unable to find tar.gz")
+            .1
+            .clone();
+        info!("Will need to download the following: {:#?}", remote_binary);
+        let tarball_path = tool_cache::download_tool(remote_binary.url.as_str())
+            .await
+            .map_err(Error::Js)?;
+        info!("Downloaded tarball to {}", tarball_path);
+        info!("Will extract to {}", extract_path);
         tool_cache::extract_tar(&tarball_path, StreamCompression::Gzip, Some(&extract_path))
             .await?;
-    info!("Extracted to {}", extracted);
-    let key = compute_cache_key(package);
-    let paths = [extracted];
-    let cache_id = cache::save_cache(&paths, &key).await?;
-    info!("Saved as {}", cache_id);
+        info!("Extracted to {}", extract_path);
+        let paths = [extract_path];
+        let cache_id = cache::save_cache(&paths, &key).await?;
+        info!("Saved as {}", cache_id);
+    }
     Ok(())
 }
 
