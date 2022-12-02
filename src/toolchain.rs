@@ -1,21 +1,22 @@
 use crate::info;
-use crate::node::path::Path;
+use crate::node::{self, path::Path};
 use crate::rustup::ToolchainConfig;
 use crate::Error;
 use rust_toolchain_manifest::manifest::ManifestPackage;
-use rust_toolchain_manifest::HashValue;
+use std::str::FromStr;
 use target_lexicon::Triple;
 
-async fn get_cacheable_path(key: &HashValue) -> Result<Path, Error> {
-    use crate::node;
+async fn get_package_decompress_path(package: &ManifestPackage) -> Result<Path, Error> {
     let mut dir = node::os::homedir();
     dir.push(".cache");
     dir.push("github-rust-actions");
-    dir.push(base64::encode_config(key, base64::URL_SAFE).as_str());
+    dir.push("package-decompression");
+    let package_hash = package.unique_identifier();
+    dir.push(base64::encode_config(package_hash, base64::URL_SAFE).as_str());
     Ok(dir)
 }
 
-fn compute_cache_key(package: &ManifestPackage) -> String {
+fn compute_package_cache_key(package: &ManifestPackage) -> String {
     let package_hash = package.unique_identifier();
     let package_hash = base64::encode_config(package_hash, base64::URL_SAFE);
     let key = format!(
@@ -27,8 +28,6 @@ fn compute_cache_key(package: &ManifestPackage) -> String {
 }
 
 fn default_target_for_platform() -> Result<Triple, Error> {
-    use crate::node;
-    use std::str::FromStr;
     let target = Triple::from_str(
         match (node::os::arch().as_str(), node::os::platform().as_str()) {
             ("arm64", "linux") => "aarch64-unknown-linux-gnu",
@@ -46,14 +45,13 @@ fn default_target_for_platform() -> Result<Triple, Error> {
     Ok(target)
 }
 
-async fn install_package(package: &ManifestPackage) -> Result<(), Error> {
+async fn fetch_and_decompress_package(package: &ManifestPackage) -> Result<(), Error> {
     use crate::actions::cache::CacheEntry;
     use crate::actions::tool_cache::{self, StreamCompression};
     use rust_toolchain_manifest::manifest::Compression;
 
-    let key = compute_cache_key(package);
-    let package_hash = package.unique_identifier();
-    let extract_path = get_cacheable_path(&package_hash).await?;
+    let key = compute_package_cache_key(package);
+    let extract_path = get_package_decompress_path(&package).await?;
     let mut cache_entry = CacheEntry::new(key.as_str());
     cache_entry.path(&extract_path);
     if let Some(key) = cache_entry.restore().await? {
@@ -83,9 +81,7 @@ async fn install_package(package: &ManifestPackage) -> Result<(), Error> {
 
 pub async fn install_toolchain(toolchain_config: &ToolchainConfig) -> Result<(), Error> {
     use crate::actions::tool_cache;
-    use crate::node;
     use rust_toolchain_manifest::{InstallSpec, Manifest, Toolchain};
-    use std::str::FromStr;
 
     let toolchain = Toolchain::from_str(&toolchain_config.name)?;
     let manifest_url = toolchain.manifest_url();
@@ -109,7 +105,7 @@ pub async fn install_toolchain(toolchain_config: &ToolchainConfig) -> Result<(),
     };
     let downloads = manifest.find_downloads_for_install(&target, &install_spec)?;
     for download in downloads.iter() {
-        install_package(download).await?;
+        fetch_and_decompress_package(download).await?;
     }
     Ok(())
 }
