@@ -26,10 +26,11 @@ thiserror = "1.0.23"
 wasm-bindgen = "0.2.78"
 wasm-bindgen-futures = "0.4.33"
 target-lexicon = "0.12.5"
+base64 = "0.13.1"
 
 [dependencies.rust-toolchain-manifest]
 git = "https://github.com/FrancisRussell/rust-toolchain-manifest.git"
-rev = "22bb7a54a6aaaeaba2dc89ec53a95654cc6b6364"
+rev = "3a77eff700ba61a4ac4e59f06b761702287fd209"
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3"
