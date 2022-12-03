@@ -33,7 +33,32 @@ pub mod os {
 
 pub mod fs {
     use js_sys::{JsString, Uint8Array};
+    use std::collections::VecDeque;
     use wasm_bindgen::{JsCast, JsError, JsValue};
+
+    #[derive(Debug)]
+    pub struct ReadDir {
+        entries: VecDeque<ffi::DirEnt>,
+    }
+
+    #[derive(Debug)]
+    pub struct DirEnt {
+        inner: ffi::DirEnt,
+    }
+
+    impl DirEnt {
+        pub fn get_name(&self) -> String {
+            self.inner.get_name().into()
+        }
+    }
+
+    impl Iterator for ReadDir {
+        type Item = DirEnt;
+
+        fn next(&mut self) -> Option<DirEnt> {
+            self.entries.pop_front().map(|inner| DirEnt { inner })
+        }
+    }
 
     pub async fn chmod<P: Into<JsString>>(path: P, mode: u16) -> Result<(), JsValue> {
         let path: JsString = path.into();
@@ -52,16 +77,23 @@ pub mod fs {
         Ok(result)
     }
 
-    pub async fn read_dir<P: Into<JsString>>(path: P) -> Result<Vec<String>, JsValue> {
+    pub async fn read_dir<P: Into<JsString>>(path: P) -> Result<ReadDir, JsValue> {
+        use js_sys::Object;
+
         let path: JsString = path.into();
-        let entries = ffi::read_dir(&path, None).await?;
-        let entries: Vec<String> = entries
+        let options = js_sys::Map::new();
+        options.set(&"withFileTypes".into(), &true.into());
+        options.set(&"encoding".into(), &"utf8".into());
+        let options =
+            Object::from_entries(&options).expect("Failed to convert options map to object");
+        let entries = ffi::read_dir(&path, Some(options)).await?;
+        let entries: VecDeque<_> = entries
             .dyn_into::<js_sys::Array>()
             .map_err(|_| JsError::new("read_dir didn't return an array"))?
             .iter()
-            .map(Into::<JsString>::into)
-            .map(Into::<String>::into)
+            .map(Into::<ffi::DirEnt>::into)
             .collect();
+        let entries = ReadDir { entries };
         Ok(entries)
     }
 
@@ -70,6 +102,22 @@ pub mod fs {
         use js_sys::Object;
         use wasm_bindgen::prelude::*;
         use wasm_bindgen::JsValue;
+
+        #[wasm_bindgen(module = "fs")]
+        extern "C" {
+            #[wasm_bindgen(js_name = "Dirent")]
+            #[derive(Debug)]
+            pub type DirEnt;
+
+            #[wasm_bindgen(method, js_class = "Dirent", js_name = "isDirectory")]
+            pub fn is_directory(this: &DirEnt) -> bool;
+
+            #[wasm_bindgen(method, js_class = "Dirent", js_name = "isFile")]
+            pub fn is_file(this: &DirEnt) -> bool;
+
+            #[wasm_bindgen(method, getter, js_name = "name")]
+            pub fn get_name(this: &DirEnt) -> JsString;
+        }
 
         #[wasm_bindgen(module = "fs/promises")]
         extern "C" {
