@@ -343,12 +343,25 @@ pub mod path {
         }
     }
 
+    pub fn delimiter() -> String {
+        use wasm_bindgen::JsCast as _;
+        ffi::DELIMITER
+            .clone()
+            .dyn_into::<JsString>()
+            .expect("delimiter wasn't a string")
+            .into()
+    }
+
     pub mod ffi {
-        use js_sys::JsString;
+        use js_sys::{JsString, Object};
         use wasm_bindgen::prelude::*;
 
         #[wasm_bindgen(module = "path")]
         extern "C" {
+
+            #[wasm_bindgen(js_name = "delimiter")]
+            pub static DELIMITER: Object;
+
             pub fn normalize(path: &JsString) -> JsString;
             #[wasm_bindgen(variadic)]
             pub fn join(paths: Vec<JsString>) -> JsString;
