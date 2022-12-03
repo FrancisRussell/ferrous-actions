@@ -79,7 +79,11 @@ async fn fetch_and_decompress_package(package: &ManifestPackage) -> Result<(), E
     let dir = node::fs::read_dir(&extract_path).await?;
     info!("Directory: {}", extract_path);
     for entry in dir {
-        info!("Directory entry: {}", entry.get_name());
+        info!(
+            "Directory entry: file_name={}, path={}",
+            entry.file_name(),
+            entry.path()
+        );
     }
     Ok(())
 }

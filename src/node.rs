@@ -32,31 +32,43 @@ pub mod os {
 }
 
 pub mod fs {
+    use crate::node::path::Path;
     use js_sys::{JsString, Uint8Array};
     use std::collections::VecDeque;
     use wasm_bindgen::{JsCast, JsError, JsValue};
 
     #[derive(Debug)]
     pub struct ReadDir {
+        path: Path,
         entries: VecDeque<ffi::DirEnt>,
     }
 
     #[derive(Debug)]
-    pub struct DirEnt {
+    pub struct DirEntry {
+        parent: Path,
         inner: ffi::DirEnt,
     }
 
-    impl DirEnt {
-        pub fn get_name(&self) -> String {
+    impl DirEntry {
+        pub fn file_name(&self) -> String {
             self.inner.get_name().into()
+        }
+
+        pub fn path(&self) -> Path {
+            let mut result = self.parent.clone();
+            result.push(self.inner.get_name());
+            result
         }
     }
 
     impl Iterator for ReadDir {
-        type Item = DirEnt;
+        type Item = DirEntry;
 
-        fn next(&mut self) -> Option<DirEnt> {
-            self.entries.pop_front().map(|inner| DirEnt { inner })
+        fn next(&mut self) -> Option<DirEntry> {
+            let parent = self.path.clone();
+            self.entries
+                .pop_front()
+                .map(|inner| DirEntry { parent, inner })
         }
     }
 
@@ -93,7 +105,8 @@ pub mod fs {
             .iter()
             .map(Into::<ffi::DirEnt>::into)
             .collect();
-        let entries = ReadDir { entries };
+        let path = Path::from(path);
+        let entries = ReadDir { path, entries };
         Ok(entries)
     }
 
