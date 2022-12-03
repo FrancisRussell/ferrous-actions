@@ -164,6 +164,25 @@ async fn fetch_and_decompress_package(package: &ManifestPackage) -> Result<(), E
     Ok(())
 }
 
+pub fn remove_cargo_home_from_path() {
+    let environment = node::process::get_env();
+    info!("Environment: {:#?}", environment);
+    let cargo_home: String = if let Some(value) = environment.get("CARGO_HOME") {
+        value.to_string()
+    } else {
+        let mut cargo_home = node::os::homedir();
+        cargo_home.push(".cargo");
+        cargo_home.to_string()
+    };
+    let paths: Vec<_> = if let Some(value) = environment.get("PATH") {
+        value.split(node::path::delimiter().as_str()).map(String::from).collect()
+    } else {
+        return;
+    };
+    let paths: Vec<_> = paths.iter().filter(|p| !p.starts_with(&cargo_home)).collect();
+    info!("Path entries: {:#?}", paths);
+}
+
 pub async fn install_toolchain(toolchain_config: &ToolchainConfig) -> Result<(), Error> {
     use actions::tool_cache;
     use futures::{StreamExt as _, TryStreamExt as _};
@@ -209,6 +228,7 @@ pub async fn install_toolchain(toolchain_config: &ToolchainConfig) -> Result<(),
         cargo_bin.push("bin");
         cargo_bin
     };
+    remove_cargo_home_from_path();
     actions::core::add_path(&cargo_bin);
     Ok(())
 }
