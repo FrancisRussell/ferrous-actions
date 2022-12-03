@@ -45,6 +45,30 @@ fn default_target_for_platform() -> Result<Triple, Error> {
     Ok(target)
 }
 
+async fn install_components(package: &ManifestPackage) -> Result<(), Error> {
+    let extract_path = get_package_decompress_path(&package).await?;
+    let dir = node::fs::read_dir(&extract_path).await?;
+    info!("Directory: {}", extract_path);
+    for entry in dir.filter(|d| d.file_type().is_dir()) {
+        let mut components_path = entry.path();
+        components_path.push("components");
+        let components: Vec<String> = node::fs::read_file(&components_path)
+            .await
+            .map(|data| String::from_utf8_lossy(&data[..]).into_owned())?
+            .lines()
+            .map(String::from)
+            .collect();
+        info!("List of components: {:?}", components);
+        info!(
+            "Directory entry: file_name={}, file_type={:?}, path={}",
+            entry.file_name(),
+            entry.file_type(),
+            entry.path()
+        );
+    }
+    Ok(())
+}
+
 async fn fetch_and_decompress_package(package: &ManifestPackage) -> Result<(), Error> {
     use crate::actions::cache::CacheEntry;
     use crate::actions::tool_cache::{self, StreamCompression};
@@ -76,16 +100,6 @@ async fn fetch_and_decompress_package(package: &ManifestPackage) -> Result<(), E
         let cache_id = cache_entry.save().await?;
         info!("Saved as {}", cache_id);
     }
-    let dir = node::fs::read_dir(&extract_path).await?;
-    info!("Directory: {}", extract_path);
-    for entry in dir {
-        info!(
-            "Directory entry: file_name={}, file_type={:?}, path={}",
-            entry.file_name(),
-            entry.file_type(),
-            entry.path()
-        );
-    }
     Ok(())
 }
 
@@ -116,6 +130,7 @@ pub async fn install_toolchain(toolchain_config: &ToolchainConfig) -> Result<(),
     let downloads = manifest.find_downloads_for_install(&target, &install_spec)?;
     for download in downloads.iter() {
         fetch_and_decompress_package(download).await?;
+        install_components(download).await?;
     }
     Ok(())
 }
