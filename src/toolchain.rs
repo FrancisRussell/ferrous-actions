@@ -2,6 +2,7 @@ use crate::info;
 use crate::node::{self, path::Path};
 use crate::rustup::ToolchainConfig;
 use crate::Error;
+use async_recursion::async_recursion;
 use rust_toolchain_manifest::{manifest::ManifestPackage, Toolchain};
 use std::str::FromStr;
 use target_lexicon::Triple;
@@ -55,6 +56,28 @@ fn default_target_for_platform() -> Result<Triple, Error> {
     Ok(target)
 }
 
+#[async_recursion(?Send)]
+async fn overlay_and_move_dir(from: &Path, to: &Path) -> Result<(), Error> {
+    node::fs::create_dir_all(to).await?;
+    {
+        let dir = node::fs::read_dir(from).await?;
+        for entry in dir {
+            let from = entry.path();
+            let mut to = to.clone();
+            to.push(entry.file_name().as_str());
+            let file_type = entry.file_type();
+
+            if file_type.is_dir() {
+                overlay_and_move_dir(&from, &to).await?;
+            } else {
+                node::fs::rename(&from, &to).await?;
+            }
+        }
+    }
+    node::fs::remove_dir(from).await?;
+    Ok(())
+}
+
 async fn install_components(toolchain: &Toolchain, package: &ManifestPackage) -> Result<(), Error> {
     use crate::package_manifest::{EntryType, PackageManifest};
 
@@ -92,7 +115,7 @@ async fn install_components(toolchain: &Toolchain, package: &ManifestPackage) ->
 
                 match *entry_type {
                     EntryType::File => node::fs::rename(&source, &dest).await?,
-                    EntryType::Directory => todo!(),
+                    EntryType::Directory => overlay_and_move_dir(&source, &dest).await?,
                 }
             }
         }

@@ -195,6 +195,12 @@ pub mod fs {
         Ok(())
     }
 
+    pub async fn remove_dir<P: Into<JsString>>(path: P) -> Result<(), JsValue> {
+        let path: JsString = path.into();
+        ffi::rmdir(&path, None).await?;
+        Ok(())
+    }
+
     pub async fn rename<P: Into<JsString>>(from: P, to: P) -> Result<(), JsValue> {
         let from: JsString = from.into();
         let to: JsString = to.into();
@@ -261,6 +267,12 @@ pub mod fs {
 
             #[wasm_bindgen(catch)]
             pub async fn rename(old: &JsString, new: &JsString) -> Result<JsValue, JsValue>;
+
+            #[wasm_bindgen(catch)]
+            pub async fn rmdir(
+                path: &JsString,
+                options: Option<Object>,
+            ) -> Result<JsValue, JsValue>;
         }
     }
 }
