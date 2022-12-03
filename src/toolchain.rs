@@ -211,7 +211,5 @@ pub async fn install_toolchain(toolchain_config: &ToolchainConfig) -> Result<(),
         cargo_bin
     };
     actions::core::add_path(&cargo_bin);
-    actions::core::export_variable("CARGO_HOME", &cargo_home);
-
     Ok(())
 }
