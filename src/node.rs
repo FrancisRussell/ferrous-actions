@@ -177,6 +177,24 @@ pub mod fs {
         Ok(entries)
     }
 
+    pub async fn create_dir_all<P: Into<JsString>>(path: P) -> Result<(), JsValue> {
+        use js_sys::Object;
+
+        let options = js_sys::Map::new();
+        options.set(&"recursive".into(), &true.into());
+        let options =
+            Object::from_entries(&options).expect("Failed to convert options map to object");
+        let path: JsString = path.into();
+        ffi::mkdir(&path, Some(options)).await?;
+        Ok(())
+    }
+
+    pub async fn create_dir<P: Into<JsString>>(path: P) -> Result<(), JsValue> {
+        let path: JsString = path.into();
+        ffi::mkdir(&path, None).await?;
+        Ok(())
+    }
+
     pub mod ffi {
         use js_sys::JsString;
         use js_sys::Object;
@@ -227,6 +245,12 @@ pub mod fs {
                 path: &JsString,
                 options: Option<Object>,
             ) -> Result<JsValue, JsValue>;
+
+            #[wasm_bindgen(catch, js_name = "mkdir")]
+            pub async fn mkdir(
+                path: &JsString,
+                options: Option<Object>,
+            ) -> Result<JsValue, JsValue>;
         }
     }
 }
@@ -254,6 +278,11 @@ pub mod path {
 
         pub fn to_js_string(&self) -> JsString {
             self.inner.to_string()
+        }
+
+        pub fn parent(&self) -> Path {
+            let parent = ffi::dirname(&self.inner);
+            Path { inner: parent }
         }
     }
 
@@ -303,6 +332,8 @@ pub mod path {
             pub fn join(paths: Vec<JsString>) -> JsString;
             #[wasm_bindgen(variadic)]
             pub fn resolve(paths: Vec<JsString>) -> JsString;
+            #[wasm_bindgen]
+            pub fn dirname(path: &JsString) -> JsString;
         }
     }
 }

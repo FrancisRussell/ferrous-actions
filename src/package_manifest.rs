@@ -39,6 +39,12 @@ pub struct PackageManifest {
     entries: Vec<(EntryType, Path)>,
 }
 
+impl PackageManifest {
+    pub fn iter(&self) -> std::slice::Iter<'_, (EntryType, Path)> {
+        self.entries.iter()
+    }
+}
+
 impl FromStr for PackageManifest {
     type Err = PackageManifestParseError;
 

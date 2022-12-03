@@ -2,11 +2,21 @@ use crate::info;
 use crate::node::{self, path::Path};
 use crate::rustup::ToolchainConfig;
 use crate::Error;
-use rust_toolchain_manifest::manifest::ManifestPackage;
+use rust_toolchain_manifest::{manifest::ManifestPackage, Toolchain};
 use std::str::FromStr;
 use target_lexicon::Triple;
 
-async fn get_package_decompress_path(package: &ManifestPackage) -> Result<Path, Error> {
+fn get_cargo_home(toolchain: &Toolchain) -> Result<Path, Error> {
+    let mut dir = node::os::homedir();
+    dir.push(".local");
+    dir.push("share");
+    dir.push("github-rust-actions");
+    dir.push("toolchains");
+    dir.push(format!("{}", toolchain).as_str());
+    Ok(dir)
+}
+
+fn get_package_decompress_path(package: &ManifestPackage) -> Result<Path, Error> {
     let mut dir = node::os::homedir();
     dir.push(".cache");
     dir.push("github-rust-actions");
@@ -45,10 +55,13 @@ fn default_target_for_platform() -> Result<Triple, Error> {
     Ok(target)
 }
 
-async fn install_components(package: &ManifestPackage) -> Result<(), Error> {
-    use crate::package_manifest::PackageManifest;
+async fn install_components(toolchain: &Toolchain, package: &ManifestPackage) -> Result<(), Error> {
+    use crate::package_manifest::{EntryType, PackageManifest};
 
-    let extract_path = get_package_decompress_path(&package).await?;
+    let cargo_home = get_cargo_home(toolchain)?;
+    node::fs::create_dir_all(&cargo_home).await?;
+
+    let extract_path = get_package_decompress_path(&package)?;
     let dir = node::fs::read_dir(&extract_path).await?;
     info!("Directory: {}", extract_path);
     for entry in dir.filter(|d| d.file_type().is_dir()) {
@@ -70,16 +83,19 @@ async fn install_components(package: &ManifestPackage) -> Result<(), Error> {
                 .await
                 .map(|data| String::from_utf8_lossy(&data[..]).into_owned())?;
             let manifest = PackageManifest::from_str(manifest.as_str())?;
-            info!("Manifest: {:#?}", manifest);
+            for (entry_type, path) in manifest.iter() {
+                let parent_dir_relative = path.parent();
+                let mut parent_dir = cargo_home.clone();
+                parent_dir.push(parent_dir_relative);
+                info!("Creating dir: {}", parent_dir);
+                node::fs::create_dir_all(&parent_dir).await?;
+
+                match *entry_type {
+                    EntryType::File => {}
+                    EntryType::Directory => todo!(),
+                }
+            }
         }
-        /*
-        info!(
-            "Directory entry: file_name={}, file_type={:?}, path={}",
-            entry.file_name(),
-            entry.file_type(),
-            entry.path()
-        );
-        */
     }
     Ok(())
 }
@@ -90,7 +106,7 @@ async fn fetch_and_decompress_package(package: &ManifestPackage) -> Result<(), E
     use rust_toolchain_manifest::manifest::Compression;
 
     let key = compute_package_cache_key(package);
-    let extract_path = get_package_decompress_path(&package).await?;
+    let extract_path = get_package_decompress_path(&package)?;
     let mut cache_entry = CacheEntry::new(key.as_str());
     cache_entry.path(&extract_path);
     if let Some(key) = cache_entry.restore().await? {
@@ -120,7 +136,7 @@ async fn fetch_and_decompress_package(package: &ManifestPackage) -> Result<(), E
 
 pub async fn install_toolchain(toolchain_config: &ToolchainConfig) -> Result<(), Error> {
     use crate::actions::tool_cache;
-    use rust_toolchain_manifest::{InstallSpec, Manifest, Toolchain};
+    use rust_toolchain_manifest::{InstallSpec, Manifest};
 
     let toolchain = Toolchain::from_str(&toolchain_config.name)?;
     let manifest_url = toolchain.manifest_url();
@@ -135,7 +151,10 @@ pub async fn install_toolchain(toolchain_config: &ToolchainConfig) -> Result<(),
     let manifest = node::fs::read_file(&manifest_path).await?;
     let manifest = String::from_utf8(manifest).map_err(|_| Error::ManifestNotUtf8)?;
     let manifest = Manifest::try_from(manifest.as_str())?;
-    let target = toolchain.host.unwrap_or(default_target_for_platform()?);
+    let target = toolchain
+        .host
+        .clone()
+        .unwrap_or(default_target_for_platform()?);
     info!("Attempting to find toolchain for target {}", target);
     let install_spec = InstallSpec {
         profile: toolchain_config.profile.clone(),
@@ -145,7 +164,7 @@ pub async fn install_toolchain(toolchain_config: &ToolchainConfig) -> Result<(),
     let downloads = manifest.find_downloads_for_install(&target, &install_spec)?;
     for download in downloads.iter() {
         fetch_and_decompress_package(download).await?;
-        install_components(download).await?;
+        install_components(&toolchain, download).await?;
     }
     Ok(())
 }
