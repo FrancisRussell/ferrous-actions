@@ -8,6 +8,8 @@ use rust_toolchain_manifest::{manifest::ManifestPackage, Toolchain};
 use std::str::FromStr;
 use target_lexicon::Triple;
 
+const MAX_CONCURRENT_PACKAGE_INSTALLS: usize = 4;
+
 fn get_cargo_home(toolchain: &Toolchain) -> Result<Path, Error> {
     let mut dir = node::os::homedir();
     dir.push(".local");
@@ -85,7 +87,7 @@ async fn install_components(toolchain: &Toolchain, package: &ManifestPackage) ->
     let cargo_home = get_cargo_home(toolchain)?;
     node::fs::create_dir_all(&cargo_home).await?;
 
-    let extract_path = get_package_decompress_path(&package)?;
+    let extract_path = get_package_decompress_path(package)?;
     let dir = node::fs::read_dir(&extract_path).await?;
     info!("Directory: {}", extract_path);
     for entry in dir.filter(|d| d.file_type().is_dir()) {
@@ -97,7 +99,6 @@ async fn install_components(toolchain: &Toolchain, package: &ManifestPackage) ->
             .lines()
             .map(String::from)
             .collect();
-        info!("List of components: {:?}", components);
         for component in components {
             let mut component_path = entry.path();
             component_path.push(Path::from(component.as_str()));
@@ -125,7 +126,7 @@ async fn install_components(toolchain: &Toolchain, package: &ManifestPackage) ->
 }
 
 async fn cleanup_decompressed_package(package: &ManifestPackage) -> Result<(), Error> {
-    let extract_path = get_package_decompress_path(&package)?;
+    let extract_path = get_package_decompress_path(package)?;
     actions::io::rm_rf(&extract_path).await?;
     Ok(())
 }
@@ -136,7 +137,7 @@ async fn fetch_and_decompress_package(package: &ManifestPackage) -> Result<(), E
     use rust_toolchain_manifest::manifest::Compression;
 
     let key = compute_package_cache_key(package);
-    let extract_path = get_package_decompress_path(&package)?;
+    let extract_path = get_package_decompress_path(package)?;
     let mut cache_entry = CacheEntry::new(key.as_str());
     cache_entry.path(&extract_path);
     if let Some(key) = cache_entry.restore().await? {
@@ -166,6 +167,7 @@ async fn fetch_and_decompress_package(package: &ManifestPackage) -> Result<(), E
 
 pub async fn install_toolchain(toolchain_config: &ToolchainConfig) -> Result<(), Error> {
     use actions::tool_cache;
+    use futures::{StreamExt as _, TryStreamExt as _};
     use rust_toolchain_manifest::{InstallSpec, Manifest};
 
     let toolchain = Toolchain::from_str(&toolchain_config.name)?;
@@ -192,10 +194,14 @@ pub async fn install_toolchain(toolchain_config: &ToolchainConfig) -> Result<(),
         targets: toolchain_config.targets.iter().cloned().collect(),
     };
     let downloads = manifest.find_downloads_for_install(&target, &install_spec)?;
-    for download in downloads.iter() {
-        fetch_and_decompress_package(download).await?;
-        install_components(&toolchain, download).await?;
-        cleanup_decompressed_package(download).await?;
-    }
+    let process_packages = futures::stream::iter(downloads.iter())
+        .map(|download| async {
+            fetch_and_decompress_package(download).await?;
+            install_components(&toolchain, download).await?;
+            cleanup_decompressed_package(download).await?;
+            Ok::<_, Error>(())
+        })
+        .buffer_unordered(MAX_CONCURRENT_PACKAGE_INSTALLS);
+    let _collected: () = process_packages.try_collect().await?;
     Ok(())
 }
