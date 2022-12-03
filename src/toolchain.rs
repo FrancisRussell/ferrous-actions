@@ -1,3 +1,4 @@
+use crate::actions;
 use crate::info;
 use crate::node::{self, path::Path};
 use crate::rustup::ToolchainConfig;
@@ -123,9 +124,15 @@ async fn install_components(toolchain: &Toolchain, package: &ManifestPackage) ->
     Ok(())
 }
 
+async fn cleanup_decompressed_package(package: &ManifestPackage) -> Result<(), Error> {
+    let extract_path = get_package_decompress_path(&package)?;
+    actions::io::rm_rf(&extract_path).await?;
+    Ok(())
+}
+
 async fn fetch_and_decompress_package(package: &ManifestPackage) -> Result<(), Error> {
-    use crate::actions::cache::CacheEntry;
-    use crate::actions::tool_cache::{self, StreamCompression};
+    use actions::cache::CacheEntry;
+    use actions::tool_cache::{self, StreamCompression};
     use rust_toolchain_manifest::manifest::Compression;
 
     let key = compute_package_cache_key(package);
@@ -158,7 +165,7 @@ async fn fetch_and_decompress_package(package: &ManifestPackage) -> Result<(), E
 }
 
 pub async fn install_toolchain(toolchain_config: &ToolchainConfig) -> Result<(), Error> {
-    use crate::actions::tool_cache;
+    use actions::tool_cache;
     use rust_toolchain_manifest::{InstallSpec, Manifest};
 
     let toolchain = Toolchain::from_str(&toolchain_config.name)?;
@@ -188,6 +195,7 @@ pub async fn install_toolchain(toolchain_config: &ToolchainConfig) -> Result<(),
     for download in downloads.iter() {
         fetch_and_decompress_package(download).await?;
         install_components(&toolchain, download).await?;
+        cleanup_decompressed_package(download).await?;
     }
     Ok(())
 }
