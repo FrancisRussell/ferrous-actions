@@ -59,12 +59,27 @@ async fn install_components(package: &ManifestPackage) -> Result<(), Error> {
             .map(String::from)
             .collect();
         info!("List of components: {:?}", components);
+        for component in components {
+            let mut component_path = entry.path();
+            component_path.push(Path::from(component.as_str()));
+            let mut manifest_path = component_path.clone();
+            manifest_path.push("manifest.in");
+            let manifest_entries: Vec<String> = node::fs::read_file(&manifest_path)
+                .await
+                .map(|data| String::from_utf8_lossy(&data[..]).into_owned())?
+                .lines()
+                .map(String::from)
+                .collect();
+            info!("Manifest entries: {:#?}", manifest_entries);
+        }
+        /*
         info!(
             "Directory entry: file_name={}, file_type={:?}, path={}",
             entry.file_name(),
             entry.file_type(),
             entry.path()
         );
+        */
     }
     Ok(())
 }
