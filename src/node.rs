@@ -195,6 +195,13 @@ pub mod fs {
         Ok(())
     }
 
+    pub async fn rename<P: Into<JsString>>(from: P, to: P) -> Result<(), JsValue> {
+        let from: JsString = from.into();
+        let to: JsString = to.into();
+        ffi::rename(&from, &to).await?;
+        Ok(())
+    }
+
     pub mod ffi {
         use js_sys::JsString;
         use js_sys::Object;
@@ -246,11 +253,14 @@ pub mod fs {
                 options: Option<Object>,
             ) -> Result<JsValue, JsValue>;
 
-            #[wasm_bindgen(catch, js_name = "mkdir")]
+            #[wasm_bindgen(catch)]
             pub async fn mkdir(
                 path: &JsString,
                 options: Option<Object>,
             ) -> Result<JsValue, JsValue>;
+
+            #[wasm_bindgen(catch)]
+            pub async fn rename(old: &JsString, new: &JsString) -> Result<JsValue, JsValue>;
         }
     }
 }

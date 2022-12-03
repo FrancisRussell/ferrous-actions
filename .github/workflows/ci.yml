@@ -45,5 +45,6 @@ jobs:
         with:
           command: cargo clippy
       - run: find ~/.cache
+      - run: find ~/.local
       - if: steps.cargo-build.outputs.result != 'success'
         run: exit 1

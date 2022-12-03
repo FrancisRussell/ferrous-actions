@@ -84,14 +84,14 @@ async fn install_components(toolchain: &Toolchain, package: &ManifestPackage) ->
                 .map(|data| String::from_utf8_lossy(&data[..]).into_owned())?;
             let manifest = PackageManifest::from_str(manifest.as_str())?;
             for (entry_type, path) in manifest.iter() {
-                let parent_dir_relative = path.parent();
-                let mut parent_dir = cargo_home.clone();
-                parent_dir.push(parent_dir_relative);
-                info!("Creating dir: {}", parent_dir);
-                node::fs::create_dir_all(&parent_dir).await?;
+                let mut source = component_path.clone();
+                source.push(path.clone());
+                let mut dest = cargo_home.clone();
+                dest.push(path.clone());
+                node::fs::create_dir_all(&dest.parent()).await?;
 
                 match *entry_type {
-                    EntryType::File => {}
+                    EntryType::File => node::fs::rename(&source, &dest).await?,
                     EntryType::Directory => todo!(),
                 }
             }
