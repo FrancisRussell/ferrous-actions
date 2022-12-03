@@ -26,7 +26,7 @@ jobs:
       - run: npm run test
 
       # Test the action
-      - id: install-rustup
+      - id: install-toolchain
         uses: ./
         with:
           command: toolchain
@@ -35,6 +35,11 @@ jobs:
           targets: wasm32-unknown-unknown
           components: clippy
           default: true
+      - id: install-cross
+        uses: ./
+        with:
+          command: cargo install
+          args: cross
       - id: cargo-build
         uses: ./
         with:
