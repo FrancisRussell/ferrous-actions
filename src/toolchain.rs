@@ -166,21 +166,54 @@ async fn fetch_and_decompress_package(package: &ManifestPackage) -> Result<(), E
 
 pub fn remove_cargo_home_from_path() {
     let environment = node::process::get_env();
-    info!("Environment: {:#?}", environment);
-    let cargo_home: String = if let Some(value) = environment.get("CARGO_HOME") {
-        value.to_string()
-    } else {
-        let mut cargo_home = node::os::homedir();
-        cargo_home.push(".cargo");
-        cargo_home.to_string()
+    let delimiter = node::path::delimiter();
+    let cargo_bin = {
+        let mut cargo_bin = if let Some(value) = environment.get("CARGO_HOME") {
+            Path::from(value.as_str())
+        } else {
+            let mut cargo_home = node::os::homedir();
+            cargo_home.push(".cargo");
+            cargo_home
+        };
+        cargo_bin.push("bin");
+        cargo_bin
     };
-    let paths: Vec<_> = if let Some(value) = environment.get("PATH") {
-        value.split(node::path::delimiter().as_str()).map(String::from).collect()
+    let cargo_bin = cargo_bin.to_string();
+
+    let (path_len, paths): (_, Vec<_>) = if let Some(value) = environment.get("PATH") {
+        let path_len = value.len();
+        (
+            path_len,
+            value.split(delimiter.as_str()).map(String::from).collect(),
+        )
     } else {
         return;
     };
-    let paths: Vec<_> = paths.iter().filter(|p| !p.starts_with(&cargo_home)).collect();
-    info!("Path entries: {:#?}", paths);
+    let mut removed = None;
+    let paths: Vec<String> = paths
+        .into_iter()
+        .filter(|p| {
+            let keep = cargo_bin != *p;
+            if !keep {
+                removed = Some(p.clone());
+            }
+            keep
+        })
+        .collect();
+    if let Some(removed) = removed {
+        let mut first = true;
+        let mut path_var = String::with_capacity(path_len);
+        for path in paths {
+            if first {
+                first = false;
+            } else {
+                path_var += delimiter.as_str();
+            }
+            path_var += path.as_str();
+        }
+        actions::core::export_variable("PATH", path_var);
+        info!("Removed existing toolchain at {} from the path", removed);
+    }
 }
 
 pub async fn install_toolchain(toolchain_config: &ToolchainConfig) -> Result<(), Error> {
