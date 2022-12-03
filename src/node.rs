@@ -37,6 +37,52 @@ pub mod fs {
     use std::collections::VecDeque;
     use wasm_bindgen::{JsCast, JsError, JsValue};
 
+    #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+    pub struct FileType {
+        inner: FileTypeEnum,
+    }
+
+    impl FileType {
+        pub fn is_file(&self) -> bool {
+            self.inner == FileTypeEnum::File
+        }
+
+        pub fn is_dir(&self) -> bool {
+            self.inner == FileTypeEnum::Dir
+        }
+
+        pub fn is_symlink(&self) -> bool {
+            self.inner == FileTypeEnum::Symlink
+        }
+
+        pub fn is_fifo(&self) -> bool {
+            self.inner == FileTypeEnum::Fifo
+        }
+
+        pub fn is_socket(&self) -> bool {
+            self.inner == FileTypeEnum::Socket
+        }
+
+        pub fn is_block_device(&self) -> bool {
+            self.inner == FileTypeEnum::BlockDev
+        }
+
+        pub fn is_char_device(&self) -> bool {
+            self.inner == FileTypeEnum::CharDev
+        }
+    }
+
+    #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+    enum FileTypeEnum {
+        File,
+        Dir,
+        Symlink,
+        BlockDev,
+        CharDev,
+        Fifo,
+        Socket,
+    }
+
     #[derive(Debug)]
     pub struct ReadDir {
         path: Path,
@@ -58,6 +104,27 @@ pub mod fs {
             let mut result = self.parent.clone();
             result.push(self.inner.get_name());
             result
+        }
+
+        pub fn file_type(&self) -> FileType {
+            let inner = if self.inner.is_block_device() {
+                FileTypeEnum::BlockDev
+            } else if self.inner.is_character_device() {
+                FileTypeEnum::CharDev
+            } else if self.inner.is_socket() {
+                FileTypeEnum::Socket
+            } else if self.inner.is_fifo() {
+                FileTypeEnum::Fifo
+            } else if self.inner.is_symbolic_link() {
+                FileTypeEnum::Symlink
+            } else if self.inner.is_directory() {
+                FileTypeEnum::Dir
+            } else if self.inner.is_file() {
+                FileTypeEnum::File
+            } else {
+                panic!("Unhandled directory entry type")
+            };
+            FileType { inner }
         }
     }
 
@@ -127,6 +194,21 @@ pub mod fs {
 
             #[wasm_bindgen(method, js_class = "Dirent", js_name = "isFile")]
             pub fn is_file(this: &DirEnt) -> bool;
+
+            #[wasm_bindgen(method, js_class = "Dirent", js_name = "isBlockDevice")]
+            pub fn is_block_device(this: &DirEnt) -> bool;
+
+            #[wasm_bindgen(method, js_class = "Dirent", js_name = "isCharacterDevice")]
+            pub fn is_character_device(this: &DirEnt) -> bool;
+
+            #[wasm_bindgen(method, js_class = "Dirent", js_name = "isFIFO")]
+            pub fn is_fifo(this: &DirEnt) -> bool;
+
+            #[wasm_bindgen(method, js_class = "Dirent", js_name = "isSocket")]
+            pub fn is_socket(this: &DirEnt) -> bool;
+
+            #[wasm_bindgen(method, js_class = "Dirent", js_name = "isSymbolicLink")]
+            pub fn is_symbolic_link(this: &DirEnt) -> bool;
 
             #[wasm_bindgen(method, getter, js_name = "name")]
             pub fn get_name(this: &DirEnt) -> JsString;

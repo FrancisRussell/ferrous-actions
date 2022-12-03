@@ -80,8 +80,9 @@ async fn fetch_and_decompress_package(package: &ManifestPackage) -> Result<(), E
     info!("Directory: {}", extract_path);
     for entry in dir {
         info!(
-            "Directory entry: file_name={}, path={}",
+            "Directory entry: file_name={}, file_type={:?}, path={}",
             entry.file_name(),
+            entry.file_type(),
             entry.path()
         );
     }
