@@ -203,5 +203,15 @@ pub async fn install_toolchain(toolchain_config: &ToolchainConfig) -> Result<(),
         })
         .buffer_unordered(MAX_CONCURRENT_PACKAGE_INSTALLS);
     let _collected: () = process_packages.try_collect().await?;
+
+    let cargo_home = get_cargo_home(&toolchain)?;
+    let cargo_bin = {
+        let mut cargo_bin = cargo_home.clone();
+        cargo_bin.push("bin");
+        cargo_bin
+    };
+    actions::core::add_path(&cargo_bin);
+    actions::core::export_variable("CARGO_HOME", &cargo_home);
+
     Ok(())
 }
