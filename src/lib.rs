@@ -3,6 +3,7 @@ mod cargo;
 mod error;
 pub mod node;
 mod noop_stream;
+mod package_manifest;
 mod run;
 mod rustup;
 mod toolchain;

@@ -1,3 +1,4 @@
+use crate::package_manifest::PackageManifestParseError;
 use thiserror::Error;
 use wasm_bindgen::JsValue;
 
@@ -26,6 +27,9 @@ pub enum Error {
 
     #[error("Unsupported platform: {0}")]
     UnsupportedPlatform(String),
+
+    #[error("Unable to parse package manifest: {0}")]
+    PackageManifest(#[from] PackageManifestParseError),
 }
 
 impl From<JsValue> for Error {

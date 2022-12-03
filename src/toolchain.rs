@@ -46,6 +46,8 @@ fn default_target_for_platform() -> Result<Triple, Error> {
 }
 
 async fn install_components(package: &ManifestPackage) -> Result<(), Error> {
+    use crate::package_manifest::PackageManifest;
+
     let extract_path = get_package_decompress_path(&package).await?;
     let dir = node::fs::read_dir(&extract_path).await?;
     info!("Directory: {}", extract_path);
@@ -64,13 +66,11 @@ async fn install_components(package: &ManifestPackage) -> Result<(), Error> {
             component_path.push(Path::from(component.as_str()));
             let mut manifest_path = component_path.clone();
             manifest_path.push("manifest.in");
-            let manifest_entries: Vec<String> = node::fs::read_file(&manifest_path)
+            let manifest = node::fs::read_file(&manifest_path)
                 .await
-                .map(|data| String::from_utf8_lossy(&data[..]).into_owned())?
-                .lines()
-                .map(String::from)
-                .collect();
-            info!("Manifest entries: {:#?}", manifest_entries);
+                .map(|data| String::from_utf8_lossy(&data[..]).into_owned())?;
+            let manifest = PackageManifest::from_str(manifest.as_str())?;
+            info!("Manifest: {:#?}", manifest);
         }
         /*
         info!(
