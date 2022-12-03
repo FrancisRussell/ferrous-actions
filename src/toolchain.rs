@@ -89,7 +89,6 @@ async fn install_components(toolchain: &Toolchain, package: &ManifestPackage) ->
 
     let extract_path = get_package_decompress_path(package)?;
     let dir = node::fs::read_dir(&extract_path).await?;
-    info!("Directory: {}", extract_path);
     for entry in dir.filter(|d| d.file_type().is_dir()) {
         let mut components_path = entry.path();
         components_path.push("components");
