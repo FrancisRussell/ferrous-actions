@@ -164,43 +164,70 @@ async fn fetch_and_decompress_package(package: &ManifestPackage) -> Result<(), E
     Ok(())
 }
 
-pub fn remove_cargo_home_from_path() {
+async fn is_user_cargo_bin(folder: &Path) -> bool {
+    // The aim here is to remove all other cargo installs from the path without
+    // accidentally making the system unusable (e.g. removing /usr/bin)
+    let cargo_path = {
+        let mut cargo_path = folder.clone();
+        cargo_path.push("cargo");
+        cargo_path
+    };
+    if !cargo_path.exists().await {
+        return false;
+    }
+    let is_local = {
+        let folder = folder.to_string();
+        let home_dir = node::os::homedir().to_string();
+        folder.starts_with(&home_dir)
+    };
+    if !is_local {
+        return false;
+    }
+    true
+}
+
+pub async fn set_cargo_bin(cargo_bin: &Path) {
     let environment = node::process::get_env();
     let delimiter = node::path::delimiter();
-    let cargo_bin = {
-        let mut cargo_bin = if let Some(value) = environment.get("CARGO_HOME") {
-            Path::from(value.as_str())
-        } else {
-            let mut cargo_home = node::os::homedir();
-            cargo_home.push(".cargo");
-            cargo_home
-        };
-        cargo_bin.push("bin");
-        cargo_bin
-    };
-    let cargo_bin = cargo_bin.to_string();
-
-    let (path_len, paths): (_, Vec<_>) = if let Some(value) = environment.get("PATH") {
+    let (path_len, paths): (_, Vec<_>) = {
+        let value = environment.get("PATH").map(String::as_str).unwrap_or("");
         let path_len = value.len();
         (
             path_len,
-            value.split(delimiter.as_str()).map(String::from).collect(),
+            value.split(delimiter.as_str()).map(Path::from).collect(),
         )
-    } else {
-        return;
     };
-    let mut removed = None;
-    let paths: Vec<String> = paths
-        .into_iter()
-        .filter(|p| {
-            let keep = cargo_bin != *p;
-            if !keep {
-                removed = Some(p.clone());
+    let mut already_in_path = false;
+    let mut removed = Vec::new();
+    let mut paths: Vec<Path> = {
+        let mut result = Vec::with_capacity(paths.len());
+        for p in paths {
+            let keep = if p == *cargo_bin {
+                already_in_path = true;
+                true
+            } else if is_user_cargo_bin(&p).await {
+                removed.push(p.clone());
+                false
+            } else {
+                true
+            };
+            if keep {
+                result.push(p);
             }
-            keep
-        })
-        .collect();
-    if let Some(removed) = removed {
+        }
+        result
+    };
+    for path in &removed {
+        info!("Removed existing toolchain at {} from the path", path);
+    }
+    if already_in_path {
+        info!("Toolchain at {} was already in the path", cargo_bin);
+    } else {
+        info!("Adding {} to the path", cargo_bin);
+        paths.push(cargo_bin.clone());
+    }
+    let changed = !already_in_path || !removed.is_empty();
+    if changed {
         let mut first = true;
         let mut path_var = String::with_capacity(path_len);
         for path in paths {
@@ -209,10 +236,9 @@ pub fn remove_cargo_home_from_path() {
             } else {
                 path_var += delimiter.as_str();
             }
-            path_var += path.as_str();
+            path_var += path.to_string().as_str();
         }
         actions::core::export_variable("PATH", path_var);
-        info!("Removed existing toolchain at {} from the path", removed);
     }
 }
 
@@ -255,13 +281,13 @@ pub async fn install_toolchain(toolchain_config: &ToolchainConfig) -> Result<(),
         .buffer_unordered(MAX_CONCURRENT_PACKAGE_INSTALLS);
     process_packages.try_collect().await?;
 
-    let cargo_home = get_cargo_home(&toolchain)?;
-    let cargo_bin = {
-        let mut cargo_bin = cargo_home;
-        cargo_bin.push("bin");
-        cargo_bin
-    };
-    remove_cargo_home_from_path();
-    actions::core::add_path(&cargo_bin);
+    if toolchain_config.default {
+        let cargo_bin = {
+            let mut cargo_bin = get_cargo_home(&toolchain)?;
+            cargo_bin.push("bin");
+            cargo_bin
+        };
+        set_cargo_bin(&cargo_bin).await;
+    }
     Ok(())
 }

@@ -273,6 +273,9 @@ pub mod fs {
                 path: &JsString,
                 options: Option<Object>,
             ) -> Result<JsValue, JsValue>;
+
+            #[wasm_bindgen(catch)]
+            pub async fn access(path: &JsString, mode: Option<u32>) -> Result<JsValue, JsValue>;
         }
     }
 }
@@ -280,6 +283,7 @@ pub mod fs {
 pub mod path {
     use js_sys::JsString;
 
+    #[derive(Clone)]
     pub struct Path {
         inner: JsString,
     }
@@ -291,10 +295,28 @@ pub mod path {
         }
     }
 
+    impl PartialEq for Path {
+        fn eq(&self, rhs: &Path) -> bool {
+            // relative() resolves paths according to the CWD so we should only
+            // use it if they will both be resolved the same way
+            if self.is_absolute() == rhs.is_absolute() {
+                // This should handle both case-sensitivity and trailing slash issues
+                let relative = ffi::relative(&self.inner, &rhs.inner);
+                relative.length() == 0
+            } else {
+                false
+            }
+        }
+    }
+
     impl Path {
         pub fn push<P: Into<Path>>(&mut self, path: P) {
             let path = path.into();
-            let joined = ffi::resolve(vec![self.inner.to_string(), path.inner.to_string()]);
+            let joined = if path.is_absolute() {
+                path.inner
+            } else {
+                ffi::join(vec![self.inner.clone(), path.inner])
+            };
             self.inner = joined;
         }
 
@@ -306,19 +328,19 @@ pub mod path {
             let parent = ffi::dirname(&self.inner);
             Path { inner: parent }
         }
+
+        pub fn is_absolute(&self) -> bool {
+            ffi::is_absolute(&self.inner)
+        }
+
+        pub async fn exists(&self) -> bool {
+            super::fs::ffi::access(&self.inner, None).await.is_ok()
+        }
     }
 
     impl std::fmt::Debug for Path {
         fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
             write!(formatter, "{}", self)
-        }
-    }
-
-    impl Clone for Path {
-        fn clone(&self) -> Path {
-            Path {
-                inner: self.inner.to_string(),
-            }
         }
     }
 
@@ -358,7 +380,6 @@ pub mod path {
 
         #[wasm_bindgen(module = "path")]
         extern "C" {
-
             #[wasm_bindgen(js_name = "delimiter")]
             pub static DELIMITER: Object;
 
@@ -369,6 +390,10 @@ pub mod path {
             pub fn resolve(paths: Vec<JsString>) -> JsString;
             #[wasm_bindgen]
             pub fn dirname(path: &JsString) -> JsString;
+            #[wasm_bindgen(js_name = "isAbsolute")]
+            pub fn is_absolute(path: &JsString) -> bool;
+            #[wasm_bindgen]
+            pub fn relative(from: &JsString, to: &JsString) -> JsString;
         }
     }
 }
