@@ -229,6 +229,12 @@ pub fn add_path(path: &Path) {
     ffi::add_path(&path.into())
 }
 
+pub fn export_variable<N: Into<JsString>, V: Into<JsString>>(name: N, value: V) {
+    let name = name.into();
+    let value = value.into();
+    ffi::export_variable(&name, &value);
+}
+
 #[allow(clippy::drop_non_drop)]
 pub mod ffi {
     use js_sys::JsString;
@@ -284,5 +290,7 @@ pub mod ffi {
         #[wasm_bindgen(js_name = "addPath")]
         pub fn add_path(path: &JsString);
 
+        #[wasm_bindgen(js_name = "exportVariable")]
+        pub fn export_variable(name: &JsString, value: &JsString);
     }
 }

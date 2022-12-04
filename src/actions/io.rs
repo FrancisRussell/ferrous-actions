@@ -8,6 +8,12 @@ pub async fn which<T: Into<JsString>>(tool: T, check: bool) -> Result<Path, JsVa
     Ok(Path::from(path))
 }
 
+pub async fn rm_rf<P: Into<JsString>>(path: P) -> Result<(), JsValue> {
+    let path = path.into();
+    ffi::rm_rf(&path).await?;
+    Ok(())
+}
+
 pub mod ffi {
     use js_sys::JsString;
     use wasm_bindgen::prelude::*;
@@ -16,5 +22,8 @@ pub mod ffi {
     extern "C" {
         #[wasm_bindgen(js_name = "which", catch)]
         pub async fn which(tool: &JsString, check: Option<bool>) -> Result<JsValue, JsValue>;
+
+        #[wasm_bindgen(js_name = "rmRF", catch)]
+        pub async fn rm_rf(path: &JsString) -> Result<JsValue, JsValue>;
     }
 }

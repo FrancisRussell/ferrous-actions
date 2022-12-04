@@ -1,6 +1,7 @@
 use crate::node::path::Path;
 use crate::node::process;
 use js_sys::JsString;
+use std::borrow::Cow;
 use std::convert::Into;
 use wasm_bindgen::prelude::*;
 
@@ -49,6 +50,57 @@ pub async fn download_tool<O: Into<DownloadTool>>(options: O) -> Result<Path, Js
     options.into().download().await
 }
 
+#[derive(Debug, Copy, Clone)]
+pub enum StreamCompression {
+    None,
+    Gzip,
+    Bzip2,
+    Xz,
+}
+
+impl StreamCompression {
+    fn tar_flag(&self) -> Cow<str> {
+        match self {
+            StreamCompression::None => "",
+            StreamCompression::Gzip => "z",
+            StreamCompression::Bzip2 => "j",
+            StreamCompression::Xz => "J",
+        }
+        .into()
+    }
+}
+
+pub async fn extract_tar(
+    path: &Path,
+    compression: StreamCompression,
+    dest: Option<&Path>,
+) -> Result<Path, JsValue> {
+    let mut tar_option = String::from("x");
+    tar_option += &compression.tar_flag();
+    let tar_option = vec![JsString::from(tar_option)];
+
+    let path: JsString = path.into();
+    let dest = dest.map(Into::<JsString>::into);
+    let dest = ffi::extract_tar(&path, dest.as_ref(), Some(tar_option)).await?;
+    let dest: JsString = dest.into();
+    Ok(dest.into())
+}
+
+pub async fn cache_dir(
+    tool: &str,
+    version: &str,
+    path: &Path,
+    arch: Option<&str>,
+) -> Result<Path, JsValue> {
+    let path: JsString = path.into();
+    let tool: JsString = tool.into();
+    let version: JsString = version.into();
+    let arch: Option<JsString> = arch.map(Into::into);
+    let dest = ffi::cache_dir(&path, &tool, &version, arch.as_ref()).await?;
+    let dest: JsString = dest.into();
+    Ok(dest.into())
+}
+
 pub mod ffi {
     use js_sys::{JsString, Map};
     use wasm_bindgen::prelude::*;
@@ -61,6 +113,21 @@ pub mod ffi {
             dest: Option<&JsString>,
             auth: Option<&JsString>,
             headers: Option<&Map>,
+        ) -> Result<JsValue, JsValue>;
+
+        #[wasm_bindgen(js_name = "cacheDir", catch)]
+        pub async fn cache_dir(
+            source_dir: &JsString,
+            tool: &JsString,
+            version: &JsString,
+            arch: Option<&JsString>,
+        ) -> Result<JsValue, JsValue>;
+
+        #[wasm_bindgen(js_name = "extractTar", catch)]
+        pub async fn extract_tar(
+            file: &JsString,
+            dest: Option<&JsString>,
+            flags: Option<Vec<JsString>>,
         ) -> Result<JsValue, JsValue>;
     }
 }
