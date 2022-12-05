@@ -29,6 +29,7 @@ target-lexicon = "0.12.5"
 base64 = "0.13.1"
 async-recursion = "1.0.0"
 futures = { version = "0.3.25", default_features = false, features = [ "std" ]}
+async-trait = "0.1.59"
 
 [dependencies.rust-toolchain-manifest]
 git = "https://github.com/FrancisRussell/rust-toolchain-manifest.git"

@@ -23,6 +23,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-trait"
+version = "0.1.59"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "31e6e93155431f3931513b243d371981bb2770112b370c82745a1d19d2f99364"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "autocfg"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -304,6 +315,7 @@ name = "github-rust-actions"
 version = "0.1.0"
 dependencies = [
  "async-recursion",
+ "async-trait",
  "base64",
  "cargo_metadata",
  "console_error_panic_hook",
