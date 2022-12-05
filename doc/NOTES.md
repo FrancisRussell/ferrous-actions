@@ -7,3 +7,6 @@
 ## How do registries get named in the cache?
 - https://github.com/rust-lang/cargo/blob/f6e737b1e3386adb89333bf06a01f68a91ac5306/src/cargo/core/source/source_id.rs#L560
 - https://github.com/rust-lang/cargo/blob/f6e737b1e3386adb89333bf06a01f68a91ac5306/src/cargo/sources/registry/mod.rs#L549
+
+## Issues with `rustup` and `cargo` acting as package managers
+- https://kornel.ski/rust-2019
