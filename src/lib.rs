@@ -5,6 +5,7 @@ mod cargo_hook;
 mod cargo_install_hook;
 mod error;
 pub mod node;
+mod nonce;
 mod noop_stream;
 mod package_manifest;
 mod run;

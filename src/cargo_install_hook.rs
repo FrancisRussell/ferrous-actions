@@ -23,7 +23,7 @@ fn get_package_build_dir(hash: &HashValue) -> Result<Path, Error> {
 
 pub struct CargoInstallHook {
     hash: HashValue,
-    key: String,
+    nonce: HashValue,
     build_dir: String,
     fingerprint: Option<HashValue>,
 }
@@ -34,6 +34,7 @@ impl CargoInstallHook {
         I: IntoIterator<Item = A>,
         A: AsRef<str>,
     {
+        use crate::nonce::build_nonce;
         let mut hasher = blake3::Hasher::new();
         hasher.update(toolchain_hash.as_ref());
         for arg in args.into_iter() {
@@ -43,13 +44,9 @@ impl CargoInstallHook {
         let hash = hasher.finalize();
         let hash = HashValue::from_bytes(hash.as_bytes());
         let build_dir = get_package_build_dir(&hash)?.to_string();
-        let key = format!(
-            "Cargo package build artifacts - {}",
-            base64::encode_config(&hash, base64::URL_SAFE)
-        );
         let result = CargoInstallHook {
             hash,
-            key,
+            nonce: build_nonce(),
             build_dir,
             fingerprint: None,
         };
@@ -62,8 +59,25 @@ impl CargoInstallHook {
         Ok(result)
     }
 
+    fn build_key(&self, with_nonce: bool) -> String {
+        let mut result = format!(
+            "Cargo package build artifacts - {}",
+            base64::encode_config(&self.hash, base64::URL_SAFE)
+        );
+        if with_nonce {
+            result += &format!(
+                " - {}",
+                base64::encode_config(&self.nonce, base64::URL_SAFE)
+            );
+        }
+        result
+    }
+
     fn build_cache_entry(&self) -> CacheEntry {
-        let mut cache_entry = CacheEntry::new(self.key.as_str());
+        let primary_key = self.build_key(true);
+        let mut cache_entry = CacheEntry::new(primary_key.as_str());
+        let secondary_key = self.build_key(false);
+        cache_entry.restore_key(secondary_key.as_str());
         cache_entry.path(&Path::from(self.build_dir.as_str()));
         cache_entry
     }
