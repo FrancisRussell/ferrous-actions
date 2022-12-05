@@ -29,13 +29,13 @@ pub struct CargoInstallHook {
 }
 
 impl CargoInstallHook {
-    pub async fn new<I, A>(toolchain_hash: &str, args: I) -> Result<CargoInstallHook, Error>
+    pub async fn new<I, A>(toolchain_hash: &HashValue, args: I) -> Result<CargoInstallHook, Error>
     where
         I: IntoIterator<Item = A>,
         A: AsRef<str>,
     {
         let mut hasher = blake3::Hasher::new();
-        hasher.update(toolchain_hash.as_bytes());
+        hasher.update(toolchain_hash.as_ref());
         for arg in args.into_iter() {
             let arg = arg.as_ref();
             hasher.update(arg.as_bytes());
