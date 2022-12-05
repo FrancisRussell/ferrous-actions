@@ -88,7 +88,7 @@ impl AnnotationHook {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl CargoHook for AnnotationHook {
     fn additional_cargo_options(&self) -> Vec<Cow<str>> {
         if self.enabled {

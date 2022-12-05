@@ -2,7 +2,7 @@ use crate::actions::exec::Command;
 use async_trait::async_trait;
 use std::borrow::Cow;
 
-#[async_trait]
+#[async_trait(?Send)]
 pub trait CargoHook {
     fn additional_cargo_options(&self) -> Vec<Cow<str>>;
     fn modify_command(&self, command: &mut Command);
@@ -21,7 +21,7 @@ impl CompositeCargoHook {
     }
 }
 
-#[async_trait]
+#[async_trait(?Send)]
 impl CargoHook for CompositeCargoHook {
     fn additional_cargo_options(&self) -> Vec<Cow<str>> {
         let mut result = Vec::new();

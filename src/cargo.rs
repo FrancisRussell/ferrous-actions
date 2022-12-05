@@ -6,6 +6,7 @@ use crate::cargo_hook::CompositeCargoHook;
 use crate::node::path::Path;
 use crate::Error;
 use std::borrow::Cow;
+use crate::cargo_install_hook::CargoInstallHook;
 
 #[derive(Debug)]
 pub struct Cargo {
@@ -20,11 +21,16 @@ impl Cargo {
             .map_err(Error::Js)
     }
 
-    async fn get_hooks_for_subcommand(subcommand: &str) -> Result<Box<dyn CargoHook>, Error> {
+    async fn get_hooks_for_subcommand(subcommand: &str, args: &[String]) -> Result<Box<dyn CargoHook>, Error> {
         let mut hooks = CompositeCargoHook::default();
         match subcommand {
             "build" | "check" | "clippy" => {
                 hooks.push(AnnotationHook::new(subcommand).await?);
+            }
+            "install" => {
+                //TODO: determine compiler hash
+                let compiler_hash = "foobar";
+                hooks.push(CargoInstallHook::new(compiler_hash, args).await?);
             }
             _ => {}
         }
@@ -45,7 +51,7 @@ impl Cargo {
         if let Some(toolchain) = toolchain {
             final_args.push(format!("+{}", toolchain));
         }
-        let mut hooks = Self::get_hooks_for_subcommand(subcommand).await?;
+        let mut hooks = Self::get_hooks_for_subcommand(subcommand, &args[..]).await?;
         final_args.push(subcommand.into());
         final_args.extend(
             hooks

@@ -2,6 +2,7 @@ pub mod actions;
 mod annotation_hook;
 mod cargo;
 mod cargo_hook;
+mod cargo_install_hook;
 mod error;
 pub mod node;
 mod noop_stream;
