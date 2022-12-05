@@ -12,6 +12,8 @@ use async_trait::async_trait;
 use rust_toolchain_manifest::HashValue;
 use std::borrow::Cow;
 
+const NONCE_SIZE_BYTES: usize = 8;
+
 fn get_package_build_dir(hash: &HashValue) -> Result<Path, Error> {
     let mut dir = node::os::homedir();
     dir.push(".cache");
@@ -46,7 +48,7 @@ impl CargoInstallHook {
         let build_dir = get_package_build_dir(&hash)?.to_string();
         let result = CargoInstallHook {
             hash,
-            nonce: build_nonce(),
+            nonce: build_nonce(NONCE_SIZE_BYTES),
             build_dir,
             fingerprint: None,
         };
