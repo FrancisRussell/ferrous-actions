@@ -29,7 +29,7 @@ jobs:
       - id: install-toolchain
         uses: ./
         with:
-          command: toolchain
+          command: install-toolchain
           toolchain: nightly
           profile: minimal
           targets: wasm32-unknown-unknown
