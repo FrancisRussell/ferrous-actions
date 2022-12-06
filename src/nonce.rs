@@ -7,7 +7,9 @@ pub fn build_nonce(num_bytes: usize) -> HashValue {
     // To use the getrandom crate we either need node.js's crypto module to be enabled, or
     // switch to WASI as a target
     let mut hasher = blake3::Hasher::new();
-    // We need to introduce 256 bits of entropy regardless of the number of bytes we take
+    // We need to introduce 256 bits of entropy regardless of the number of bytes we take.
+    // Using a hasher lets us ignore some potential issues with Math.random():
+    // https://v8.dev/blog/math-random.
     let num_floats_to_input = 8;
     for _ in 0..num_floats_to_input {
         let random = ffi::MATH
