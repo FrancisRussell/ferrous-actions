@@ -33,6 +33,7 @@ pub mod os {
 
 pub mod fs {
     use crate::node::path::Path;
+    use chrono::{DateTime, NaiveDateTime, Utc};
     use js_sys::{JsString, Uint8Array};
     use std::collections::VecDeque;
     use wasm_bindgen::{JsCast, JsError, JsValue};
@@ -208,6 +209,56 @@ pub mod fs {
         Ok(())
     }
 
+    #[derive(Debug)]
+    pub struct Metadata {
+        inner: ffi::Stats,
+    }
+
+    impl Metadata {
+        pub fn uid(&self) -> u64 {
+            self.inner.uid() as u64
+        }
+
+        pub fn gid(&self) -> u64 {
+            self.inner.gid() as u64
+        }
+
+        pub fn len(&self) -> u64 {
+            self.inner.size() as u64
+        }
+
+        pub fn mode(&self) -> u64 {
+            self.inner.mode() as u64
+        }
+
+        pub fn accessed(&self) -> DateTime<Utc> {
+            let naive = NaiveDateTime::from_timestamp_millis(self.inner.access_time_ms() as i64)
+                .expect("Access time out of bounds");
+            DateTime::from_utc(naive, Utc)
+        }
+
+        pub fn modified(&self) -> DateTime<Utc> {
+            let naive =
+                NaiveDateTime::from_timestamp_millis(self.inner.modification_time_ms() as i64)
+                    .expect("Modification time out of bounds");
+            DateTime::from_utc(naive, Utc)
+        }
+
+        pub fn created(&self) -> DateTime<Utc> {
+            let naive = NaiveDateTime::from_timestamp_millis(self.inner.created_time_ms() as i64)
+                .expect("Creation time out of bounds");
+            DateTime::from_utc(naive, Utc)
+        }
+    }
+
+    pub async fn symlink_metadata<P: Into<JsString>>(path: P) -> Result<Metadata, JsValue> {
+        let path = path.into();
+        let stats = ffi::lstat(&path, None)
+            .await
+            .map(Into::<ffi::Stats>::into)?;
+        Ok(Metadata { inner: stats })
+    }
+
     pub mod ffi {
         use js_sys::JsString;
         use js_sys::Object;
@@ -245,6 +296,34 @@ pub mod fs {
             pub fn get_name(this: &DirEnt) -> JsString;
         }
 
+        #[wasm_bindgen(module = "fs")]
+        extern "C" {
+            #[wasm_bindgen(js_name = "Stats")]
+            #[derive(Debug)]
+            pub type Stats;
+
+            #[wasm_bindgen(method, getter)]
+            pub fn size(this: &Stats) -> f64;
+
+            #[wasm_bindgen(method, getter, js_name = "atimeMs")]
+            pub fn access_time_ms(this: &Stats) -> f64;
+
+            #[wasm_bindgen(method, getter, js_name = "mtimeMs")]
+            pub fn modification_time_ms(this: &Stats) -> f64;
+
+            #[wasm_bindgen(method, getter, js_name = "birthtimeMs")]
+            pub fn created_time_ms(this: &Stats) -> f64;
+
+            #[wasm_bindgen(method, getter)]
+            pub fn uid(this: &Stats) -> f64;
+
+            #[wasm_bindgen(method, getter)]
+            pub fn gid(this: &Stats) -> f64;
+
+            #[wasm_bindgen(method, getter)]
+            pub fn mode(this: &Stats) -> f64;
+        }
+
         #[wasm_bindgen(module = "fs/promises")]
         extern "C" {
             #[wasm_bindgen(catch)]
@@ -276,6 +355,12 @@ pub mod fs {
 
             #[wasm_bindgen(catch)]
             pub async fn access(path: &JsString, mode: Option<u32>) -> Result<JsValue, JsValue>;
+
+            #[wasm_bindgen(catch)]
+            pub async fn lstat(
+                path: &JsString,
+                options: Option<Object>,
+            ) -> Result<JsValue, JsValue>;
         }
     }
 }

@@ -391,6 +391,7 @@ dependencies = [
  "base64",
  "blake3",
  "cargo_metadata",
+ "chrono",
  "console_error_panic_hook",
  "futures",
  "js-sys",
