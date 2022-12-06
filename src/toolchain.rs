@@ -69,7 +69,6 @@ async fn overlay_and_move_dir(from: &Path, to: &Path) -> Result<(), Error> {
             let mut to = to.clone();
             to.push(entry.file_name().as_str());
             let file_type = entry.file_type();
-
             if file_type.is_dir() {
                 overlay_and_move_dir(&from, &to).await?;
             } else {

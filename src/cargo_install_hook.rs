@@ -3,6 +3,7 @@ use crate::actions::cache::CacheEntry;
 use crate::actions::exec::Command;
 use crate::cargo_hook::CargoHook;
 use crate::error;
+use crate::fingerprinting::fingerprint_directory;
 use crate::info;
 use crate::node;
 use crate::node::path::Path;
@@ -27,7 +28,7 @@ pub struct CargoInstallHook {
     hash: HashValue,
     nonce: HashValue,
     build_dir: String,
-    fingerprint: Option<HashValue>,
+    fingerprint: Option<u64>,
 }
 
 impl CargoInstallHook {
@@ -45,18 +46,18 @@ impl CargoInstallHook {
         }
         let hash = hasher.finalize();
         let hash = HashValue::from_bytes(hash.as_bytes());
-        let build_dir = get_package_build_dir(&hash)?.to_string();
-        let result = CargoInstallHook {
+        let build_dir = get_package_build_dir(&hash)?;
+        let mut result = CargoInstallHook {
             hash,
             nonce: build_nonce(NONCE_SIZE_BYTES),
-            build_dir,
+            build_dir: build_dir.to_string(),
             fingerprint: None,
         };
         node::fs::create_dir_all(result.build_dir.as_str()).await?;
         let cache_entry = result.build_cache_entry();
         if let Some(key) = cache_entry.restore().await? {
             info!("Restored files from cache with key {}", key);
-            //TODO: compute fingerprint of build folder
+            result.fingerprint = Some(fingerprint_directory(&build_dir).await?);
         }
         Ok(result)
     }
@@ -107,14 +108,27 @@ impl CargoHook for CargoInstallHook {
     fn modify_command(&self, _command: &mut Command) {}
 
     async fn succeeded(&mut self) {
-        //TODO: compute fingerprint of build folder and only save if it has changed
-        //or there was no previous fingerprint. New items should be saved with a nonce
-        //since we cannot overwrite cache items.
-        let cache_entry = self.build_cache_entry();
-        if let Err(e) = cache_entry.save().await.map_err(Error::Js) {
-            error!("Failed to save package build artifacts to cache: {}", e);
+        let save = if let Some(old_fingerprint) = self.fingerprint {
+            let path = Path::from(self.build_dir.as_str());
+            match fingerprint_directory(&path).await.map_err(Error::Js) {
+                Ok(fingerprint) => fingerprint != old_fingerprint,
+                Err(e) => {
+                    error!("Could not fingerprint build artifact directory: {}", e);
+                    false
+                }
+            }
         } else {
-            info!("Saved package build artifacts to cache");
+            true
+        };
+        if save {
+            let cache_entry = self.build_cache_entry();
+            if let Err(e) = cache_entry.save().await.map_err(Error::Js) {
+                error!("Failed to save package build artifacts to cache: {}", e);
+            } else {
+                info!("Saved package build artifacts to cache.");
+            }
+        } else {
+            info!("Build artifacts unchanged, no need to save back to cache.");
         }
         self.cleanup().await;
     }

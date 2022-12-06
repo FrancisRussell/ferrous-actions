@@ -4,6 +4,7 @@ mod cargo;
 mod cargo_hook;
 mod cargo_install_hook;
 mod error;
+mod fingerprinting;
 pub mod node;
 mod nonce;
 mod noop_stream;
