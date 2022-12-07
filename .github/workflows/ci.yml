@@ -27,6 +27,13 @@ jobs:
       - run: npm run test
 
       # Test the action
+      #
+      - id: restore-cargo-cache
+        uses: ./
+        with:
+          command: cache
+          cache-only: indices crates git-repos
+          min-recache-indices: 1h
       - id: install-toolchain
         uses: ./
         with:

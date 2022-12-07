@@ -30,6 +30,18 @@ pub enum Error {
 
     #[error("Unable to parse package manifest: {0}")]
     PackageManifest(#[from] PackageManifestParseError),
+
+    #[error("JSON serialization/deserialization error: {0}")]
+    SerdeJson(#[from] serde_json::Error),
+
+    #[error("Unable to parse item to cache: {0}")]
+    ParseCacheableItem(String),
+
+    #[error("Unable to parse duration: {0}")]
+    DurationParse(#[from] humantime::DurationError),
+
+    #[error("Out of range duration: {0}")]
+    OutOfRangeDuration(#[from] chrono::OutOfRangeError),
 }
 
 impl From<JsValue> for Error {

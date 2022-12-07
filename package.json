@@ -4,7 +4,7 @@
   "private": true,
   "description": "GitHub actions for Rust written in Rust and compiled to WebAssembly",
   "scripts": {
-    "build": "wasm-pack build -t nodejs --out-name index && ncc build pkg/index.js -o dist",
+    "build": "wasm-pack build -t nodejs --out-name lib && ncc build pkg/lib.js -o dist && cp phase-wrappers/* dist",
     "format": "cargo fmt",
     "format-check": "cargo fmt -- --check",
     "lint": "cargo clippy",

@@ -28,9 +28,22 @@ inputs:
   annotations:
     description: 'Should GitHub annotations be generated for this command'
     required: false
+  cache-only:
+    description: 'Whitespace separated list of items to cache out of indices, crates, git-repos'
+    required: false
+  min-recache-indices:
+    description: 'Minimum amount of time an index must be out of date before recaching it'
+    required: false
+  min-recache-crates:
+    description: 'Minimum amount of time a collection of cached crates must be out of date before recaching'
+    required: false
+  min-recache-git-repos:
+    description: 'Minimum amount of time cached Git repositories must be out of date before recaching'
 outputs:
   result:
     description: 'The result of the action execution'
 runs:
   using: 'node16'
-  main: 'dist/index.js'
+  main: 'dist/main.js'
+  post: 'dist/post.js'
+  post-if: 'success()'

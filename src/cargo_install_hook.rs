@@ -57,7 +57,7 @@ impl CargoInstallHook {
         let cache_entry = result.build_cache_entry();
         if let Some(key) = cache_entry.restore().await? {
             info!("Restored files from cache with key {}", key);
-            result.fingerprint = Some(fingerprint_directory(&build_dir).await?);
+            result.fingerprint = Some(fingerprint_directory(&build_dir).await?.content_hash());
         }
         Ok(result)
     }
@@ -111,7 +111,7 @@ impl CargoHook for CargoInstallHook {
         let save = if let Some(old_fingerprint) = self.fingerprint {
             let path = Path::from(self.build_dir.as_str());
             match fingerprint_directory(&path).await.map_err(Error::Js) {
-                Ok(fingerprint) => fingerprint != old_fingerprint,
+                Ok(fingerprint) => fingerprint.content_hash() != old_fingerprint,
                 Err(e) => {
                     error!("Could not fingerprint build artifact directory: {}", e);
                     false
