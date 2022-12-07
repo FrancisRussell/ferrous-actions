@@ -33,6 +33,8 @@ pub async fn run() -> Result<(), Error> {
 
     // Greet the workflow actor.
     info!("Hello, {}!", actor);
+    let environment = crate::node::process::get_env();
+    info!("Environment: {:?}", environment);
 
     let command: String = Input::from("command").get_required()?;
     let split: Vec<&str> = command.split_whitespace().collect();

@@ -33,4 +33,4 @@ outputs:
     description: 'The result of the action execution'
 runs:
   using: 'node16'
-  main: 'dist/index.js'
+  main: 'dist/main.js'
