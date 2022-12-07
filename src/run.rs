@@ -1,11 +1,11 @@
 use crate::actions::core::{self, Input};
+use crate::cache_cargo_home::{restore_cargo_cache, save_cargo_cache};
 use crate::node;
 use crate::rustup::install_rustup;
 use crate::toolchain::install_toolchain;
 use crate::Error;
 use crate::{info, warning};
 use crate::{rustup::ToolchainConfig, Cargo};
-use crate::cache_cargo_home::restore_cargo_cache;
 
 fn get_toolchain_config() -> Result<ToolchainConfig, Error> {
     let mut toolchain_config = ToolchainConfig::default();
@@ -83,9 +83,7 @@ pub async fn main() -> Result<(), Error> {
                 )
                 .await?;
         }
-        ["cache"] => {
-            restore_cargo_cache().await?;
-        }
+        ["cache"] => restore_cargo_cache().await?,
         _ => return Err(Error::UnknownCommand(command)),
     }
 
@@ -98,6 +96,9 @@ pub async fn main() -> Result<(), Error> {
 pub async fn post() -> Result<(), Error> {
     let command: String = Input::from("command").get_required()?;
     let split: Vec<&str> = command.split_whitespace().collect();
-    info!("Command is {:#?}", split);
+    match split[..] {
+        ["cache"] => save_cargo_cache().await?,
+        _ => {}
+    }
     Ok(())
 }
