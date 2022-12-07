@@ -1,10 +1,11 @@
+use crate::actions;
 use crate::actions::cache::CacheEntry;
 use crate::fingerprinting::fingerprint_directory;
 use crate::node;
 use crate::node::os::homedir;
 use crate::node::path::Path;
 use crate::Error;
-use crate::{error, info};
+use crate::{error, info, warning};
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 
@@ -91,11 +92,28 @@ fn build_cache_entry(cache_type: CacheType, path: &Path) -> CacheEntry {
 }
 
 pub async fn restore_cargo_cache() -> Result<(), Error> {
-    // TODO: Delete index if it already exists (and probably warn)
-    // TODO: Attempt index restore
-    // TODO: If restore failed, make sure we have an empty folder
     let cache_type = CacheType::Index;
     let folder_path = find_path(cache_type);
+    if folder_path.exists().await {
+        warning!(
+            "Cache action will delete existing contents of {}.
+            Either place this action earlier, or delete this folder prior to running this
+            action to avoid this warning.",
+            folder_path
+        );
+        actions::io::rm_rf(&folder_path).await?;
+    }
+    let cache_entry = build_cache_entry(CacheType::Index, &folder_path);
+    if cache_entry.restore().await.map_err(Error::Js)?.is_some() {
+        info!("Restored {} from cache.", cache_type.friendly_name());
+    } else {
+        info!(
+            "No existing cache entry for {} found.",
+            cache_type.friendly_name()
+        );
+        node::fs::create_dir_all(&folder_path).await?;
+    }
+
     let folder_info = build_cached_folder_info(&folder_path).await?;
     let folder_info_serialized = serde_json::to_string_pretty(&folder_info)?;
     info!(
