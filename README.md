@@ -26,7 +26,7 @@ platforms and more easily maintainable by developers who only know Rust.
 - [x] Cache index
 - [x] Cache downloaded crates
 - [x] Cache downloaded Git repositories
-- [ ] Specify minimum time before items can be recached.
+- [x] Specify minimum time before items can be recached.
 - [ ] Drop unused indices from cache
 - [ ] Drop unused crates from cache
 - [ ] Drop unused Git repos from cache
