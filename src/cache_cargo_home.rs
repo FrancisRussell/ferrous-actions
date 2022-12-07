@@ -9,7 +9,9 @@ use crate::Error;
 use crate::{error, info, warning};
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
-use strum::{EnumIter, IntoEnumIterator};
+use std::collections::HashSet;
+use std::str::FromStr;
+use strum::{EnumIter, EnumString, IntoEnumIterator, IntoStaticStr};
 
 fn find_cargo_home() -> Path {
     let mut path = homedir();
@@ -33,26 +35,27 @@ fn cached_folder_info_path(cache_type: CacheType) -> Path {
     dir
 }
 
-#[derive(Debug, Clone, Copy, EnumIter)]
+#[derive(Debug, Clone, Copy, EnumIter, EnumString, Eq, Hash, PartialEq, IntoStaticStr)]
 enum CacheType {
-    Index,
+    #[strum(serialize = "indices")]
+    Indices,
+
+    #[strum(serialize = "crates")]
     Crates,
+
+    #[strum(serialize = "git-repos")]
     GitRepos,
 }
 
 impl CacheType {
     fn short_name(&self) -> Cow<str> {
-        match *self {
-            CacheType::Index => "index",
-            CacheType::Crates => "crates",
-            CacheType::GitRepos => "git-repositories",
-        }
-        .into()
+        let name: &str = self.into();
+        name.into()
     }
 
     fn friendly_name(&self) -> Cow<str> {
         match *self {
-            CacheType::Index => "Registry index",
+            CacheType::Indices => "Registry indices",
             CacheType::Crates => "Crate files",
             CacheType::GitRepos => "Git repositories",
         }
@@ -61,7 +64,7 @@ impl CacheType {
 
     fn relative_path(&self) -> Path {
         match *self {
-            CacheType::Index => {
+            CacheType::Indices => {
                 let mut path = Path::from("registry");
                 path.push("index");
                 path
@@ -82,7 +85,7 @@ impl CacheType {
     fn ignores(&self) -> Ignores {
         let mut ignores = Ignores::default();
         match *self {
-            CacheType::Index => {
+            CacheType::Indices => {
                 ignores.add(1, ".last-updated");
             }
             CacheType::Crates => {}
@@ -90,6 +93,21 @@ impl CacheType {
         }
         ignores
     }
+}
+
+fn get_types_to_cache() -> Result<Vec<CacheType>, Error> {
+    let mut result = HashSet::new();
+    if let Some(types) = actions::core::get_input("cache-only")? {
+        let types = types.split_whitespace();
+        for cache_type in types {
+            let cache_type = CacheType::from_str(cache_type)
+                .map_err(|_| Error::ParseCacheableItem(cache_type.to_string()))?;
+            result.insert(cache_type);
+        }
+    } else {
+        result.extend(CacheType::iter())
+    }
+    Ok(result.into_iter().collect())
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -124,7 +142,7 @@ fn build_cache_entry(cache_type: CacheType, path: &Path) -> CacheEntry {
 }
 
 pub async fn restore_cargo_cache() -> Result<(), Error> {
-    for cache_type in CacheType::iter() {
+    for cache_type in get_types_to_cache()? {
         let folder_path = find_path(cache_type);
         if folder_path.exists().await {
             warning!(
@@ -159,7 +177,7 @@ pub async fn restore_cargo_cache() -> Result<(), Error> {
 pub async fn save_cargo_cache() -> Result<(), Error> {
     use wasm_bindgen::JsError;
 
-    for cache_type in CacheType::iter() {
+    for cache_type in get_types_to_cache()? {
         let folder_path = find_path(cache_type);
         let folder_info_new = build_cached_folder_info(cache_type).await?;
         let folder_info_old: CachedFolderInfo = {

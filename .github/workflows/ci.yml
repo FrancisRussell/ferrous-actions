@@ -32,6 +32,7 @@ jobs:
         uses: ./
         with:
           command: cache
+          cache-only: indices crates git-repos
       - id: install-toolchain
         uses: ./
         with:

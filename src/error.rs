@@ -33,6 +33,9 @@ pub enum Error {
 
     #[error("JSON serialization/deserialization error: {0}")]
     SerdeJson(#[from] serde_json::Error),
+
+    #[error("Unable to parse item to cache: {0}")]
+    ParseCacheableItem(String),
 }
 
 impl From<JsValue> for Error {

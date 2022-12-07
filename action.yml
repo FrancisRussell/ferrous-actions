@@ -28,6 +28,9 @@ inputs:
   annotations:
     description: 'Should GitHub annotations be generated for this command'
     required: false
+  cache-only:
+    description: 'Whitespace separated list of items to cache out of indices, crates, git-repos'
+    required: false
 outputs:
   result:
     description: 'The result of the action execution'
