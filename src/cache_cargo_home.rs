@@ -9,6 +9,7 @@ use crate::Error;
 use crate::{error, info, warning};
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
+use strum::{EnumIter, IntoEnumIterator};
 
 fn find_cargo_home() -> Path {
     let mut path = homedir();
@@ -32,7 +33,7 @@ fn cached_folder_info_path(cache_type: CacheType) -> Path {
     dir
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, EnumIter)]
 enum CacheType {
     Index,
     Crates,
@@ -123,7 +124,7 @@ fn build_cache_entry(cache_type: CacheType, path: &Path) -> CacheEntry {
 }
 
 pub async fn restore_cargo_cache() -> Result<(), Error> {
-    for cache_type in [CacheType::Index, CacheType::Crates, CacheType::GitRepos].into_iter() {
+    for cache_type in CacheType::iter() {
         let folder_path = find_path(cache_type);
         if folder_path.exists().await {
             warning!(
@@ -158,7 +159,7 @@ pub async fn restore_cargo_cache() -> Result<(), Error> {
 pub async fn save_cargo_cache() -> Result<(), Error> {
     use wasm_bindgen::JsError;
 
-    for cache_type in [CacheType::Index, CacheType::Crates, CacheType::GitRepos].into_iter() {
+    for cache_type in CacheType::iter() {
         let folder_path = find_path(cache_type);
         let folder_info_new = build_cached_folder_info(cache_type).await?;
         let folder_info_old: CachedFolderInfo = {
