@@ -157,6 +157,12 @@ pub mod fs {
         Ok(result)
     }
 
+    pub async fn write_file<P: Into<JsString>>(path: P, data: &[u8]) -> Result<(), JsValue> {
+        let path: JsString = path.into();
+        ffi::write_file(&path, data).await?;
+        Ok(())
+    }
+
     pub async fn read_dir<P: Into<JsString>>(path: P) -> Result<ReadDir, JsValue> {
         use js_sys::Object;
 
@@ -331,6 +337,9 @@ pub mod fs {
 
             #[wasm_bindgen(catch, js_name = "readFile")]
             pub async fn read_file(path: &JsString) -> Result<JsValue, JsValue>;
+
+            #[wasm_bindgen(catch, js_name = "writeFile")]
+            pub async fn write_file(path: &JsString, data: &[u8]) -> Result<JsValue, JsValue>;
 
             #[wasm_bindgen(catch, js_name = "readdir")]
             pub async fn read_dir(

@@ -30,6 +30,9 @@ pub enum Error {
 
     #[error("Unable to parse package manifest: {0}")]
     PackageManifest(#[from] PackageManifestParseError),
+
+    #[error("JSON serialization/deserialization error: {0}")]
+    SerdeJson(#[from] serde_json::Error),
 }
 
 impl From<JsValue> for Error {

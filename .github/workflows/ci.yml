@@ -27,6 +27,11 @@ jobs:
       - run: npm run test
 
       # Test the action
+      #
+      - id: restore-cargo-cache
+        uses: ./
+        with:
+          command: cache
       - id: install-toolchain
         uses: ./
         with:

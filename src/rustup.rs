@@ -1,5 +1,6 @@
 use crate::actions::exec::Command;
 use crate::actions::{core, io, tool_cache};
+use crate::debug;
 use crate::info;
 use crate::node;
 use crate::node::path::Path;
@@ -8,6 +9,14 @@ use parking_lot::Mutex;
 use std::sync::Arc;
 
 const NO_DEFAULT_TOOLCHAIN_NAME: &str = "none";
+
+pub async fn install_rustup(toolchain_config: &ToolchainConfig) -> Result<(), Error> {
+    let rustup = Rustup::get_or_install().await?;
+    debug!("Rustup installed at: {}", rustup.get_path());
+    rustup.update().await?;
+    rustup.install_toolchain(toolchain_config).await?;
+    Ok(())
+}
 
 #[derive(Clone, Debug)]
 pub struct ToolchainConfig {
