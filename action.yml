@@ -33,7 +33,6 @@ outputs:
     description: 'The result of the action execution'
 runs:
   using: 'node16'
-  pre: 'dist/pre.js'
   main: 'dist/main.js'
   post: 'dist/post.js'
   post-if: 'success()'
