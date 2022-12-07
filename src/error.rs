@@ -39,6 +39,9 @@ pub enum Error {
 
     #[error("Unable to parse duration: {0}")]
     DurationParse(#[from] humantime::DurationError),
+
+    #[error("Out of range duration: {0}")]
+    OutOfRangeDuration(#[from] chrono::OutOfRangeError),
 }
 
 impl From<JsValue> for Error {

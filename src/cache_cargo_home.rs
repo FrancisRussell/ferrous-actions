@@ -121,7 +121,7 @@ fn get_min_recache_interval(cache_type: CacheType) -> Result<chrono::Duration, E
             let option_name = format!("min-recache-{}", cache_type.to_string());
             if let Some(duration) = actions::core::get_input(option_name.as_str())? {
                 let duration = humantime::parse_duration(duration.as_str())?;
-                chrono::Duration::from_std(duration).expect("Duration out of range")
+                chrono::Duration::from_std(duration)?
             } else {
                 cache_type.default_min_recache_interval()
             }
@@ -198,6 +198,7 @@ pub async fn restore_cargo_cache() -> Result<(), Error> {
 }
 
 pub async fn save_cargo_cache() -> Result<(), Error> {
+    use humantime::format_duration;
     use wasm_bindgen::JsError;
 
     for cache_type in get_types_to_cache()? {
@@ -238,8 +239,8 @@ pub async fn save_cargo_cache() -> Result<(), Error> {
             } else {
                 info!("Cached {} outdated by {}, but not updating cache since minimum recache interval is {}",
                     cache_type,
-                    modification_delta,
-                    min_recache_interval
+                    format_duration(modification_delta.to_std()?),
+                    format_duration(min_recache_interval.to_std()?),
                     );
             }
         }
