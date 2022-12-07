@@ -36,6 +36,7 @@ fn cached_folder_info_path(cache_type: CacheType) -> Path {
 enum CacheType {
     Index,
     Crates,
+    GitRepos,
 }
 
 impl CacheType {
@@ -43,6 +44,7 @@ impl CacheType {
         match *self {
             CacheType::Index => "index",
             CacheType::Crates => "crates",
+            CacheType::GitRepos => "git-repositories",
         }
         .into()
     }
@@ -51,6 +53,7 @@ impl CacheType {
         match *self {
             CacheType::Index => "Registry index",
             CacheType::Crates => "Crate files",
+            CacheType::GitRepos => "Git repositories",
         }
         .into()
     }
@@ -67,6 +70,11 @@ impl CacheType {
                 path.push("cache");
                 path
             }
+            CacheType::GitRepos => {
+                let mut path = Path::from("git");
+                path.push("db");
+                path
+            }
         }
     }
 
@@ -77,6 +85,7 @@ impl CacheType {
                 ignores.add(1, ".last-updated");
             }
             CacheType::Crates => {}
+            CacheType::GitRepos => {}
         }
         ignores
     }
@@ -114,7 +123,7 @@ fn build_cache_entry(cache_type: CacheType, path: &Path) -> CacheEntry {
 }
 
 pub async fn restore_cargo_cache() -> Result<(), Error> {
-    for cache_type in [CacheType::Index, CacheType::Crates].into_iter() {
+    for cache_type in [CacheType::Index, CacheType::Crates, CacheType::GitRepos].into_iter() {
         let folder_path = find_path(cache_type);
         if folder_path.exists().await {
             warning!(
@@ -149,7 +158,7 @@ pub async fn restore_cargo_cache() -> Result<(), Error> {
 pub async fn save_cargo_cache() -> Result<(), Error> {
     use wasm_bindgen::JsError;
 
-    for cache_type in [CacheType::Index, CacheType::Crates].into_iter() {
+    for cache_type in [CacheType::Index, CacheType::Crates, CacheType::GitRepos].into_iter() {
         let folder_path = find_path(cache_type);
         let folder_info_new = build_cached_folder_info(cache_type).await?;
         let folder_info_old: CachedFolderInfo = {
