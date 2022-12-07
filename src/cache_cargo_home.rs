@@ -35,12 +35,14 @@ fn cached_folder_info_path(cache_type: CacheType) -> Path {
 #[derive(Debug, Clone, Copy)]
 enum CacheType {
     Index,
+    Crates,
 }
 
 impl CacheType {
     fn short_name(&self) -> Cow<str> {
         match *self {
             CacheType::Index => "index",
+            CacheType::Crates => "crates",
         }
         .into()
     }
@@ -48,6 +50,7 @@ impl CacheType {
     fn friendly_name(&self) -> Cow<str> {
         match *self {
             CacheType::Index => "Registry index",
+            CacheType::Crates => "Crate files",
         }
         .into()
     }
@@ -59,6 +62,11 @@ impl CacheType {
                 path.push("index");
                 path
             }
+            CacheType::Crates => {
+                let mut path = Path::from("registry");
+                path.push("cache");
+                path
+            }
         }
     }
 
@@ -68,6 +76,7 @@ impl CacheType {
             CacheType::Index => {
                 ignores.add(1, ".last-updated");
             }
+            CacheType::Crates => {}
         }
         ignores
     }
@@ -105,71 +114,73 @@ fn build_cache_entry(cache_type: CacheType, path: &Path) -> CacheEntry {
 }
 
 pub async fn restore_cargo_cache() -> Result<(), Error> {
-    let cache_type = CacheType::Index;
-    let folder_path = find_path(cache_type);
-    if folder_path.exists().await {
-        warning!(
-            "Cache action will delete existing contents of {}.
-            Either place this action earlier, or delete this folder prior to running this
-            action to avoid this warning.",
-            folder_path
-        );
-        actions::io::rm_rf(&folder_path).await?;
+    for cache_type in [CacheType::Index, CacheType::Crates].into_iter() {
+        let folder_path = find_path(cache_type);
+        if folder_path.exists().await {
+            warning!(
+                concat!(
+                    "Cache action will delete existing contents of {}. ",
+                    "To avoid this warning, place this action earlier or delete this before running the action."
+                ),
+                folder_path
+            );
+            actions::io::rm_rf(&folder_path).await?;
+        }
+        let cache_entry = build_cache_entry(cache_type, &folder_path);
+        if cache_entry.restore().await.map_err(Error::Js)?.is_some() {
+            info!("Restored {} from cache.", cache_type.friendly_name());
+        } else {
+            info!(
+                "No existing cache entry for {} found.",
+                cache_type.friendly_name()
+            );
+            node::fs::create_dir_all(&folder_path).await?;
+        }
+        let folder_info = build_cached_folder_info(cache_type).await?;
+        let folder_info_serialized = serde_json::to_string_pretty(&folder_info)?;
+        let folder_info_path = cached_folder_info_path(cache_type);
+        let parent = folder_info_path.parent();
+        node::fs::create_dir_all(&parent).await?;
+        node::fs::write_file(&folder_info_path, folder_info_serialized.as_bytes()).await?;
     }
-    let cache_entry = build_cache_entry(CacheType::Index, &folder_path);
-    if cache_entry.restore().await.map_err(Error::Js)?.is_some() {
-        info!("Restored {} from cache.", cache_type.friendly_name());
-    } else {
-        info!(
-            "No existing cache entry for {} found.",
-            cache_type.friendly_name()
-        );
-        node::fs::create_dir_all(&folder_path).await?;
-    }
-
-    let folder_info = build_cached_folder_info(cache_type).await?;
-    let folder_info_serialized = serde_json::to_string_pretty(&folder_info)?;
-    let folder_info_path = cached_folder_info_path(CacheType::Index);
-    let parent = folder_info_path.parent();
-    node::fs::create_dir_all(&parent).await?;
-    node::fs::write_file(&folder_info_path, folder_info_serialized.as_bytes()).await?;
     Ok(())
 }
 
 pub async fn save_cargo_cache() -> Result<(), Error> {
     use wasm_bindgen::JsError;
 
-    let cache_type = CacheType::Index;
-    let folder_path = find_path(cache_type);
-    let folder_info_new = build_cached_folder_info(cache_type).await?;
-    let folder_info_old: CachedFolderInfo = {
-        let folder_info_path = cached_folder_info_path(cache_type);
-        let folder_info_serialized = node::fs::read_file(&folder_info_path).await?;
-        serde_json::de::from_slice(&folder_info_serialized)?
-    };
-    if folder_info_old.path != folder_info_new.path {
-        let error = JsError::new(&format!(
-            "Path to cache changed from {} to {}. Perhaps CARGO_HOME changed?",
-            folder_info_old.path, folder_info_new.path
-        ));
-        return Err(Error::Js(error.into()));
-    }
-    if folder_info_old.fingerprint == folder_info_new.fingerprint {
-        info!("{} unchanged, no need to write to cache", folder_path);
-    } else {
-        info!(
-            "{} fingerprint changed from {} to {}",
-            folder_path, folder_info_old.fingerprint, folder_info_new.fingerprint
-        );
-        let cache_entry = build_cache_entry(CacheType::Index, &folder_path);
-        if let Err(e) = cache_entry.save().await.map_err(Error::Js) {
-            error!(
-                "Failed to save {} to cache: {}",
-                cache_type.friendly_name(),
-                e
-            );
+    for cache_type in [CacheType::Index, CacheType::Crates].into_iter() {
+        let folder_path = find_path(cache_type);
+        let folder_info_new = build_cached_folder_info(cache_type).await?;
+        let folder_info_old: CachedFolderInfo = {
+            let folder_info_path = cached_folder_info_path(cache_type);
+            let folder_info_serialized = node::fs::read_file(&folder_info_path).await?;
+            serde_json::de::from_slice(&folder_info_serialized)?
+        };
+        if folder_info_old.path != folder_info_new.path {
+            let error = JsError::new(&format!(
+                "Path to cache changed from {} to {}. Perhaps CARGO_HOME changed?",
+                folder_info_old.path, folder_info_new.path
+            ));
+            return Err(Error::Js(error.into()));
+        }
+        if folder_info_old.fingerprint == folder_info_new.fingerprint {
+            info!("{} unchanged, no need to write to cache", folder_path);
         } else {
-            info!("Saved {} to cache.", cache_type.friendly_name());
+            info!(
+                "{} fingerprint changed from {} to {}",
+                folder_path, folder_info_old.fingerprint, folder_info_new.fingerprint
+            );
+            let cache_entry = build_cache_entry(cache_type, &folder_path);
+            if let Err(e) = cache_entry.save().await.map_err(Error::Js) {
+                error!(
+                    "Failed to save {} to cache: {}",
+                    cache_type.friendly_name(),
+                    e
+                );
+            } else {
+                info!("Saved {} to cache.", cache_type.friendly_name());
+            }
         }
     }
     Ok(())
