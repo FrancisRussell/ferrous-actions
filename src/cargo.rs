@@ -1,10 +1,13 @@
-use crate::actions::core::{Annotation, AnnotationLevel};
-use crate::actions::exec::{Command, Stdio};
-use crate::actions::{core, io};
+use crate::actions::exec::Command;
+use crate::actions::io;
+use crate::annotation_hook::AnnotationHook;
+use crate::cargo_hook::CargoHook;
+use crate::cargo_hook::CompositeCargoHook;
+use crate::cargo_install_hook::CargoInstallHook;
 use crate::node::path::Path;
-use crate::warning;
 use crate::Error;
-use cargo_metadata::diagnostic::{DiagnosticLevel, DiagnosticSpan};
+use rust_toolchain_manifest::HashValue;
+use std::borrow::Cow;
 
 #[derive(Debug)]
 pub struct Cargo {
@@ -19,64 +22,49 @@ impl Cargo {
             .map_err(Error::Js)
     }
 
-    fn annotation_level(level: DiagnosticLevel) -> AnnotationLevel {
-        match level {
-            DiagnosticLevel::Ice => AnnotationLevel::Error,
-            DiagnosticLevel::Error => AnnotationLevel::Error,
-            DiagnosticLevel::Warning => AnnotationLevel::Warning,
-            DiagnosticLevel::FailureNote => AnnotationLevel::Notice,
-            DiagnosticLevel::Note => AnnotationLevel::Notice,
-            DiagnosticLevel::Help => AnnotationLevel::Notice,
-            _ => AnnotationLevel::Warning,
-        }
-    }
-
-    fn get_primary_span(spans: &[DiagnosticSpan]) -> Option<&DiagnosticSpan> {
-        spans.iter().find(|s| s.is_primary)
-    }
-
-    fn supports_json_message_format(subcommand: &str) -> bool {
-        ["build", "check", "clippy"]
-            .iter()
-            .any(|s| s == &subcommand)
-    }
-
-    fn process_json_record(cargo_subcommand: &str, line: &str) {
-        use cargo_metadata::Message;
-
-        let metadata: Message = match serde_json::from_str(line) {
-            Ok(metadata) => metadata,
-            Err(e) => {
-                warning!("Unable to cargo output line as JSON metadata record: {}", e);
-                return;
+    async fn get_hooks_for_subcommand(
+        &self,
+        toolchain: Option<&str>,
+        subcommand: &str,
+        args: &[String],
+    ) -> Result<Box<dyn CargoHook>, Error> {
+        let mut hooks = CompositeCargoHook::default();
+        match subcommand {
+            "build" | "check" | "clippy" => {
+                hooks.push(AnnotationHook::new(subcommand).await?);
             }
-        };
-        if let Message::CompilerMessage(compiler_message) = metadata {
-            let diagnostic = &compiler_message.message;
-            let level = Self::annotation_level(diagnostic.level);
-            let mut annotation = if let Some(rendered) = &diagnostic.rendered {
-                let mut annotation = Annotation::from(rendered.as_str());
-                annotation.title(&format!(
-                    "cargo-{}: {}",
-                    cargo_subcommand, diagnostic.message
-                ));
-                annotation
-            } else {
-                let mut annotation = Annotation::from(diagnostic.message.as_str());
-                annotation.title(&format!("cargo-{}", cargo_subcommand));
-                annotation
-            };
-            if let Some(span) = Self::get_primary_span(&diagnostic.spans) {
-                let file_name = Path::from(span.file_name.as_str());
-                annotation
-                    .file(&file_name)
-                    .start_line(span.line_start)
-                    .end_line(span.line_end)
-                    .start_column(span.column_start)
-                    .end_column(span.column_end);
+            "install" => {
+                let compiler_hash = self.get_toolchain_hash(toolchain).await?;
+                hooks.push(CargoInstallHook::new(&compiler_hash, args).await?);
             }
-            annotation.output(level);
+            _ => {}
         }
+        Ok(Box::new(hooks))
+    }
+
+    async fn get_toolchain_hash(&self, toolchain: Option<&str>) -> Result<HashValue, Error> {
+        use crate::actions::exec::Stdio;
+        use crate::info;
+        use parking_lot::Mutex;
+        use std::sync::Arc;
+
+        let rustc_path = io::which("rustc", true).await.map_err(Error::Js)?;
+        let mut command = Command::from(&rustc_path);
+        let output: Arc<Mutex<String>> = Default::default();
+        let output_captured = output.clone();
+        if let Some(toolchain) = toolchain {
+            command.arg(format!("+{}", toolchain).as_str());
+        }
+        command.arg("--version");
+        command
+            .outline(move |line| {
+                *output_captured.lock() += line;
+            })
+            .stdout(Stdio::null());
+        command.exec().await?;
+        let output: String = output.lock().trim().to_string();
+        info!("Compiler version: {}", output);
+        Ok(HashValue::from_bytes(output.as_bytes()))
     }
 
     pub async fn run<'a, I>(
@@ -88,35 +76,31 @@ impl Cargo {
     where
         I: IntoIterator<Item = &'a str>,
     {
-        let subcommand = subcommand.to_string();
         let args: Vec<String> = args.into_iter().map(Into::into).collect();
         let mut final_args = Vec::new();
         if let Some(toolchain) = toolchain {
             final_args.push(format!("+{}", toolchain));
         }
-        let annotations_enabled = Self::supports_json_message_format(subcommand.as_str());
-        let annotations_enabled = annotations_enabled
-            && if let Some(enabled) = core::get_input("annotations")? {
-                enabled
-                    .parse::<bool>()
-                    .map_err(|_| Error::OptionParseError("annotations".into(), enabled.clone()))?
-            } else {
-                true
-            };
-        final_args.push(subcommand.clone());
-        if annotations_enabled {
-            final_args.push("--message-format=json".into());
-        }
+        let mut hooks = self
+            .get_hooks_for_subcommand(toolchain, subcommand, &args[..])
+            .await?;
+        final_args.push(subcommand.into());
+        final_args.extend(
+            hooks
+                .additional_cargo_options()
+                .into_iter()
+                .map(Cow::into_owned),
+        );
         final_args.extend(args);
         let mut command = Command::from(&self.path);
         command.args(final_args);
-        if annotations_enabled {
-            let subcommand = subcommand.to_string();
-            command
-                .outline(move |line| Self::process_json_record(&subcommand, line))
-                .stdout(Stdio::null());
+        hooks.modify_command(&mut command);
+        if let Err(e) = command.exec().await.map_err(Error::Js) {
+            hooks.failed().await;
+            Err(e)
+        } else {
+            hooks.succeeded().await;
+            Ok(())
         }
-        command.exec().await.map_err(Error::Js)?;
-        Ok(())
     }
 }

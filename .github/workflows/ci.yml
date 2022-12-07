@@ -12,8 +12,9 @@ jobs:
       - uses: actions/cache@v3.0.11
         with:
           path: |
-            ~/.cargo/registry
-            ~/.cargo/git
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
@@ -26,15 +27,20 @@ jobs:
       - run: npm run test
 
       # Test the action
-      - id: install-rustup
+      - id: install-toolchain
         uses: ./
         with:
-          command: toolchain
+          command: install-toolchain
           toolchain: nightly
           profile: minimal
           targets: wasm32-unknown-unknown
           components: clippy
           default: true
+      - id: install-cross
+        uses: ./
+        with:
+          command: cargo install
+          args: cross
       - id: cargo-build
         uses: ./
         with:

@@ -41,7 +41,7 @@ pub async fn run() -> Result<(), Error> {
             let toolchain_config = get_toolchain_config()?;
             install_rustup(&toolchain_config).await?;
         }
-        ["toolchain"] => {
+        ["install-toolchain"] => {
             let toolchain_config = get_toolchain_config()?;
             install_toolchain(&toolchain_config).await?;
         }

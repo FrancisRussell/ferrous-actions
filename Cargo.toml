@@ -13,26 +13,29 @@ crate-type = ["cdylib"]
 default = ["console_error_panic_hook"]
 
 [dependencies]
+async-recursion = "1.0.0"
+async-trait = "0.1.59"
+base64 = "0.13.1"
+blake3 = "1.3.3"
 cargo_metadata = "0.15.1"
+chrono = { version = "0.4.23", default-features = false }
 console_error_panic_hook = { version = "0.1.7", optional = true }
+futures = { version = "0.3.25", default_features = false, features = [ "std" ]}
 js-sys = "0.3.55"
 parking_lot = "0.12.1"
 regex = { version = "1.7.0", default_features = false, features = [ "std" ] }
+serde_json = "1.0.87"
 serde = { version = "1.0", features = [ "derive" ] }
 serde-wasm-bindgen = "0.4"
-serde_json = "1.0.87"
 shlex = "1.1.0"
+target-lexicon = "0.12.5"
 thiserror = "1.0.23"
 wasm-bindgen = "0.2.78"
 wasm-bindgen-futures = "0.4.33"
-target-lexicon = "0.12.5"
-base64 = "0.13.1"
-async-recursion = "1.0.0"
-futures = { version = "0.3.25", default_features = false, features = [ "std" ]}
 
 [dependencies.rust-toolchain-manifest]
 git = "https://github.com/FrancisRussell/rust-toolchain-manifest.git"
-rev = "3a77eff700ba61a4ac4e59f06b761702287fd209"
+rev = "ae0c7dd5d3df8d5f919e0d9b565850e4c0cdfc6f"
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3"
