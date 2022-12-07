@@ -7,6 +7,7 @@ use crate::node::os::homedir;
 use crate::node::path::Path;
 use crate::Error;
 use crate::{error, info, warning};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::collections::HashSet;
@@ -114,6 +115,7 @@ fn get_types_to_cache() -> Result<Vec<CacheType>, Error> {
 struct CachedFolderInfo {
     path: String,
     fingerprint: u64,
+    modified: DateTime<Utc>,
 }
 
 async fn build_cached_folder_info(cache_type: CacheType) -> Result<CachedFolderInfo, Error> {
@@ -122,7 +124,8 @@ async fn build_cached_folder_info(cache_type: CacheType) -> Result<CachedFolderI
     let fingerprint = fingerprint_directory_with_ignores(&path, &ignores).await?;
     let folder_info = CachedFolderInfo {
         path: path.to_string(),
-        fingerprint,
+        fingerprint: fingerprint.content_hash(),
+        modified: fingerprint.modified(),
     };
     Ok(folder_info)
 }
@@ -199,6 +202,8 @@ pub async fn save_cargo_cache() -> Result<(), Error> {
                 "{} fingerprint changed from {} to {}",
                 folder_path, folder_info_old.fingerprint, folder_info_new.fingerprint
             );
+            let modification_delta = folder_info_new.modified - folder_info_old.modified;
+            info!("Modification delta is {}", modification_delta);
             let cache_entry = build_cache_entry(cache_type, &folder_path);
             if let Err(e) = cache_entry.save().await.map_err(Error::Js) {
                 error!(

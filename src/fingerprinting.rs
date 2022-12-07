@@ -1,6 +1,7 @@
 use crate::node::fs;
 use crate::node::path::Path;
 use async_recursion::async_recursion;
+use chrono::{DateTime, Utc};
 use std::collections::hash_map::DefaultHasher;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::hash::Hash;
@@ -26,7 +27,23 @@ impl Ignores {
     }
 }
 
-pub async fn fingerprint_directory(path: &Path) -> Result<u64, JsValue> {
+#[derive(Debug, Clone)]
+pub struct Fingerprint {
+    content_hash: u64,
+    modified: DateTime<Utc>,
+}
+
+impl Fingerprint {
+    pub fn content_hash(&self) -> u64 {
+        self.content_hash
+    }
+
+    pub fn modified(&self) -> DateTime<Utc> {
+        self.modified
+    }
+}
+
+pub async fn fingerprint_directory(path: &Path) -> Result<Fingerprint, JsValue> {
     let ignores = Ignores::default();
     fingerprint_directory_with_ignores(path, &ignores).await
 }
@@ -34,7 +51,7 @@ pub async fn fingerprint_directory(path: &Path) -> Result<u64, JsValue> {
 pub async fn fingerprint_directory_with_ignores(
     path: &Path,
     ignores: &Ignores,
-) -> Result<u64, JsValue> {
+) -> Result<Fingerprint, JsValue> {
     fingerprint_directory_with_ignores_impl(0, path, ignores).await
 }
 
@@ -43,7 +60,9 @@ pub async fn fingerprint_directory_with_ignores_impl(
     depth: usize,
     path: &Path,
     ignores: &Ignores,
-) -> Result<u64, JsValue> {
+) -> Result<Fingerprint, JsValue> {
+    let stats = fs::symlink_metadata(path).await?;
+    let mut modified = stats.modified();
     let dir = fs::read_dir(path).await?;
     let mut map = BTreeMap::new();
     for entry in dir {
@@ -52,8 +71,10 @@ pub async fn fingerprint_directory_with_ignores_impl(
         }
         let path = entry.path();
         let file_type = entry.file_type();
-        let hash = if file_type.is_dir() {
-            fingerprint_directory_with_ignores_impl(depth + 1, &path, ignores).await?
+        let (hash, child_modified) = if file_type.is_dir() {
+            let fingerprint =
+                fingerprint_directory_with_ignores_impl(depth + 1, &path, ignores).await?;
+            (fingerprint.content_hash, fingerprint.modified)
         } else {
             let stats = fs::symlink_metadata(&path).await?;
             let mut hasher = DefaultHasher::default();
@@ -61,12 +82,18 @@ pub async fn fingerprint_directory_with_ignores_impl(
             stats.uid().hash(&mut hasher);
             stats.gid().hash(&mut hasher);
             stats.len().hash(&mut hasher);
-            stats.modified().hash(&mut hasher);
-            hasher.finish()
+            let modified = stats.modified();
+            modified.hash(&mut hasher);
+            (hasher.finish(), modified)
         };
         map.insert(path.to_string(), hash);
+        modified = std::cmp::max(modified, child_modified);
     }
     let mut hasher = DefaultHasher::default();
     map.hash(&mut hasher);
-    Ok(hasher.finish())
+    let result = Fingerprint {
+        content_hash: hasher.finish(),
+        modified,
+    };
+    Ok(result)
 }
