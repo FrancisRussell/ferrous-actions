@@ -4,6 +4,7 @@ mod cache_cargo_home;
 mod cargo;
 mod cargo_hook;
 mod cargo_install_hook;
+mod date;
 mod error;
 mod fingerprinting;
 pub mod node;

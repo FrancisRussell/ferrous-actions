@@ -150,11 +150,13 @@ async fn build_cached_folder_info(cache_type: CacheType) -> Result<CachedFolderI
 
 fn build_cache_entry(cache_type: CacheType, path: &Path) -> CacheEntry {
     use crate::nonce::build_nonce;
+    use crate::date;
     let nonce = build_nonce(8);
     let nonce = base64::encode_config(nonce, base64::URL_SAFE);
     let name = cache_type.friendly_name();
 
-    let primary_key = format!("{} - {}", name, nonce);
+    let date = date::now();
+    let primary_key = format!("{} ({}; {})", name, date, nonce);
     let mut cache_entry = CacheEntry::new(primary_key.as_str());
     let secondary_key = format!("{}", name);
     cache_entry.restore_key(secondary_key.as_str());
