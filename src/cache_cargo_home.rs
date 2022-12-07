@@ -119,17 +119,12 @@ fn get_types_to_cache() -> Result<Vec<CacheType>, Error> {
 }
 
 fn get_min_recache_interval(cache_type: CacheType) -> Result<chrono::Duration, Error> {
-    let result = match cache_type {
-        CacheType::Indices => {
-            let option_name = format!("min-recache-{}", cache_type.to_string());
-            if let Some(duration) = actions::core::get_input(option_name.as_str())? {
-                let duration = humantime::parse_duration(duration.as_str())?;
-                chrono::Duration::from_std(duration)?
-            } else {
-                cache_type.default_min_recache_interval()
-            }
-        }
-        _ => cache_type.default_min_recache_interval(),
+    let option_name = format!("min-recache-{}", cache_type);
+    let result = if let Some(duration) = actions::core::get_input(option_name.as_str())? {
+        let duration = humantime::parse_duration(duration.as_str())?;
+        chrono::Duration::from_std(duration)?
+    } else {
+        cache_type.default_min_recache_interval()
     };
     Ok(result)
 }
