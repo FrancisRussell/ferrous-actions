@@ -1,6 +1,7 @@
 use crate::actions;
 use crate::actions::cache::CacheEntry;
-use crate::fingerprinting::fingerprint_directory;
+use crate::fingerprinting::fingerprint_directory_with_ignores;
+use crate::fingerprinting::Ignores;
 use crate::node;
 use crate::node::os::homedir;
 use crate::node::path::Path;
@@ -60,6 +61,16 @@ impl CacheType {
             }
         }
     }
+
+    fn ignores(&self) -> Ignores {
+        let mut ignores = Ignores::default();
+        match *self {
+            CacheType::Index => {
+                ignores.add(1, ".last-updated");
+            }
+        }
+        ignores
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -68,8 +79,10 @@ struct CachedFolderInfo {
     fingerprint: u64,
 }
 
-async fn build_cached_folder_info(path: &Path) -> Result<CachedFolderInfo, Error> {
-    let fingerprint = fingerprint_directory(&path).await?;
+async fn build_cached_folder_info(cache_type: CacheType) -> Result<CachedFolderInfo, Error> {
+    let path = find_path(cache_type);
+    let ignores = cache_type.ignores();
+    let fingerprint = fingerprint_directory_with_ignores(&path, &ignores).await?;
     let folder_info = CachedFolderInfo {
         path: path.to_string(),
         fingerprint,
@@ -114,13 +127,8 @@ pub async fn restore_cargo_cache() -> Result<(), Error> {
         node::fs::create_dir_all(&folder_path).await?;
     }
 
-    let folder_info = build_cached_folder_info(&folder_path).await?;
+    let folder_info = build_cached_folder_info(cache_type).await?;
     let folder_info_serialized = serde_json::to_string_pretty(&folder_info)?;
-    info!(
-        "{} info: {}",
-        cache_type.friendly_name(),
-        folder_info_serialized
-    );
     let folder_info_path = cached_folder_info_path(CacheType::Index);
     let parent = folder_info_path.parent();
     node::fs::create_dir_all(&parent).await?;
@@ -133,7 +141,7 @@ pub async fn save_cargo_cache() -> Result<(), Error> {
 
     let cache_type = CacheType::Index;
     let folder_path = find_path(cache_type);
-    let folder_info_new = build_cached_folder_info(&folder_path).await?;
+    let folder_info_new = build_cached_folder_info(cache_type).await?;
     let folder_info_old: CachedFolderInfo = {
         let folder_info_path = cached_folder_info_path(cache_type);
         let folder_info_serialized = node::fs::read_file(&folder_info_path).await?;
