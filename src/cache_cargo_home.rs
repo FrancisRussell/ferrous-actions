@@ -96,7 +96,10 @@ impl CacheType {
     }
 
     fn default_min_recache_interval(&self) -> chrono::Duration {
-        chrono::Duration::seconds(0)
+        match *self {
+            CacheType::Indices => chrono::Duration::days(1),
+            _ => chrono::Duration::zero(),
+        }
     }
 }
 
@@ -237,7 +240,7 @@ pub async fn save_cargo_cache() -> Result<(), Error> {
                     info!("Saved {} to cache.", cache_type.friendly_name());
                 }
             } else {
-                info!("Cached {} outdated by {}, but not updating cache since minimum recache interval is {}",
+                info!("Cached {} outdated by {}, but not updating cache since minimum recache interval is {}.",
                     cache_type,
                     format_duration(modification_delta.to_std()?),
                     format_duration(min_recache_interval.to_std()?),
