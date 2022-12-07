@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::collections::HashSet;
 use std::str::FromStr;
-use strum::{EnumIter, EnumString, IntoEnumIterator, IntoStaticStr};
+use strum::{Display, EnumIter, EnumString, IntoEnumIterator, IntoStaticStr};
 
 fn find_cargo_home() -> Path {
     let mut path = homedir();
@@ -36,7 +36,7 @@ fn cached_folder_info_path(cache_type: CacheType) -> Path {
     dir
 }
 
-#[derive(Debug, Clone, Copy, EnumIter, EnumString, Eq, Hash, PartialEq, IntoStaticStr)]
+#[derive(Debug, Clone, Copy, EnumIter, EnumString, Eq, Hash, PartialEq, IntoStaticStr, Display)]
 enum CacheType {
     #[strum(serialize = "indices")]
     Indices,
@@ -94,6 +94,10 @@ impl CacheType {
         }
         ignores
     }
+
+    fn default_min_recache_interval(&self) -> chrono::Duration {
+        chrono::Duration::seconds(0)
+    }
 }
 
 fn get_types_to_cache() -> Result<Vec<CacheType>, Error> {
@@ -109,6 +113,22 @@ fn get_types_to_cache() -> Result<Vec<CacheType>, Error> {
         result.extend(CacheType::iter())
     }
     Ok(result.into_iter().collect())
+}
+
+fn get_min_recache_interval(cache_type: CacheType) -> Result<chrono::Duration, Error> {
+    let result = match cache_type {
+        CacheType::Indices => {
+            let option_name = format!("min-recache-{}", cache_type.to_string());
+            if let Some(duration) = actions::core::get_input(option_name.as_str())? {
+                let duration = humantime::parse_duration(duration.as_str())?;
+                chrono::Duration::from_std(duration).expect("Duration out of range")
+            } else {
+                cache_type.default_min_recache_interval()
+            }
+        }
+        _ => cache_type.default_min_recache_interval(),
+    };
+    Ok(result)
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -203,16 +223,24 @@ pub async fn save_cargo_cache() -> Result<(), Error> {
                 folder_path, folder_info_old.fingerprint, folder_info_new.fingerprint
             );
             let modification_delta = folder_info_new.modified - folder_info_old.modified;
-            info!("Modification delta is {}", modification_delta);
-            let cache_entry = build_cache_entry(cache_type, &folder_path);
-            if let Err(e) = cache_entry.save().await.map_err(Error::Js) {
-                error!(
-                    "Failed to save {} to cache: {}",
-                    cache_type.friendly_name(),
-                    e
-                );
+            let min_recache_interval = get_min_recache_interval(cache_type)?;
+            if modification_delta > min_recache_interval {
+                let cache_entry = build_cache_entry(cache_type, &folder_path);
+                if let Err(e) = cache_entry.save().await.map_err(Error::Js) {
+                    error!(
+                        "Failed to save {} to cache: {}",
+                        cache_type.friendly_name(),
+                        e
+                    );
+                } else {
+                    info!("Saved {} to cache.", cache_type.friendly_name());
+                }
             } else {
-                info!("Saved {} to cache.", cache_type.friendly_name());
+                info!("Cached {} outdated by {}, but not updating cache since minimum recache interval is {}",
+                    cache_type,
+                    modification_delta,
+                    min_recache_interval
+                    );
             }
         }
     }

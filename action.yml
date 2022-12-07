@@ -31,6 +31,9 @@ inputs:
   cache-only:
     description: 'Whitespace separated list of items to cache out of indices, crates, git-repos'
     required: false
+  min-recache-indices:
+    description: 'Minimum amount of time an index must be out of date before recaching it'
+    required: false
 outputs:
   result:
     description: 'The result of the action execution'

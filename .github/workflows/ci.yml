@@ -33,6 +33,7 @@ jobs:
         with:
           command: cache
           cache-only: indices crates git-repos
+          min-recache-indices: 1h
       - id: install-toolchain
         uses: ./
         with:

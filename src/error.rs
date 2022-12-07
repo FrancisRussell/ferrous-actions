@@ -36,6 +36,9 @@ pub enum Error {
 
     #[error("Unable to parse item to cache: {0}")]
     ParseCacheableItem(String),
+
+    #[error("Unable to parse duration: {0}")]
+    DurationParse(#[from] humantime::DurationError),
 }
 
 impl From<JsValue> for Error {

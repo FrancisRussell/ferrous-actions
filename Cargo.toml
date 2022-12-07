@@ -32,6 +32,7 @@ target-lexicon = "0.12.5"
 thiserror = "1.0.23"
 wasm-bindgen = "0.2.78"
 wasm-bindgen-futures = "0.4.33"
+humantime = "2.1.0"
 
 [dependencies.rust-toolchain-manifest]
 git = "https://github.com/FrancisRussell/rust-toolchain-manifest.git"
