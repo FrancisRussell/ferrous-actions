@@ -134,6 +134,7 @@ struct CachedFolderInfo {
     path: String,
     fingerprint: u64,
     modified: DateTime<Utc>,
+    newly_created: bool,
 }
 
 async fn build_cached_folder_info(cache_type: CacheType) -> Result<CachedFolderInfo, Error> {
@@ -144,13 +145,14 @@ async fn build_cached_folder_info(cache_type: CacheType) -> Result<CachedFolderI
         path: path.to_string(),
         fingerprint: fingerprint.content_hash(),
         modified: fingerprint.modified(),
+        newly_created: false,
     };
     Ok(folder_info)
 }
 
 fn build_cache_entry(cache_type: CacheType, path: &Path) -> CacheEntry {
-    use crate::nonce::build_nonce;
     use crate::date;
+    use crate::nonce::build_nonce;
     let nonce = build_nonce(8);
     let nonce = base64::encode_config(nonce, base64::URL_SAFE);
     let name = cache_type.friendly_name();
@@ -178,16 +180,19 @@ pub async fn restore_cargo_cache() -> Result<(), Error> {
             actions::io::rm_rf(&folder_path).await?;
         }
         let cache_entry = build_cache_entry(cache_type, &folder_path);
-        if cache_entry.restore().await.map_err(Error::Js)?.is_some() {
+        let newly_created = if cache_entry.restore().await.map_err(Error::Js)?.is_some() {
             info!("Restored {} from cache.", cache_type.friendly_name());
+            false
         } else {
             info!(
                 "No existing cache entry for {} found.",
                 cache_type.friendly_name()
             );
             node::fs::create_dir_all(&folder_path).await?;
-        }
-        let folder_info = build_cached_folder_info(cache_type).await?;
+            true
+        };
+        let mut folder_info = build_cached_folder_info(cache_type).await?;
+        folder_info.newly_created = newly_created;
         let folder_info_serialized = serde_json::to_string_pretty(&folder_info)?;
         let folder_info_path = cached_folder_info_path(cache_type);
         let parent = folder_info_path.parent();
@@ -225,7 +230,7 @@ pub async fn save_cargo_cache() -> Result<(), Error> {
             );
             let modification_delta = folder_info_new.modified - folder_info_old.modified;
             let min_recache_interval = get_min_recache_interval(cache_type)?;
-            if modification_delta > min_recache_interval {
+            if folder_info_old.newly_created || modification_delta > min_recache_interval {
                 let cache_entry = build_cache_entry(cache_type, &folder_path);
                 if let Err(e) = cache_entry.save().await.map_err(Error::Js) {
                     error!(
