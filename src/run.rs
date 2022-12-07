@@ -28,13 +28,30 @@ fn get_toolchain_config() -> Result<ToolchainConfig, Error> {
 }
 
 pub async fn run() -> Result<(), Error> {
+    use crate::node;
+    use wasm_bindgen::JsError;
+
+    let environment = node::process::get_env();
+    if let Some(phase) = environment.get("GITHUB_RUST_ACTION_PHASE") {
+        match phase.as_str() {
+            "main" => {}
+            _ => {
+                info!("Doing nothing for phase {}", phase);
+                return Ok(());
+            }
+        }
+    } else {
+        return Err(Error::Js(
+            JsError::new("Action was invoked in an unexpected way. Could not determine phase")
+                .into(),
+        ));
+    }
+
     // Get the action input.
     let actor = core::get_input("actor")?.unwrap_or_else(|| String::from("world"));
 
     // Greet the workflow actor.
     info!("Hello, {}!", actor);
-    let environment = crate::node::process::get_env();
-    info!("Environment: {:?}", environment);
 
     let command: String = Input::from("command").get_required()?;
     let split: Vec<&str> = command.split_whitespace().collect();
