@@ -40,14 +40,14 @@ pub async fn run() -> Result<(), Error> {
             "post" => post().await,
             _ => {
                 warning!("Unexpectedly invoked with phase {}. Doing nothing.", phase);
-                return Ok(());
+                Ok(())
             }
         }
     } else {
-        return Err(Error::Js(
+        Err(Error::Js(
             JsError::new("Action was invoked in an unexpected way. Could not determine phase.")
                 .into(),
-        ));
+        ))
     }
 }
 

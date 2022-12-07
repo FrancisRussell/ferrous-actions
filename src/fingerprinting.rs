@@ -35,7 +35,7 @@ pub async fn fingerprint_directory_with_ignores(
     path: &Path,
     ignores: &Ignores,
 ) -> Result<u64, JsValue> {
-    fingerprint_directory_with_ignores_impl(0, path, &ignores).await
+    fingerprint_directory_with_ignores_impl(0, path, ignores).await
 }
 
 #[async_recursion(?Send)]
