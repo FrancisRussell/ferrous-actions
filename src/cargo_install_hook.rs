@@ -1,14 +1,9 @@
-use crate::actions;
 use crate::actions::cache::CacheEntry;
 use crate::actions::exec::Command;
 use crate::cargo_hook::CargoHook;
-use crate::error;
 use crate::fingerprinting::fingerprint_directory;
-use crate::info;
-use crate::node;
 use crate::node::path::Path;
-use crate::warning;
-use crate::Error;
+use crate::{actions, error, info, node, warning, Error};
 use async_trait::async_trait;
 use rust_toolchain_manifest::HashValue;
 use std::borrow::Cow;
@@ -68,10 +63,7 @@ impl CargoInstallHook {
             base64::encode_config(&self.hash, base64::URL_SAFE)
         );
         if with_nonce {
-            result += &format!(
-                " - {}",
-                base64::encode_config(&self.nonce, base64::URL_SAFE)
-            );
+            result += &format!(" - {}", base64::encode_config(&self.nonce, base64::URL_SAFE));
         }
         result
     }
@@ -86,15 +78,8 @@ impl CargoInstallHook {
     }
 
     async fn cleanup(&self) {
-        if let Err(e) = actions::io::rm_rf(self.build_dir.as_str())
-            .await
-            .map_err(Error::Js)
-        {
-            warning!(
-                "Failed to clean up build folder at {}: {}",
-                self.build_dir,
-                e
-            );
+        if let Err(e) = actions::io::rm_rf(self.build_dir.as_str()).await.map_err(Error::Js) {
+            warning!("Failed to clean up build folder at {}: {}", self.build_dir, e);
         }
     }
 }

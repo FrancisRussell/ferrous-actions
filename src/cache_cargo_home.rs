@@ -1,12 +1,8 @@
-use crate::actions;
 use crate::actions::cache::CacheEntry;
-use crate::fingerprinting::fingerprint_directory_with_ignores;
-use crate::fingerprinting::Ignores;
-use crate::node;
+use crate::fingerprinting::{fingerprint_directory_with_ignores, Ignores};
 use crate::node::os::homedir;
 use crate::node::path::Path;
-use crate::Error;
-use crate::{error, info, warning};
+use crate::{actions, error, info, node, warning, Error};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
@@ -108,8 +104,8 @@ fn get_types_to_cache() -> Result<Vec<CacheType>, Error> {
     if let Some(types) = actions::core::get_input("cache-only")? {
         let types = types.split_whitespace();
         for cache_type in types {
-            let cache_type = CacheType::from_str(cache_type)
-                .map_err(|_| Error::ParseCacheableItem(cache_type.to_string()))?;
+            let cache_type =
+                CacheType::from_str(cache_type).map_err(|_| Error::ParseCacheableItem(cache_type.to_string()))?;
             result.insert(cache_type);
         }
     } else {
@@ -184,10 +180,7 @@ pub async fn restore_cargo_cache() -> Result<(), Error> {
             info!("Restored {} from cache.", cache_type.friendly_name());
             false
         } else {
-            info!(
-                "No existing cache entry for {} found.",
-                cache_type.friendly_name()
-            );
+            info!("No existing cache entry for {} found.", cache_type.friendly_name());
             node::fs::create_dir_all(&folder_path).await?;
             true
         };
@@ -233,20 +226,17 @@ pub async fn save_cargo_cache() -> Result<(), Error> {
             if folder_info_old.newly_created || modification_delta > min_recache_interval {
                 let cache_entry = build_cache_entry(cache_type, &folder_path);
                 if let Err(e) = cache_entry.save().await.map_err(Error::Js) {
-                    error!(
-                        "Failed to save {} to cache: {}",
-                        cache_type.friendly_name(),
-                        e
-                    );
+                    error!("Failed to save {} to cache: {}", cache_type.friendly_name(), e);
                 } else {
                     info!("Saved {} to cache.", cache_type.friendly_name());
                 }
             } else {
-                info!("Cached {} outdated by {}, but not updating cache since minimum recache interval is {}.",
+                info!(
+                    "Cached {} outdated by {}, but not updating cache since minimum recache interval is {}.",
                     cache_type,
                     format_duration(modification_delta.to_std()?),
                     format_duration(min_recache_interval.to_std()?),
-                    );
+                );
             }
         }
     }

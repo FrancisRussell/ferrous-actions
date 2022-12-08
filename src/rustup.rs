@@ -1,10 +1,7 @@
 use crate::actions::exec::Command;
 use crate::actions::{core, io, tool_cache};
-use crate::debug;
-use crate::info;
-use crate::node;
 use crate::node::path::Path;
-use crate::Error;
+use crate::{debug, info, node, Error};
 use parking_lot::Mutex;
 use std::sync::Arc;
 
@@ -73,9 +70,7 @@ impl Rustup {
                     .await
                     .map_err(Error::Js)?;
                 info!("Downloaded to: {:?}", rustup_script);
-                node::fs::chmod(&rustup_script, 0x755)
-                    .await
-                    .map_err(Error::Js)?;
+                node::fs::chmod(&rustup_script, 0x755).await.map_err(Error::Js)?;
                 Command::from(&rustup_script)
                     .args(args)
                     .exec()
@@ -92,11 +87,7 @@ impl Rustup {
                     .await
                     .map_err(Error::Js)?;
                 info!("Downloaded to: {:?}", rustup_exe);
-                Command::from(&rustup_exe)
-                    .args(args)
-                    .exec()
-                    .await
-                    .map_err(Error::Js)?;
+                Command::from(&rustup_exe).args(args).exec().await.map_err(Error::Js)?;
             }
             _ => return Err(Error::UnsupportedPlatform(platform)),
         }
@@ -116,10 +107,7 @@ impl Rustup {
         if config.name == NO_DEFAULT_TOOLCHAIN_NAME {
             return Ok(());
         }
-        let mut args: Vec<_> = ["toolchain", "install"]
-            .into_iter()
-            .map(String::from)
-            .collect();
+        let mut args: Vec<_> = ["toolchain", "install"].into_iter().map(String::from).collect();
         args.push(config.name.clone());
         args.extend(["--profile".into(), config.profile.clone()]);
         for target in &config.targets {
@@ -130,11 +118,7 @@ impl Rustup {
         for component in &config.components {
             args.extend(["-c".into(), component.clone()]);
         }
-        Command::from(&self.path)
-            .args(args)
-            .exec()
-            .await
-            .map_err(Error::Js)?;
+        Command::from(&self.path).args(args).exec().await.map_err(Error::Js)?;
         if config.default {
             Command::from(&self.path)
                 .arg("default")
@@ -147,15 +131,11 @@ impl Rustup {
     }
 
     pub async fn installed_toolchains(&self) -> Result<Vec<String>, Error> {
-        let args: Vec<_> = ["toolchain", "list"]
-            .into_iter()
-            .map(String::from)
-            .collect();
+        let args: Vec<_> = ["toolchain", "list"].into_iter().map(String::from).collect();
 
         let toolchains: Arc<Mutex<Vec<String>>> = Default::default();
         {
-            let match_default =
-                regex::Regex::new(r" *\(default\) *$").expect("Regex compilation failed");
+            let match_default = regex::Regex::new(r" *\(default\) *$").expect("Regex compilation failed");
             let toolchains = Arc::clone(&toolchains);
             Command::from(&self.path)
                 .args(args)

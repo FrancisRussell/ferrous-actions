@@ -5,8 +5,8 @@ const U8_BIT: usize = 8;
 // Even this is probably too high: https://v8.dev/blog/math-random
 const ENTROPY_BITS_PER_F64: usize = 32;
 
-// To use rand/getrandom we either need node.js's crypto module to be enabled, or
-// switch to WASI as a target
+// To use rand/getrandom we either need node.js's crypto module to be enabled,
+// or switch to WASI as a target
 
 pub struct MathRandomRng {
     bytes: [u8; 32],
@@ -32,16 +32,14 @@ impl MathRandomRng {
                 self.refill();
             }
             let to_take = std::cmp::min(self.bytes.len() - self.taken, dest.len() - written);
-            dest[written..(written + to_take)]
-                .copy_from_slice(&self.bytes[self.taken..(self.taken + to_take)]);
+            dest[written..(written + to_take)].copy_from_slice(&self.bytes[self.taken..(self.taken + to_take)]);
             self.taken += to_take;
             written += to_take;
         }
     }
 
     fn refill(&mut self) {
-        let num_doubles_to_input =
-            (self.bytes.len() * U8_BIT + ENTROPY_BITS_PER_F64 - 1) / ENTROPY_BITS_PER_F64;
+        let num_doubles_to_input = (self.bytes.len() * U8_BIT + ENTROPY_BITS_PER_F64 - 1) / ENTROPY_BITS_PER_F64;
         for _ in 0..num_doubles_to_input {
             let random = ffi::MATH
                 .random()

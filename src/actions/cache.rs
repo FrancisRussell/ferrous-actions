@@ -19,12 +19,8 @@ impl CacheEntry {
         }
     }
 
-    pub fn paths<I: IntoIterator<Item = P>, P: Borrow<Path>>(
-        &mut self,
-        paths: I,
-    ) -> &mut CacheEntry {
-        self.paths
-            .extend(paths.into_iter().map(|p| p.borrow().into()));
+    pub fn paths<I: IntoIterator<Item = P>, P: Borrow<Path>>(&mut self, paths: I) -> &mut CacheEntry {
+        self.paths.extend(paths.into_iter().map(|p| p.borrow().into()));
         self
     }
 
@@ -37,8 +33,7 @@ impl CacheEntry {
         I: IntoIterator<Item = K>,
         K: Into<JsString>,
     {
-        self.restore_keys
-            .extend(restore_keys.into_iter().map(|k| k.into()));
+        self.restore_keys.extend(restore_keys.into_iter().map(|k| k.into()));
         self
     }
 
@@ -57,8 +52,7 @@ impl CacheEntry {
     }
 
     pub async fn restore(&self) -> Result<Option<String>, JsValue> {
-        let result =
-            ffi::restore_cache(self.paths.clone(), &self.key, self.restore_keys.clone()).await?;
+        let result = ffi::restore_cache(self.paths.clone(), &self.key, self.restore_keys.clone()).await?;
         if result == JsValue::UNDEFINED {
             Ok(None)
         } else {

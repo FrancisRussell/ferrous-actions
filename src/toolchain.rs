@@ -1,10 +1,10 @@
-use crate::actions;
-use crate::info;
-use crate::node::{self, path::Path};
+use crate::node::path::Path;
+use crate::node::{self};
 use crate::rustup::ToolchainConfig;
-use crate::Error;
+use crate::{actions, info, Error};
 use async_recursion::async_recursion;
-use rust_toolchain_manifest::{manifest::ManifestPackage, Toolchain};
+use rust_toolchain_manifest::manifest::ManifestPackage;
+use rust_toolchain_manifest::Toolchain;
 use std::str::FromStr;
 use target_lexicon::Triple;
 
@@ -42,19 +42,15 @@ fn compute_package_cache_key(package: &ManifestPackage) -> String {
 }
 
 fn default_target_for_platform() -> Result<Triple, Error> {
-    let target = Triple::from_str(
-        match (node::os::arch().as_str(), node::os::platform().as_str()) {
-            ("arm64", "linux") => "aarch64-unknown-linux-gnu",
-            ("ia32", "linux") => "i686-unknown-linux-gnu",
-            ("ia32", "win32") => "i686-pc-windows-msvc",
-            ("x64", "darwin") => "x86_64-apple-darwin",
-            ("x64", "linux") => "x86_64-unknown-linux-gnu",
-            ("x64", "win32") => "x86_64-pc-windows-msvc",
-            (arch, platform) => {
-                return Err(Error::UnsupportedPlatform(format!("{}-{}", platform, arch)))
-            }
-        },
-    )
+    let target = Triple::from_str(match (node::os::arch().as_str(), node::os::platform().as_str()) {
+        ("arm64", "linux") => "aarch64-unknown-linux-gnu",
+        ("ia32", "linux") => "i686-unknown-linux-gnu",
+        ("ia32", "win32") => "i686-pc-windows-msvc",
+        ("x64", "darwin") => "x86_64-apple-darwin",
+        ("x64", "linux") => "x86_64-unknown-linux-gnu",
+        ("x64", "win32") => "x86_64-pc-windows-msvc",
+        (arch, platform) => return Err(Error::UnsupportedPlatform(format!("{}-{}", platform, arch))),
+    })
     .expect("Failed to parse hardcoded platform triple");
     Ok(target)
 }
@@ -154,8 +150,7 @@ async fn fetch_and_decompress_package(package: &ManifestPackage) -> Result<(), E
             .map_err(Error::Js)?;
         info!("Downloaded tarball to {}", tarball_path);
         info!("Will extract to {}", extract_path);
-        tool_cache::extract_tar(&tarball_path, StreamCompression::Gzip, Some(&extract_path))
-            .await?;
+        tool_cache::extract_tar(&tarball_path, StreamCompression::Gzip, Some(&extract_path)).await?;
         info!("Extracted to {}", extract_path);
         let cache_id = cache_entry.save().await?;
         info!("Saved as {}", cache_id);
@@ -191,10 +186,7 @@ pub async fn set_cargo_bin(cargo_bin: &Path) {
     let (path_len, paths): (_, Vec<_>) = {
         let value = environment.get("PATH").map(String::as_str).unwrap_or("");
         let path_len = value.len();
-        (
-            path_len,
-            value.split(delimiter.as_str()).map(Path::from).collect(),
-        )
+        (path_len, value.split(delimiter.as_str()).map(Path::from).collect())
     };
     let mut already_in_path = false;
     let mut removed = Vec::new();
@@ -259,10 +251,7 @@ pub async fn install_toolchain(toolchain_config: &ToolchainConfig) -> Result<(),
     let manifest = node::fs::read_file(&manifest_path).await?;
     let manifest = String::from_utf8(manifest).map_err(|_| Error::ManifestNotUtf8)?;
     let manifest = Manifest::try_from(manifest.as_str())?;
-    let target = toolchain
-        .host
-        .clone()
-        .unwrap_or(default_target_for_platform()?);
+    let target = toolchain.host.clone().unwrap_or(default_target_for_platform()?);
     info!("Attempting to find toolchain for target {}", target);
     let install_spec = InstallSpec {
         profile: toolchain_config.profile.clone(),

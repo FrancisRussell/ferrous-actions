@@ -1,11 +1,8 @@
 use crate::actions::core::{self, Input};
 use crate::cache_cargo_home::{restore_cargo_cache, save_cargo_cache};
-use crate::node;
-use crate::rustup::install_rustup;
+use crate::rustup::{install_rustup, ToolchainConfig};
 use crate::toolchain::install_toolchain;
-use crate::Error;
-use crate::{info, warning};
-use crate::{rustup::ToolchainConfig, Cargo};
+use crate::{info, node, warning, Cargo, Error};
 
 fn get_toolchain_config() -> Result<ToolchainConfig, Error> {
     let mut toolchain_config = ToolchainConfig::default();
@@ -45,8 +42,7 @@ pub async fn run() -> Result<(), Error> {
         }
     } else {
         Err(Error::Js(
-            JsError::new("Action was invoked in an unexpected way. Could not determine phase.")
-                .into(),
+            JsError::new("Action was invoked in an unexpected way. Could not determine phase.").into(),
         ))
     }
 }
@@ -72,8 +68,7 @@ pub async fn main() -> Result<(), Error> {
         ["cargo", cargo_subcommand] => {
             let mut cargo = Cargo::from_environment().await?;
             let cargo_args = Input::from("args").get()?.unwrap_or_default();
-            let cargo_args = shlex::split(&cargo_args)
-                .ok_or_else(|| Error::ArgumentsParseError(cargo_args.clone()))?;
+            let cargo_args = shlex::split(&cargo_args).ok_or_else(|| Error::ArgumentsParseError(cargo_args.clone()))?;
             let toolchain = core::get_input("toolchain")?;
             cargo
                 .run(

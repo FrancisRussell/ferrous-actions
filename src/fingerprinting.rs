@@ -4,8 +4,7 @@ use async_recursion::async_recursion;
 use chrono::{DateTime, Utc};
 use std::collections::hash_map::DefaultHasher;
 use std::collections::{BTreeMap, HashMap, HashSet};
-use std::hash::Hash;
-use std::hash::Hasher;
+use std::hash::{Hash, Hasher};
 use wasm_bindgen::JsValue;
 
 #[derive(Debug, Default, Clone)]
@@ -48,10 +47,7 @@ pub async fn fingerprint_directory(path: &Path) -> Result<Fingerprint, JsValue> 
     fingerprint_directory_with_ignores(path, &ignores).await
 }
 
-pub async fn fingerprint_directory_with_ignores(
-    path: &Path,
-    ignores: &Ignores,
-) -> Result<Fingerprint, JsValue> {
+pub async fn fingerprint_directory_with_ignores(path: &Path, ignores: &Ignores) -> Result<Fingerprint, JsValue> {
     fingerprint_directory_with_ignores_impl(0, path, ignores).await
 }
 
@@ -72,8 +68,7 @@ pub async fn fingerprint_directory_with_ignores_impl(
         let path = entry.path();
         let file_type = entry.file_type();
         let (hash, child_modified) = if file_type.is_dir() {
-            let fingerprint =
-                fingerprint_directory_with_ignores_impl(depth + 1, &path, ignores).await?;
+            let fingerprint = fingerprint_directory_with_ignores_impl(depth + 1, &path, ignores).await?;
             (fingerprint.content_hash, fingerprint.modified)
         } else {
             let stats = fs::symlink_metadata(&path).await?;

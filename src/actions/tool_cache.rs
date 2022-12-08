@@ -70,11 +70,7 @@ impl StreamCompression {
     }
 }
 
-pub async fn extract_tar(
-    path: &Path,
-    compression: StreamCompression,
-    dest: Option<&Path>,
-) -> Result<Path, JsValue> {
+pub async fn extract_tar(path: &Path, compression: StreamCompression, dest: Option<&Path>) -> Result<Path, JsValue> {
     let mut tar_option = String::from("x");
     tar_option += &compression.tar_flag();
     let tar_option = vec![JsString::from(tar_option)];
@@ -86,12 +82,7 @@ pub async fn extract_tar(
     Ok(dest.into())
 }
 
-pub async fn cache_dir(
-    tool: &str,
-    version: &str,
-    path: &Path,
-    arch: Option<&str>,
-) -> Result<Path, JsValue> {
+pub async fn cache_dir(tool: &str, version: &str, path: &Path, arch: Option<&str>) -> Result<Path, JsValue> {
     let path: JsString = path.into();
     let tool: JsString = tool.into();
     let version: JsString = version.into();

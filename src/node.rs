@@ -134,9 +134,7 @@ pub mod fs {
 
         fn next(&mut self) -> Option<DirEntry> {
             let parent = self.path.clone();
-            self.entries
-                .pop_front()
-                .map(|inner| DirEntry { parent, inner })
+            self.entries.pop_front().map(|inner| DirEntry { parent, inner })
         }
     }
 
@@ -170,8 +168,7 @@ pub mod fs {
         let options = js_sys::Map::new();
         options.set(&"withFileTypes".into(), &true.into());
         options.set(&"encoding".into(), &"utf8".into());
-        let options =
-            Object::from_entries(&options).expect("Failed to convert options map to object");
+        let options = Object::from_entries(&options).expect("Failed to convert options map to object");
         let entries = ffi::read_dir(&path, Some(options)).await?;
         let entries: VecDeque<_> = entries
             .dyn_into::<js_sys::Array>()
@@ -189,8 +186,7 @@ pub mod fs {
 
         let options = js_sys::Map::new();
         options.set(&"recursive".into(), &true.into());
-        let options =
-            Object::from_entries(&options).expect("Failed to convert options map to object");
+        let options = Object::from_entries(&options).expect("Failed to convert options map to object");
         let path: JsString = path.into();
         ffi::mkdir(&path, Some(options)).await?;
         Ok(())
@@ -244,9 +240,8 @@ pub mod fs {
         }
 
         pub fn modified(&self) -> DateTime<Utc> {
-            let naive =
-                NaiveDateTime::from_timestamp_millis(self.inner.modification_time_ms() as i64)
-                    .expect("Modification time out of bounds");
+            let naive = NaiveDateTime::from_timestamp_millis(self.inner.modification_time_ms() as i64)
+                .expect("Modification time out of bounds");
             DateTime::from_utc(naive, Utc)
         }
 
@@ -259,15 +254,12 @@ pub mod fs {
 
     pub async fn symlink_metadata<P: Into<JsString>>(path: P) -> Result<Metadata, JsValue> {
         let path = path.into();
-        let stats = ffi::lstat(&path, None)
-            .await
-            .map(Into::<ffi::Stats>::into)?;
+        let stats = ffi::lstat(&path, None).await.map(Into::<ffi::Stats>::into)?;
         Ok(Metadata { inner: stats })
     }
 
     pub mod ffi {
-        use js_sys::JsString;
-        use js_sys::Object;
+        use js_sys::{JsString, Object};
         use wasm_bindgen::prelude::*;
         use wasm_bindgen::JsValue;
 
@@ -342,34 +334,22 @@ pub mod fs {
             pub async fn write_file(path: &JsString, data: &[u8]) -> Result<JsValue, JsValue>;
 
             #[wasm_bindgen(catch, js_name = "readdir")]
-            pub async fn read_dir(
-                path: &JsString,
-                options: Option<Object>,
-            ) -> Result<JsValue, JsValue>;
+            pub async fn read_dir(path: &JsString, options: Option<Object>) -> Result<JsValue, JsValue>;
 
             #[wasm_bindgen(catch)]
-            pub async fn mkdir(
-                path: &JsString,
-                options: Option<Object>,
-            ) -> Result<JsValue, JsValue>;
+            pub async fn mkdir(path: &JsString, options: Option<Object>) -> Result<JsValue, JsValue>;
 
             #[wasm_bindgen(catch)]
             pub async fn rename(old: &JsString, new: &JsString) -> Result<JsValue, JsValue>;
 
             #[wasm_bindgen(catch)]
-            pub async fn rmdir(
-                path: &JsString,
-                options: Option<Object>,
-            ) -> Result<JsValue, JsValue>;
+            pub async fn rmdir(path: &JsString, options: Option<Object>) -> Result<JsValue, JsValue>;
 
             #[wasm_bindgen(catch)]
             pub async fn access(path: &JsString, mode: Option<u32>) -> Result<JsValue, JsValue>;
 
             #[wasm_bindgen(catch)]
-            pub async fn lstat(
-                path: &JsString,
-                options: Option<Object>,
-            ) -> Result<JsValue, JsValue>;
+            pub async fn lstat(path: &JsString, options: Option<Object>) -> Result<JsValue, JsValue>;
         }
     }
 }
@@ -510,10 +490,7 @@ pub mod process {
                 .expect("get_env didn't return an object"),
         )
         .iter()
-        .map(|o| {
-            o.dyn_into::<js_sys::Array>()
-                .expect("env entry was not an array")
-        })
+        .map(|o| o.dyn_into::<js_sys::Array>().expect("env entry was not an array"))
         .map(|a| (JsString::from(a.at(0)), JsString::from(a.at(1))))
         .map(|(k, v)| (String::from(k), String::from(v)))
         .collect();

@@ -237,8 +237,7 @@ pub fn export_variable<N: Into<JsString>, V: Into<JsString>>(name: N, value: V) 
 
 #[allow(clippy::drop_non_drop)]
 pub mod ffi {
-    use js_sys::JsString;
-    use js_sys::Object;
+    use js_sys::{JsString, Object};
     use wasm_bindgen::prelude::*;
 
     #[wasm_bindgen]
@@ -253,10 +252,7 @@ pub mod ffi {
     extern "C" {
         /// Gets the value of an input. The value is also trimmed.
         #[wasm_bindgen(js_name = "getInput", catch)]
-        pub fn get_input(
-            name: &JsString,
-            options: Option<InputOptions>,
-        ) -> Result<JsString, JsValue>;
+        pub fn get_input(name: &JsString, options: Option<InputOptions>) -> Result<JsString, JsValue>;
 
         /// Writes info
         #[wasm_bindgen]
