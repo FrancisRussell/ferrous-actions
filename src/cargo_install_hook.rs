@@ -100,6 +100,8 @@ impl CargoHook for CargoInstallHook {
                             old_fingerprint.content_hash(),
                             new_fingerprint.content_hash()
                         );
+                        let delta = new_fingerprint.changes_from(&old_fingerprint);
+                        info!("Changes: {:#?}", delta);
                     }
                     changed
                 }
