@@ -54,7 +54,6 @@ impl Cargo {
 
     async fn get_toolchain_hash(&self, toolchain: Option<&str>) -> Result<HashValue, Error> {
         use crate::actions::exec::Stdio;
-        use crate::info;
         use parking_lot::Mutex;
         use std::sync::Arc;
 

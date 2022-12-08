@@ -3,7 +3,7 @@ use crate::actions::exec::Command;
 use crate::actions::io;
 use crate::cargo_hook::CargoHook;
 use crate::node::path::Path;
-use crate::{actions, info, node, nonce, Cargo, Error};
+use crate::{actions, debug, info, node, nonce, Cargo, Error};
 
 async fn create_empty_dir() -> Result<Path, Error> {
     let nonce = nonce::build_nonce(8);
@@ -42,8 +42,8 @@ impl Cross {
         match Self::get().await {
             Ok(cross) => Ok(cross),
             Err(e) => {
-                info!("Unable to find cross: {:?}", e);
-                info!("Installing it now...");
+                info!("Unable to find cross. Installing it now...");
+                debug!("Attempting to locate cross returned this error: {}", e);
                 Self::install().await
             }
         }

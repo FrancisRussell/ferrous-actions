@@ -46,8 +46,8 @@ impl Rustup {
         match Self::get().await {
             Ok(rustup) => Ok(rustup),
             Err(e) => {
-                info!("Unable to find rustup: {:?}", e);
-                info!("Installing it now...");
+                info!("Unable to find rustup, Installing it now...");
+                debug!("Attempting to locate rustup returned this error: {}", e);
                 Self::install().await
             }
         }
