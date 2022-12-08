@@ -1,4 +1,5 @@
 use blake3::Hasher;
+use derivative::Derivative;
 
 const U8_BIT: usize = 8;
 
@@ -8,9 +9,17 @@ const ENTROPY_BITS_PER_F64: usize = 32;
 // To use rand/getrandom we either need node.js's crypto module to be enabled,
 // or switch to WASI as a target
 
+#[derive(Derivative)]
+#[derivative(Debug)]
+#[derive(Clone)]
 pub struct MathRandomRng {
+    #[derivative(Debug = "ignore")]
     bytes: [u8; 32],
+
+    #[derivative(Debug = "ignore")]
     taken: usize,
+
+    #[derivative(Debug = "ignore")]
     hasher: Hasher,
 }
 
