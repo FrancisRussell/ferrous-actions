@@ -42,6 +42,9 @@ pub enum Error {
 
     #[error("Out of range duration: {0}")]
     OutOfRangeDuration(#[from] chrono::OutOfRangeError),
+
+    #[error("Path does not exist: {0}")]
+    PathDoesNotExist(String),
 }
 
 impl From<JsValue> for Error {

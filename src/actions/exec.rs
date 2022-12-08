@@ -106,8 +106,8 @@ impl Command {
         self
     }
 
-    pub fn current_dir<P: Into<Path>>(&mut self, path: P) -> &mut Command {
-        self.cwd = path.into();
+    pub fn current_dir(&mut self, path: &Path) -> &mut Command {
+        self.cwd = path.clone();
         self
     }
 

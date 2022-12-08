@@ -36,7 +36,7 @@ impl Default for ToolchainConfig {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Rustup {
     path: Path,
 }
@@ -47,7 +47,7 @@ impl Rustup {
             Ok(rustup) => Ok(rustup),
             Err(e) => {
                 info!("Unable to find rustup: {:?}", e);
-                info!("Installing it now");
+                info!("Installing it now...");
                 Self::install().await
             }
         }
