@@ -100,8 +100,4 @@ impl CargoHook for AnnotationHook {
             .outline(move |line| Self::process_json_record(&subcommand, line))
             .stdout(Stdio::null());
     }
-
-    async fn succeeded(&mut self) {}
-
-    async fn failed(&mut self) {}
 }

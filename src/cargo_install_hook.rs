@@ -1,5 +1,4 @@
 use crate::actions::cache::CacheEntry;
-use crate::actions::exec::Command;
 use crate::cargo_hook::CargoHook;
 use crate::fingerprinting::fingerprint_directory;
 use crate::node::path::Path;
@@ -89,8 +88,6 @@ impl CargoHook for CargoInstallHook {
     fn additional_cargo_options(&self) -> Vec<Cow<str>> {
         vec!["--target-dir".into(), self.build_dir.as_str().into()]
     }
-
-    fn modify_command(&self, _command: &mut Command) {}
 
     async fn succeeded(&mut self) {
         let save = if let Some(old_fingerprint) = self.fingerprint {

@@ -4,19 +4,25 @@ use std::borrow::Cow;
 
 #[async_trait(?Send)]
 pub trait CargoHook {
-    fn additional_cargo_options(&self) -> Vec<Cow<str>>;
-    fn modify_command(&self, command: &mut Command);
-    async fn succeeded(&mut self);
-    async fn failed(&mut self);
+    fn additional_cargo_options(&self) -> Vec<Cow<str>> {
+        Vec::new()
+    }
+
+    fn modify_command(&self, command: &mut Command) {
+        let _ = command;
+    }
+
+    async fn succeeded(&mut self) {}
+    async fn failed(&mut self) {}
 }
 
 #[derive(Default)]
 pub struct CompositeCargoHook {
-    hooks: Vec<Box<dyn CargoHook + Sync + Send>>,
+    hooks: Vec<Box<dyn CargoHook + Sync>>,
 }
 
 impl CompositeCargoHook {
-    pub fn push<H: CargoHook + Sync + Send + 'static>(&mut self, hook: H) {
+    pub fn push<H: CargoHook + Sync + 'static>(&mut self, hook: H) {
         self.hooks.push(Box::new(hook));
     }
 }
@@ -38,13 +44,13 @@ impl CargoHook for CompositeCargoHook {
     }
 
     async fn succeeded(&mut self) {
-        for hook in &mut self.hooks {
+        for hook in self.hooks.iter_mut().rev() {
             hook.succeeded().await;
         }
     }
 
     async fn failed(&mut self) {
-        for hook in &mut self.hooks {
+        for hook in self.hooks.iter_mut().rev() {
             hook.failed().await;
         }
     }
