@@ -2,6 +2,7 @@ use crate::node::fs;
 use crate::node::path::Path;
 use async_recursion::async_recursion;
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -27,7 +28,7 @@ impl Ignores {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Metadata {
     uid: u64,
     gid: u64,
@@ -85,7 +86,7 @@ impl Metadata {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Fingerprint {
     content_hash: u64,
     modified: DateTime<Utc>,
