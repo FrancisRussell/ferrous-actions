@@ -13,7 +13,7 @@ pub struct AnnotationHook {
 }
 
 impl AnnotationHook {
-    pub async fn new(subcommand: &str) -> Result<AnnotationHook, Error> {
+    pub fn new(subcommand: &str) -> Result<AnnotationHook, Error> {
         let enabled = if let Some(enabled) = core::get_input("annotations")? {
             enabled
                 .parse::<bool>()
@@ -67,12 +67,9 @@ impl AnnotationHook {
 
     fn annotation_level(level: DiagnosticLevel) -> AnnotationLevel {
         match level {
-            DiagnosticLevel::Ice => AnnotationLevel::Error,
-            DiagnosticLevel::Error => AnnotationLevel::Error,
+            DiagnosticLevel::Ice | DiagnosticLevel::Error => AnnotationLevel::Error,
             DiagnosticLevel::Warning => AnnotationLevel::Warning,
-            DiagnosticLevel::FailureNote => AnnotationLevel::Notice,
-            DiagnosticLevel::Note => AnnotationLevel::Notice,
-            DiagnosticLevel::Help => AnnotationLevel::Notice,
+            DiagnosticLevel::FailureNote | DiagnosticLevel::Note | DiagnosticLevel::Help => AnnotationLevel::Notice,
             _ => AnnotationLevel::Warning,
         }
     }
@@ -100,8 +97,4 @@ impl CargoHook for AnnotationHook {
             .outline(move |line| Self::process_json_record(&subcommand, line))
             .stdout(Stdio::null());
     }
-
-    async fn succeeded(&mut self) {}
-
-    async fn failed(&mut self) {}
 }

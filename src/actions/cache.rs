@@ -33,7 +33,7 @@ impl CacheEntry {
         I: IntoIterator<Item = K>,
         K: Into<JsString>,
     {
-        self.restore_keys.extend(restore_keys.into_iter().map(|k| k.into()));
+        self.restore_keys.extend(restore_keys.into_iter().map(Into::into));
         self
     }
 

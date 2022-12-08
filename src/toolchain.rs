@@ -1,3 +1,4 @@
+use crate::action_paths::{get_action_cache_dir, get_action_share_dir};
 use crate::node::path::Path;
 use crate::node::{self};
 use crate::rustup::ToolchainConfig;
@@ -11,19 +12,14 @@ use target_lexicon::Triple;
 const MAX_CONCURRENT_PACKAGE_INSTALLS: usize = 4;
 
 fn get_cargo_home(toolchain: &Toolchain) -> Result<Path, Error> {
-    let mut dir = node::os::homedir();
-    dir.push(".local");
-    dir.push("share");
-    dir.push("github-rust-actions");
+    let mut dir = get_action_share_dir()?;
     dir.push("toolchains");
-    dir.push(format!("{}", toolchain).as_str());
+    dir.push(toolchain.to_string().as_str());
     Ok(dir)
 }
 
 fn get_package_decompress_path(package: &ManifestPackage) -> Result<Path, Error> {
-    let mut dir = node::os::homedir();
-    dir.push(".cache");
-    dir.push("github-rust-actions");
+    let mut dir = get_action_cache_dir()?;
     dir.push("package-decompression");
     let package_hash = package.unique_identifier();
     dir.push(base64::encode_config(package_hash, base64::URL_SAFE).as_str());
@@ -184,7 +180,7 @@ pub async fn set_cargo_bin(cargo_bin: &Path) {
     let environment = node::process::get_env();
     let delimiter = node::path::delimiter();
     let (path_len, paths): (_, Vec<_>) = {
-        let value = environment.get("PATH").map(String::as_str).unwrap_or("");
+        let value = environment.get("PATH").map_or("", String::as_str);
         let path_len = value.len();
         (path_len, value.split(delimiter.as_str()).map(Path::from).collect())
     };

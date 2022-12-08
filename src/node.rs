@@ -225,6 +225,7 @@ pub mod fs {
             self.inner.gid() as u64
         }
 
+        #[allow(clippy::len_without_is_empty)]
         pub fn len(&self) -> u64 {
             self.inner.size() as u64
         }
@@ -398,6 +399,7 @@ pub mod path {
             self.inner.to_string()
         }
 
+        #[must_use]
         pub fn parent(&self) -> Path {
             let parent = ffi::dirname(&self.inner);
             Path { inner: parent }

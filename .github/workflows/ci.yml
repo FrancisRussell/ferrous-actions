@@ -37,22 +37,23 @@ jobs:
       - id: install-toolchain
         uses: ./
         with:
-          command: install-toolchain
+          command: install-rustup
           toolchain: nightly
           profile: minimal
           targets: wasm32-unknown-unknown
           components: clippy
           default: true
-      - id: install-cross
+      - id: install-grcov
         uses: ./
         with:
           command: cargo install
-          args: cross
+          args: grcov
       - id: cargo-build
         uses: ./
         with:
           command: cargo build
           args: --target=wasm32-unknown-unknown
+          use-cross: true
       - id: cargo-clippy
         uses: ./
         with:

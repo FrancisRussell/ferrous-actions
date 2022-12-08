@@ -1,5 +1,5 @@
+use crate::action_paths::get_action_cache_dir;
 use crate::actions::cache::CacheEntry;
-use crate::actions::exec::Command;
 use crate::cargo_hook::CargoHook;
 use crate::fingerprinting::fingerprint_directory;
 use crate::node::path::Path;
@@ -11,9 +11,7 @@ use std::borrow::Cow;
 const NONCE_SIZE_BYTES: usize = 8;
 
 fn get_package_build_dir(hash: &HashValue) -> Result<Path, Error> {
-    let mut dir = node::os::homedir();
-    dir.push(".cache");
-    dir.push("github-rust-actions");
+    let mut dir = get_action_cache_dir()?;
     dir.push("package-build-artifacts");
     dir.push(base64::encode_config(hash, base64::URL_SAFE).as_str());
     Ok(dir)
@@ -35,7 +33,7 @@ impl CargoInstallHook {
         use crate::nonce::build_nonce;
         let mut hasher = blake3::Hasher::new();
         hasher.update(toolchain_hash.as_ref());
-        for arg in args.into_iter() {
+        for arg in args {
             let arg = arg.as_ref();
             hasher.update(arg.as_bytes());
         }
@@ -90,13 +88,21 @@ impl CargoHook for CargoInstallHook {
         vec!["--target-dir".into(), self.build_dir.as_str().into()]
     }
 
-    fn modify_command(&self, _command: &mut Command) {}
-
     async fn succeeded(&mut self) {
         let save = if let Some(old_fingerprint) = self.fingerprint {
             let path = Path::from(self.build_dir.as_str());
             match fingerprint_directory(&path).await.map_err(Error::Js) {
-                Ok(fingerprint) => fingerprint.content_hash() != old_fingerprint,
+                Ok(fingerprint) => {
+                    let new_fingerprint = fingerprint.content_hash();
+                    let changed = new_fingerprint != old_fingerprint;
+                    if changed {
+                        info!(
+                            "Package artifact cache changed fingerprint from {} to {}",
+                            old_fingerprint, new_fingerprint
+                        );
+                    }
+                    changed
+                }
                 Err(e) => {
                     error!("Could not fingerprint build artifact directory: {}", e);
                     false

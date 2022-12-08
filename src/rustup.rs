@@ -36,7 +36,7 @@ impl Default for ToolchainConfig {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Rustup {
     path: Path,
 }
@@ -46,8 +46,8 @@ impl Rustup {
         match Self::get().await {
             Ok(rustup) => Ok(rustup),
             Err(e) => {
-                info!("Unable to find rustup: {:?}", e);
-                info!("Installing it now");
+                info!("Unable to find rustup, Installing it now...");
+                debug!("Attempting to locate rustup returned this error: {}", e);
                 Self::install().await
             }
         }
@@ -76,11 +76,6 @@ impl Rustup {
                     .exec()
                     .await
                     .map_err(Error::Js)?;
-                let mut cargo_path = node::os::homedir();
-                cargo_path.push(".cargo");
-                cargo_path.push("bin");
-                info!("Adding to path {:?}", cargo_path);
-                core::add_path(&cargo_path);
             }
             "windows" => {
                 let rustup_exe = tool_cache::download_tool("https://win.rustup.rs")
@@ -91,6 +86,11 @@ impl Rustup {
             }
             _ => return Err(Error::UnsupportedPlatform(platform)),
         }
+        let mut cargo_bin_path = node::os::homedir();
+        cargo_bin_path.push(".cargo");
+        cargo_bin_path.push("bin");
+        info!("Adding {:?} to path", cargo_bin_path);
+        core::add_path(&cargo_bin_path);
         Self::get().await
     }
 
@@ -130,10 +130,11 @@ impl Rustup {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub async fn installed_toolchains(&self) -> Result<Vec<String>, Error> {
         let args: Vec<_> = ["toolchain", "list"].into_iter().map(String::from).collect();
 
-        let toolchains: Arc<Mutex<Vec<String>>> = Default::default();
+        let toolchains: Arc<Mutex<Vec<String>>> = Arc::default();
         {
             let match_default = regex::Regex::new(r" *\(default\) *$").expect("Regex compilation failed");
             let toolchains = Arc::clone(&toolchains);
@@ -151,6 +152,7 @@ impl Rustup {
         Ok(toolchains)
     }
 
+    #[allow(dead_code)]
     pub async fn install_component(&self, name: &str) -> Result<(), Error> {
         Command::from(&self.path)
             .arg("component")

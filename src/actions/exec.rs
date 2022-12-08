@@ -1,5 +1,5 @@
 use crate::node::path::Path;
-use crate::noop_stream;
+use crate::{node, noop_stream};
 use js_sys::{JsString, Object};
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::JsValue;
@@ -34,6 +34,7 @@ pub struct Command {
     errline: Option<Closure<dyn Fn(JsString)>>,
     stdout: Stdio,
     stderr: Stdio,
+    cwd: Path,
 }
 
 impl Command {
@@ -55,7 +56,7 @@ impl Command {
         let command = self.command.to_string();
         let command = Self::escape_command(command.as_str());
         let command: JsString = command.into();
-        let args: Vec<JsString> = self.args.iter().map(|a| a.to_string()).collect();
+        let args: Vec<JsString> = self.args.iter().map(JsString::to_string).collect();
         let options = js_sys::Map::new();
         let listeners = js_sys::Map::new();
         if let Some(callback) = &self.outline {
@@ -64,6 +65,7 @@ impl Command {
         if let Some(callback) = &self.errline {
             listeners.set(&"errline".into(), callback.as_ref());
         }
+        options.set(&"cwd".into(), &self.cwd.to_js_string());
         if let StdioEnum::Null = self.stdout.inner {
             options.set(&"outStream".into(), &noop_stream::ffi::writable());
         }
@@ -104,6 +106,11 @@ impl Command {
         self
     }
 
+    pub fn current_dir(&mut self, path: &Path) -> &mut Command {
+        self.cwd = path.clone();
+        self
+    }
+
     // Some bright spark had the idea of making an exec function that could both
     // handle execvp and shell command style invocations rather than have two
     // functions or some sort of flag to handle these different use cases.
@@ -138,6 +145,7 @@ impl<'a> From<&'a Path> for Command {
             errline: None,
             stdout: Stdio::inherit(),
             stderr: Stdio::inherit(),
+            cwd: node::process::cwd(),
         }
     }
 }
