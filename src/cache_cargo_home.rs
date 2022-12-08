@@ -25,7 +25,7 @@ fn find_path(cache_type: CacheType) -> Path {
 fn cached_folder_info_path(cache_type: CacheType) -> Result<Path, Error> {
     let mut dir = get_action_cache_dir()?;
     dir.push("cached_folder_info");
-    let file_name = format!("{}.toml", cache_type.short_name());
+    let file_name = format!("{}.json", cache_type.short_name());
     dir.push(file_name.as_str());
     Ok(dir)
 }
