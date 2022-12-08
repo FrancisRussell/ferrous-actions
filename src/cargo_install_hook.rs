@@ -1,7 +1,7 @@
 use crate::action_paths::get_action_cache_dir;
 use crate::actions::cache::CacheEntry;
 use crate::cargo_hook::CargoHook;
-use crate::fingerprinting::{fingerprint_directory, Fingerprint};
+use crate::fingerprinting::Fingerprint;
 use crate::node::path::Path;
 use crate::{actions, error, info, node, warning, Error};
 use async_trait::async_trait;
@@ -50,9 +50,26 @@ impl CargoInstallHook {
         let cache_entry = result.build_cache_entry();
         if let Some(key) = cache_entry.restore().await? {
             info!("Restored files from cache with key {}", key);
-            result.fingerprint = Some(fingerprint_directory(&build_dir).await?);
+            result.fingerprint = Some(Self::fingerprint_build_dir(&build_dir).await?);
         }
         Ok(result)
+    }
+
+    async fn fingerprint_build_dir(path: &Path) -> Result<Fingerprint, Error> {
+        use crate::fingerprinting::{fingerprint_directory_with_ignores, Ignores};
+
+        // It seems that between runs something causes the rustc fingerprint to change.
+        // It looks like this could simply be the file modification timestamp. This would
+        // also explain why it seemed to occur with Rustup but not the internal toolchain
+        // downloader.
+        //
+        // https://github.com/rust-lang/cargo/blob/70898e522116f6c23971e2a554b2dc85fd4c84cd/src/cargo/util/rustc.rs#L306
+
+        let mut ignores = Ignores::default();
+        ignores.add(0, ".rustc_info.json");
+
+        let fingerprint = fingerprint_directory_with_ignores(path, &ignores).await?;
+        Ok(fingerprint)
     }
 
     fn build_key(&self, with_nonce: bool) -> String {
@@ -91,7 +108,7 @@ impl CargoHook for CargoInstallHook {
     async fn succeeded(&mut self) {
         let save = if let Some(old_fingerprint) = &self.fingerprint {
             let path = Path::from(self.build_dir.as_str());
-            match fingerprint_directory(&path).await.map_err(Error::Js) {
+            match Self::fingerprint_build_dir(&path).await {
                 Ok(new_fingerprint) => {
                     let changed = new_fingerprint.content_hash() != old_fingerprint.content_hash();
                     if changed {
