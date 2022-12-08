@@ -76,11 +76,6 @@ impl Rustup {
                     .exec()
                     .await
                     .map_err(Error::Js)?;
-                let mut cargo_path = node::os::homedir();
-                cargo_path.push(".cargo");
-                cargo_path.push("bin");
-                info!("Adding to path {:?}", cargo_path);
-                core::add_path(&cargo_path);
             }
             "windows" => {
                 let rustup_exe = tool_cache::download_tool("https://win.rustup.rs")
@@ -91,6 +86,11 @@ impl Rustup {
             }
             _ => return Err(Error::UnsupportedPlatform(platform)),
         }
+        let mut cargo_bin_path = node::os::homedir();
+        cargo_bin_path.push(".cargo");
+        cargo_bin_path.push("bin");
+        info!("Adding {:?} to path", cargo_bin_path);
+        core::add_path(&cargo_bin_path);
         Self::get().await
     }
 
