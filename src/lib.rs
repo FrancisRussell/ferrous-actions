@@ -11,6 +11,7 @@ pub mod node;
 mod nonce;
 mod noop_stream;
 mod package_manifest;
+mod rng;
 mod run;
 mod rustup;
 mod toolchain;
