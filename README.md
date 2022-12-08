@@ -16,7 +16,7 @@ platforms and more easily maintainable by developers who only know Rust.
 - [ ] CI builds can produce commits in a release repository so that action can be used
 - [x] `rustup` installation
 - [x] `rustup` installation of specified toolchains
-- [ ] `cross` support
+- [ ] `cross` support (implemented but untested)
 - [x] Invoking `cargo` commands
 - [x] Annotation generation from `cargo` commands
 - [ ] Validate that all known supplied parameters are used
