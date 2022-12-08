@@ -92,7 +92,17 @@ impl CargoHook for CargoInstallHook {
         let save = if let Some(old_fingerprint) = self.fingerprint {
             let path = Path::from(self.build_dir.as_str());
             match fingerprint_directory(&path).await.map_err(Error::Js) {
-                Ok(fingerprint) => fingerprint.content_hash() != old_fingerprint,
+                Ok(fingerprint) => {
+                    let new_fingerprint = fingerprint.content_hash();
+                    let changed = new_fingerprint != old_fingerprint;
+                    if changed {
+                        info!(
+                            "Package artifact cache changed fingerprint from {} to {}",
+                            old_fingerprint, new_fingerprint
+                        );
+                    }
+                    changed
+                }
                 Err(e) => {
                     error!("Could not fingerprint build artifact directory: {}", e);
                     false
