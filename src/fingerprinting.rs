@@ -35,11 +35,22 @@ pub struct Metadata {
     modified: DateTime<Utc>,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, strum::Display)]
 pub enum DeltaAction {
     Added,
     Removed,
     Changed,
+}
+
+pub type DeltaItem = (String, DeltaAction);
+
+pub fn render_delta_items(items: &[DeltaItem]) -> String {
+    use std::fmt::Write as _;
+    let mut result = String::new();
+    for (path, item) in items {
+        writeln!(&mut result, "{}: {}", item, path).expect("Unable to write to string");
+    }
+    result
 }
 
 impl From<&fs::Metadata> for Metadata {
@@ -90,7 +101,7 @@ impl Fingerprint {
     }
 
     #[allow(dead_code)]
-    pub fn changes_from(&self, other: &Fingerprint) -> Vec<(String, DeltaAction)> {
+    pub fn changes_from(&self, other: &Fingerprint) -> Vec<DeltaItem> {
         let mut result = Vec::new();
         let mut from_iter = other.tree_data.iter();
         let mut to_iter = self.tree_data.iter();
@@ -135,6 +146,7 @@ impl Fingerprint {
     }
 }
 
+#[allow(dead_code)]
 pub async fn fingerprint_directory(path: &Path) -> Result<Fingerprint, JsValue> {
     let ignores = Ignores::default();
     fingerprint_directory_with_ignores(path, &ignores).await

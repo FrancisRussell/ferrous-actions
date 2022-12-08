@@ -1,7 +1,7 @@
 use crate::action_paths::get_action_cache_dir;
 use crate::actions::cache::CacheEntry;
 use crate::cargo_hook::CargoHook;
-use crate::fingerprinting::Fingerprint;
+use crate::fingerprinting::{render_delta_items, Fingerprint};
 use crate::node::path::Path;
 use crate::{actions, error, info, node, warning, Error};
 use async_trait::async_trait;
@@ -59,9 +59,9 @@ impl CargoInstallHook {
         use crate::fingerprinting::{fingerprint_directory_with_ignores, Ignores};
 
         // It seems that between runs something causes the rustc fingerprint to change.
-        // It looks like this could simply be the file modification timestamp. This would
-        // also explain why it seemed to occur with Rustup but not the internal toolchain
-        // downloader.
+        // It looks like this could simply be the file modification timestamp. This
+        // would also explain why it seemed to occur with Rustup but not the
+        // internal toolchain downloader.
         //
         // https://github.com/rust-lang/cargo/blob/70898e522116f6c23971e2a554b2dc85fd4c84cd/src/cargo/util/rustc.rs#L306
 
@@ -118,7 +118,7 @@ impl CargoHook for CargoInstallHook {
                             new_fingerprint.content_hash()
                         );
                         let delta = new_fingerprint.changes_from(&old_fingerprint);
-                        info!("Changes: {:#?}", delta);
+                        info!("Changes:\n{}", render_delta_items(&delta));
                     }
                     changed
                 }
