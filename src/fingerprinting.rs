@@ -2,6 +2,7 @@ use crate::node::fs;
 use crate::node::path::Path;
 use async_recursion::async_recursion;
 use chrono::{DateTime, Utc};
+use std::cmp::Ordering;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::hash::{Hash, Hasher};
@@ -100,7 +101,6 @@ impl Fingerprint {
         self.modified
     }
 
-    #[allow(dead_code)]
     pub fn changes_from(&self, other: &Fingerprint) -> Vec<DeltaItem> {
         let mut result = Vec::new();
         let mut from_iter = other.tree_data.iter();
@@ -116,21 +116,23 @@ impl Fingerprint {
                 to = to_iter.next();
             }
             match (from, to) {
-                (Some(from_entry), Some(to_entry)) => {
-                    if from_entry.0 < to_entry.0 {
+                (Some(from_entry), Some(to_entry)) => match from_entry.0.cmp(to_entry.0) {
+                    Ordering::Less => {
                         result.push((from_entry.0.clone(), DeltaAction::Removed));
                         from = None;
-                    } else if from_entry.0 > to_entry.0 {
+                    }
+                    Ordering::Greater => {
                         result.push((to_entry.0.clone(), DeltaAction::Added));
                         to = None;
-                    } else {
-                        if !from_entry.1.equal_noteworthy(&to_entry.1) {
+                    }
+                    Ordering::Equal => {
+                        if !from_entry.1.equal_noteworthy(to_entry.1) {
                             result.push((from_entry.0.clone(), DeltaAction::Changed));
                         }
                         from = None;
                         to = None;
                     }
-                }
+                },
                 (Some(from_entry), None) => {
                     result.push((from_entry.0.clone(), DeltaAction::Removed));
                     from = None;
