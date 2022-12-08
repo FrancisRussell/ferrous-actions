@@ -130,10 +130,11 @@ impl Rustup {
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub async fn installed_toolchains(&self) -> Result<Vec<String>, Error> {
         let args: Vec<_> = ["toolchain", "list"].into_iter().map(String::from).collect();
 
-        let toolchains: Arc<Mutex<Vec<String>>> = Default::default();
+        let toolchains: Arc<Mutex<Vec<String>>> = Arc::default();
         {
             let match_default = regex::Regex::new(r" *\(default\) *$").expect("Regex compilation failed");
             let toolchains = Arc::clone(&toolchains);
@@ -151,6 +152,7 @@ impl Rustup {
         Ok(toolchains)
     }
 
+    #[allow(dead_code)]
     pub async fn install_component(&self, name: &str) -> Result<(), Error> {
         Command::from(&self.path)
             .arg("component")

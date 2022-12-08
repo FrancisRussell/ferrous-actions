@@ -33,7 +33,7 @@ impl CargoInstallHook {
         use crate::nonce::build_nonce;
         let mut hasher = blake3::Hasher::new();
         hasher.update(toolchain_hash.as_ref());
-        for arg in args.into_iter() {
+        for arg in args {
             let arg = arg.as_ref();
             hasher.update(arg.as_bytes());
         }

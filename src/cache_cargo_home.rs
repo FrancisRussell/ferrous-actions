@@ -58,8 +58,8 @@ impl CacheType {
         .into()
     }
 
-    fn relative_path(&self) -> Path {
-        match *self {
+    fn relative_path(self) -> Path {
+        match self {
             CacheType::Indices => {
                 let mut path = Path::from("registry");
                 path.push("index");
@@ -78,20 +78,19 @@ impl CacheType {
         }
     }
 
-    fn ignores(&self) -> Ignores {
+    fn ignores(self) -> Ignores {
         let mut ignores = Ignores::default();
-        match *self {
+        match self {
             CacheType::Indices => {
                 ignores.add(1, ".last-updated");
             }
-            CacheType::Crates => {}
-            CacheType::GitRepos => {}
+            CacheType::Crates | CacheType::GitRepos => {}
         }
         ignores
     }
 
-    fn default_min_recache_interval(&self) -> chrono::Duration {
-        match *self {
+    fn default_min_recache_interval(self) -> chrono::Duration {
+        match self {
             CacheType::Indices => chrono::Duration::days(1),
             _ => chrono::Duration::zero(),
         }
@@ -108,7 +107,7 @@ fn get_types_to_cache() -> Result<Vec<CacheType>, Error> {
             result.insert(cache_type);
         }
     } else {
-        result.extend(CacheType::iter())
+        result.extend(CacheType::iter());
     }
     Ok(result.into_iter().collect())
 }
@@ -155,7 +154,7 @@ fn build_cache_entry(cache_type: CacheType, path: &Path) -> CacheEntry {
     let date = date::now();
     let primary_key = format!("{} ({}; {})", name, date, nonce);
     let mut cache_entry = CacheEntry::new(primary_key.as_str());
-    let secondary_key = format!("{}", name);
+    let secondary_key = name.to_string();
     cache_entry.restore_key(secondary_key.as_str());
     cache_entry.path(path);
     cache_entry

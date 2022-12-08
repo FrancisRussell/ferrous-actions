@@ -1,3 +1,10 @@
+#![allow(
+    clippy::missing_errors_doc,
+    clippy::must_use_candidate,
+    clippy::uninlined_format_args,
+    clippy::missing_panics_doc
+)]
+
 mod action_paths;
 pub mod actions;
 mod annotation_hook;
@@ -32,8 +39,7 @@ pub async fn start() -> Result<(), JsValue> {
     utils::set_panic_hook();
 
     if let Err(e) = run::run().await {
-        let msg = format!("{}", e);
-        core::set_failed(msg);
+        core::set_failed(e.to_string());
     }
     Ok(())
 }

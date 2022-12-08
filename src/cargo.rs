@@ -41,7 +41,7 @@ impl Cargo {
         let mut hooks = CompositeCargoHook::default();
         match subcommand {
             "build" | "check" | "clippy" => {
-                hooks.push(AnnotationHook::new(subcommand).await?);
+                hooks.push(AnnotationHook::new(subcommand)?);
             }
             "install" => {
                 let compiler_hash = self.get_toolchain_hash(toolchain).await?;
@@ -59,7 +59,7 @@ impl Cargo {
 
         let rustc_path = io::which("rustc", true).await.map_err(Error::Js)?;
         let mut command = Command::from(&rustc_path);
-        let output: Arc<Mutex<String>> = Default::default();
+        let output: Arc<Mutex<String>> = Arc::default();
         let output_captured = output.clone();
         if let Some(toolchain) = toolchain {
             command.arg(format!("+{}", toolchain).as_str());

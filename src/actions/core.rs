@@ -46,19 +46,19 @@ pub fn info<S: Into<JsString>>(message: S) {
 }
 
 pub fn notice<A: Into<Annotation>>(message: A) {
-    message.into().notice()
+    message.into().notice();
 }
 
 pub fn warning<A: Into<Annotation>>(message: A) {
-    message.into().warning()
+    message.into().warning();
 }
 
 pub fn error<A: Into<Annotation>>(message: A) {
-    message.into().error()
+    message.into().error();
 }
 
 pub fn set_output<N: Into<JsString>, V: Into<JsString>>(name: N, value: V) {
-    ffi::set_output(&name.into(), &value.into())
+    ffi::set_output(&name.into(), &value.into());
 }
 
 #[derive(Debug)]
@@ -222,11 +222,11 @@ pub fn get_input<I: Into<Input>>(input: I) -> Result<Option<String>, JsValue> {
 }
 
 pub fn set_failed<M: Into<JsString>>(message: M) {
-    ffi::set_failed(&message.into())
+    ffi::set_failed(&message.into());
 }
 
 pub fn add_path(path: &Path) {
-    ffi::add_path(&path.into())
+    ffi::add_path(&path.into());
 }
 
 pub fn export_variable<N: Into<JsString>, V: Into<JsString>>(name: N, value: V) {

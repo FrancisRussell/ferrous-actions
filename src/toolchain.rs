@@ -14,7 +14,7 @@ const MAX_CONCURRENT_PACKAGE_INSTALLS: usize = 4;
 fn get_cargo_home(toolchain: &Toolchain) -> Result<Path, Error> {
     let mut dir = get_action_share_dir()?;
     dir.push("toolchains");
-    dir.push(format!("{}", toolchain).as_str());
+    dir.push(toolchain.to_string().as_str());
     Ok(dir)
 }
 
@@ -180,7 +180,7 @@ pub async fn set_cargo_bin(cargo_bin: &Path) {
     let environment = node::process::get_env();
     let delimiter = node::path::delimiter();
     let (path_len, paths): (_, Vec<_>) = {
-        let value = environment.get("PATH").map(String::as_str).unwrap_or("");
+        let value = environment.get("PATH").map_or("", String::as_str);
         let path_len = value.len();
         (path_len, value.split(delimiter.as_str()).map(Path::from).collect())
     };

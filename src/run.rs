@@ -104,6 +104,7 @@ pub async fn main() -> Result<(), Error> {
 pub async fn post() -> Result<(), Error> {
     let command: String = Input::from("command").get_required()?;
     let split: Vec<&str> = command.split_whitespace().collect();
+    #[allow(clippy::single_match)]
     match split[..] {
         ["cache"] => save_cargo_cache().await?,
         _ => {}

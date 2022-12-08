@@ -56,7 +56,7 @@ impl Command {
         let command = self.command.to_string();
         let command = Self::escape_command(command.as_str());
         let command: JsString = command.into();
-        let args: Vec<JsString> = self.args.iter().map(|a| a.to_string()).collect();
+        let args: Vec<JsString> = self.args.iter().map(JsString::to_string).collect();
         let options = js_sys::Map::new();
         let listeners = js_sys::Map::new();
         if let Some(callback) = &self.outline {
