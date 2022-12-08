@@ -10,6 +10,8 @@ use std::borrow::Cow;
 
 const NONCE_SIZE_BYTES: usize = 8;
 
+const MAX_ARG_STRING_LENGTH: usize = 80;
+
 fn get_package_build_dir(hash: &HashValue) -> Result<Path, Error> {
     let mut dir = get_action_cache_dir()?;
     dir.push("package-build-artifacts");
@@ -22,6 +24,7 @@ pub struct CargoInstallHook {
     nonce: HashValue,
     build_dir: String,
     fingerprint: Option<Fingerprint>,
+    arg_string: String,
 }
 
 impl CargoInstallHook {
@@ -33,10 +36,21 @@ impl CargoInstallHook {
         use crate::nonce::build_nonce;
         let mut hasher = blake3::Hasher::new();
         hasher.update(toolchain_hash.as_ref());
-        for arg in args {
-            let arg = arg.as_ref();
-            hasher.update(arg.as_bytes());
-        }
+        let arg_string = {
+            let mut arg_string = String::new();
+            let mut first = true;
+            for arg in args {
+                let arg = arg.as_ref();
+                hasher.update(arg.as_bytes());
+                if first {
+                    first = false;
+                } else {
+                    arg_string += " ";
+                }
+                arg_string += &shlex::quote(arg);
+            }
+            arg_string
+        };
         let hash = hasher.finalize();
         let hash = HashValue::from_bytes(hash.as_bytes());
         let build_dir = get_package_build_dir(&hash)?;
@@ -45,6 +59,7 @@ impl CargoInstallHook {
             nonce: build_nonce(NONCE_SIZE_BYTES),
             build_dir: build_dir.to_string(),
             fingerprint: None,
+            arg_string,
         };
         node::fs::create_dir_all(result.build_dir.as_str()).await?;
         let cache_entry = result.build_cache_entry();
@@ -75,10 +90,23 @@ impl CargoInstallHook {
     fn build_key(&self, with_nonce: bool) -> String {
         let mut result = format!(
             "Cargo package build artifacts - {}",
-            base64::encode_config(&self.hash, base64::URL_SAFE)
+            base64::encode_config(&self.hash, base64::URL_SAFE),
         );
         if with_nonce {
-            result += &format!(" - {}", base64::encode_config(&self.nonce, base64::URL_SAFE));
+            let arg_string = {
+                let mut arg_string = self.arg_string.clone();
+                if arg_string.len() > MAX_ARG_STRING_LENGTH {
+                    let ellipsis = "...";
+                    arg_string.truncate(MAX_ARG_STRING_LENGTH - ellipsis.len());
+                    arg_string += ellipsis;
+                }
+                arg_string.replace(',', ";")
+            };
+            result += &format!(
+                " ({}; {})",
+                arg_string,
+                base64::encode_config(&self.nonce, base64::URL_SAFE)
+            );
         }
         result
     }
