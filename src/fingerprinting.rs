@@ -2,6 +2,7 @@ use crate::node::fs;
 use crate::node::path::Path;
 use async_recursion::async_recursion;
 use chrono::{DateTime, Utc};
+use std::cmp::Ordering;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::hash::{Hash, Hasher};
@@ -27,9 +28,68 @@ impl Ignores {
 }
 
 #[derive(Debug, Clone)]
+pub struct Metadata {
+    uid: u64,
+    gid: u64,
+    len: u64,
+    mode: u64,
+    modified: DateTime<Utc>,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, strum::Display)]
+pub enum DeltaAction {
+    Added,
+    Removed,
+    Changed,
+}
+
+pub type DeltaItem = (String, DeltaAction);
+
+pub fn render_delta_items(items: &[DeltaItem]) -> String {
+    use std::fmt::Write as _;
+    let mut result = String::new();
+    for (path, item) in items {
+        writeln!(&mut result, "{}: {}", item, path).expect("Unable to write to string");
+    }
+    result
+}
+
+impl From<&fs::Metadata> for Metadata {
+    fn from(stats: &fs::Metadata) -> Metadata {
+        Metadata {
+            uid: stats.uid(),
+            gid: stats.gid(),
+            len: stats.len(),
+            mode: stats.mode(),
+            modified: stats.modified(),
+        }
+    }
+}
+
+impl Metadata {
+    fn hash_noteworthy<H: Hasher>(&self, hasher: &mut H) {
+        // Noteworthy basically means anything that would need an rsync
+        self.uid.hash(hasher);
+        self.gid.hash(hasher);
+        self.len.hash(hasher);
+        self.mode.hash(hasher);
+        self.modified.hash(hasher);
+    }
+
+    fn equal_noteworthy(&self, other: &Metadata) -> bool {
+        self.uid == other.uid
+            && self.gid == other.gid
+            && self.len == other.len
+            && self.mode == other.mode
+            && self.modified == other.modified
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct Fingerprint {
     content_hash: u64,
     modified: DateTime<Utc>,
+    tree_data: BTreeMap<String, Metadata>,
 }
 
 impl Fingerprint {
@@ -40,8 +100,55 @@ impl Fingerprint {
     pub fn modified(&self) -> DateTime<Utc> {
         self.modified
     }
+
+    pub fn changes_from(&self, other: &Fingerprint) -> Vec<DeltaItem> {
+        let mut result = Vec::new();
+        let mut from_iter = other.tree_data.iter();
+        let mut to_iter = self.tree_data.iter();
+
+        let mut from = None;
+        let mut to = None;
+        loop {
+            if from.is_none() {
+                from = from_iter.next();
+            }
+            if to.is_none() {
+                to = to_iter.next();
+            }
+            match (from, to) {
+                (Some(from_entry), Some(to_entry)) => match from_entry.0.cmp(to_entry.0) {
+                    Ordering::Less => {
+                        result.push((from_entry.0.clone(), DeltaAction::Removed));
+                        from = None;
+                    }
+                    Ordering::Greater => {
+                        result.push((to_entry.0.clone(), DeltaAction::Added));
+                        to = None;
+                    }
+                    Ordering::Equal => {
+                        if !from_entry.1.equal_noteworthy(to_entry.1) {
+                            result.push((from_entry.0.clone(), DeltaAction::Changed));
+                        }
+                        from = None;
+                        to = None;
+                    }
+                },
+                (Some(from_entry), None) => {
+                    result.push((from_entry.0.clone(), DeltaAction::Removed));
+                    from = None;
+                }
+                (None, Some(to_entry)) => {
+                    result.push((to_entry.0.clone(), DeltaAction::Added));
+                    to = None;
+                }
+                (None, None) => break,
+            }
+        }
+        result
+    }
 }
 
+#[allow(dead_code)]
 pub async fn fingerprint_directory(path: &Path) -> Result<Fingerprint, JsValue> {
     let ignores = Ignores::default();
     fingerprint_directory_with_ignores(path, &ignores).await
@@ -57,6 +164,7 @@ pub async fn fingerprint_directory_with_ignores_impl(
     path: &Path,
     ignores: &Ignores,
 ) -> Result<Fingerprint, JsValue> {
+    let mut tree_data = BTreeMap::new();
     let stats = fs::symlink_metadata(path).await?;
     let mut modified = stats.modified();
     let dir = fs::read_dir(path).await?;
@@ -69,16 +177,14 @@ pub async fn fingerprint_directory_with_ignores_impl(
         let file_type = entry.file_type();
         let (hash, child_modified) = if file_type.is_dir() {
             let fingerprint = fingerprint_directory_with_ignores_impl(depth + 1, &path, ignores).await?;
+            tree_data.extend(fingerprint.tree_data);
             (fingerprint.content_hash, fingerprint.modified)
         } else {
             let stats = fs::symlink_metadata(&path).await?;
+            let metadata = Metadata::from(&stats);
             let mut hasher = DefaultHasher::default();
-            stats.mode().hash(&mut hasher);
-            stats.uid().hash(&mut hasher);
-            stats.gid().hash(&mut hasher);
-            stats.len().hash(&mut hasher);
-            let modified = stats.modified();
-            modified.hash(&mut hasher);
+            metadata.hash_noteworthy(&mut hasher);
+            tree_data.insert(path.to_string(), metadata);
             (hasher.finish(), modified)
         };
         map.insert(path.to_string(), hash);
@@ -89,6 +195,7 @@ pub async fn fingerprint_directory_with_ignores_impl(
     let result = Fingerprint {
         content_hash: hasher.finish(),
         modified,
+        tree_data,
     };
     Ok(result)
 }
