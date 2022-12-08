@@ -1,10 +1,9 @@
 use crate::action_paths::get_action_cache_dir;
 use crate::actions::cache::CacheEntry;
-use crate::fingerprinting::{fingerprint_directory_with_ignores, Ignores};
+use crate::fingerprinting::{fingerprint_directory_with_ignores, render_delta_items, Fingerprint, Ignores};
 use crate::node::os::homedir;
 use crate::node::path::Path;
 use crate::{actions, error, info, node, warning, Error};
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::collections::HashSet;
@@ -26,7 +25,7 @@ fn find_path(cache_type: CacheType) -> Path {
 fn cached_folder_info_path(cache_type: CacheType) -> Result<Path, Error> {
     let mut dir = get_action_cache_dir()?;
     dir.push("cached_folder_info");
-    let file_name = format!("{}.toml", cache_type.short_name());
+    let file_name = format!("{}.json", cache_type.short_name());
     dir.push(file_name.as_str());
     Ok(dir)
 }
@@ -126,8 +125,7 @@ fn get_min_recache_interval(cache_type: CacheType) -> Result<chrono::Duration, E
 #[derive(Debug, Serialize, Deserialize)]
 struct CachedFolderInfo {
     path: String,
-    fingerprint: u64,
-    modified: DateTime<Utc>,
+    fingerprint: Fingerprint,
     newly_created: bool,
 }
 
@@ -137,8 +135,7 @@ async fn build_cached_folder_info(cache_type: CacheType) -> Result<CachedFolderI
     let fingerprint = fingerprint_directory_with_ignores(&path, &ignores).await?;
     let folder_info = CachedFolderInfo {
         path: path.to_string(),
-        fingerprint: fingerprint.content_hash(),
-        modified: fingerprint.modified(),
+        fingerprint,
         newly_created: false,
     };
     Ok(folder_info)
@@ -184,7 +181,7 @@ pub async fn restore_cargo_cache() -> Result<(), Error> {
         };
         let mut folder_info = build_cached_folder_info(cache_type).await?;
         folder_info.newly_created = newly_created;
-        let folder_info_serialized = serde_json::to_string_pretty(&folder_info)?;
+        let folder_info_serialized = serde_json::to_string(&folder_info)?;
         let folder_info_path = cached_folder_info_path(cache_type)?;
         let parent = folder_info_path.parent();
         node::fs::create_dir_all(&parent).await?;
@@ -212,16 +209,23 @@ pub async fn save_cargo_cache() -> Result<(), Error> {
             ));
             return Err(Error::Js(error.into()));
         }
-        if folder_info_old.fingerprint == folder_info_new.fingerprint {
+        if folder_info_old.fingerprint.content_hash() == folder_info_new.fingerprint.content_hash() {
             info!("{} unchanged, no need to write to cache", folder_path);
         } else {
             info!(
                 "{} fingerprint changed from {} to {}",
-                folder_path, folder_info_old.fingerprint, folder_info_new.fingerprint
+                folder_path,
+                folder_info_old.fingerprint.content_hash(),
+                folder_info_new.fingerprint.content_hash()
             );
-            let modification_delta = folder_info_new.modified - folder_info_old.modified;
+            let modification_delta = folder_info_new.fingerprint.modified() - folder_info_old.fingerprint.modified();
             let min_recache_interval = get_min_recache_interval(cache_type)?;
-            if folder_info_old.newly_created || modification_delta > min_recache_interval {
+            let interval_is_sufficient = modification_delta > min_recache_interval;
+            if interval_is_sufficient {
+                let delta = folder_info_new.fingerprint.changes_from(&folder_info_old.fingerprint);
+                info!("{}", render_delta_items(&delta));
+            }
+            if folder_info_old.newly_created || interval_is_sufficient {
                 let cache_entry = build_cache_entry(cache_type, &folder_path);
                 if let Err(e) = cache_entry.save().await.map_err(Error::Js) {
                     error!("Failed to save {} to cache: {}", cache_type.friendly_name(), e);
