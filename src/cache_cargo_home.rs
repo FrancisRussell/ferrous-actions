@@ -1,3 +1,4 @@
+use crate::action_paths::get_action_cache_dir;
 use crate::actions::cache::CacheEntry;
 use crate::fingerprinting::{fingerprint_directory_with_ignores, Ignores};
 use crate::node::os::homedir;
@@ -22,14 +23,12 @@ fn find_path(cache_type: CacheType) -> Path {
     path
 }
 
-fn cached_folder_info_path(cache_type: CacheType) -> Path {
-    let mut dir = node::os::homedir();
-    dir.push(".cache");
-    dir.push("github-rust-actions");
+fn cached_folder_info_path(cache_type: CacheType) -> Result<Path, Error> {
+    let mut dir = get_action_cache_dir()?;
     dir.push("cached_folder_info");
     let file_name = format!("{}.toml", cache_type.short_name());
     dir.push(file_name.as_str());
-    dir
+    Ok(dir)
 }
 
 #[derive(Debug, Clone, Copy, EnumIter, EnumString, Eq, Hash, PartialEq, IntoStaticStr, Display)]
@@ -187,7 +186,7 @@ pub async fn restore_cargo_cache() -> Result<(), Error> {
         let mut folder_info = build_cached_folder_info(cache_type).await?;
         folder_info.newly_created = newly_created;
         let folder_info_serialized = serde_json::to_string_pretty(&folder_info)?;
-        let folder_info_path = cached_folder_info_path(cache_type);
+        let folder_info_path = cached_folder_info_path(cache_type)?;
         let parent = folder_info_path.parent();
         node::fs::create_dir_all(&parent).await?;
         node::fs::write_file(&folder_info_path, folder_info_serialized.as_bytes()).await?;
@@ -203,7 +202,7 @@ pub async fn save_cargo_cache() -> Result<(), Error> {
         let folder_path = find_path(cache_type);
         let folder_info_new = build_cached_folder_info(cache_type).await?;
         let folder_info_old: CachedFolderInfo = {
-            let folder_info_path = cached_folder_info_path(cache_type);
+            let folder_info_path = cached_folder_info_path(cache_type)?;
             let folder_info_serialized = node::fs::read_file(&folder_info_path).await?;
             serde_json::de::from_slice(&folder_info_serialized)?
         };

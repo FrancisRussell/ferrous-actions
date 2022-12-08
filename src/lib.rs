@@ -1,3 +1,4 @@
+mod action_paths;
 pub mod actions;
 mod annotation_hook;
 mod cache_cargo_home;

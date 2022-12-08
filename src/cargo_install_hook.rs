@@ -1,3 +1,4 @@
+use crate::action_paths::get_action_cache_dir;
 use crate::actions::cache::CacheEntry;
 use crate::cargo_hook::CargoHook;
 use crate::fingerprinting::fingerprint_directory;
@@ -10,9 +11,7 @@ use std::borrow::Cow;
 const NONCE_SIZE_BYTES: usize = 8;
 
 fn get_package_build_dir(hash: &HashValue) -> Result<Path, Error> {
-    let mut dir = node::os::homedir();
-    dir.push(".cache");
-    dir.push("github-rust-actions");
+    let mut dir = get_action_cache_dir()?;
     dir.push("package-build-artifacts");
     dir.push(base64::encode_config(hash, base64::URL_SAFE).as_str());
     Ok(dir)
