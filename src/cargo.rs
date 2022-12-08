@@ -1,8 +1,7 @@
 use crate::actions::exec::Command;
 use crate::actions::io;
 use crate::annotation_hook::AnnotationHook;
-use crate::cargo_hook::CargoHook;
-use crate::cargo_hook::CompositeCargoHook;
+use crate::cargo_hook::{CargoHook, CompositeCargoHook};
 use crate::cargo_install_hook::CargoInstallHook;
 use crate::node::path::Path;
 use crate::Error;
@@ -67,12 +66,7 @@ impl Cargo {
         Ok(HashValue::from_bytes(output.as_bytes()))
     }
 
-    pub async fn run<'a, I>(
-        &'a mut self,
-        toolchain: Option<&str>,
-        subcommand: &'a str,
-        args: I,
-    ) -> Result<(), Error>
+    pub async fn run<'a, I>(&'a mut self, toolchain: Option<&str>, subcommand: &'a str, args: I) -> Result<(), Error>
     where
         I: IntoIterator<Item = &'a str>,
     {
@@ -81,16 +75,9 @@ impl Cargo {
         if let Some(toolchain) = toolchain {
             final_args.push(format!("+{}", toolchain));
         }
-        let mut hooks = self
-            .get_hooks_for_subcommand(toolchain, subcommand, &args[..])
-            .await?;
+        let mut hooks = self.get_hooks_for_subcommand(toolchain, subcommand, &args[..]).await?;
         final_args.push(subcommand.into());
-        final_args.extend(
-            hooks
-                .additional_cargo_options()
-                .into_iter()
-                .map(Cow::into_owned),
-        );
+        final_args.extend(hooks.additional_cargo_options().into_iter().map(Cow::into_owned));
         final_args.extend(args);
         let mut command = Command::from(&self.path);
         command.args(final_args);

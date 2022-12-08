@@ -1,12 +1,9 @@
 use crate::actions::exec::Command;
 use crate::cargo_hook::CargoHook;
-use crate::core;
 use crate::core::AnnotationLevel;
-use crate::warning;
-use crate::Error;
+use crate::{core, warning, Error};
 use async_trait::async_trait;
-use cargo_metadata::diagnostic::DiagnosticLevel;
-use cargo_metadata::diagnostic::DiagnosticSpan;
+use cargo_metadata::diagnostic::{DiagnosticLevel, DiagnosticSpan};
 use std::borrow::Cow;
 
 #[derive(Default)]
@@ -48,10 +45,7 @@ impl AnnotationHook {
             let level = Self::annotation_level(diagnostic.level);
             let mut annotation = if let Some(rendered) = &diagnostic.rendered {
                 let mut annotation = Annotation::from(rendered.as_str());
-                annotation.title(&format!(
-                    "cargo-{}: {}",
-                    cargo_subcommand, diagnostic.message
-                ));
+                annotation.title(&format!("cargo-{}: {}", cargo_subcommand, diagnostic.message));
                 annotation
             } else {
                 let mut annotation = Annotation::from(diagnostic.message.as_str());

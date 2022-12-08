@@ -15,11 +15,7 @@ impl FromStr for EntryType {
         let result = match string {
             "file" => EntryType::File,
             "dir" => EntryType::Directory,
-            _ => {
-                return Err(PackageManifestParseError::UnknownEntryType(
-                    string.to_string(),
-                ))
-            }
+            _ => return Err(PackageManifestParseError::UnknownEntryType(string.to_string())),
         };
         Ok(result)
     }

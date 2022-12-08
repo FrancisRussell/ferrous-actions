@@ -1,7 +1,6 @@
 use crate::node::path::Path;
 use crate::noop_stream;
-use js_sys::JsString;
-use js_sys::Object;
+use js_sys::{JsString, Object};
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::JsValue;
 
@@ -18,9 +17,7 @@ pub struct Stdio {
 
 impl Stdio {
     pub fn null() -> Stdio {
-        Stdio {
-            inner: StdioEnum::Null,
-        }
+        Stdio { inner: StdioEnum::Null }
     }
 
     pub fn inherit() -> Stdio {
@@ -73,11 +70,9 @@ impl Command {
         if let StdioEnum::Null = self.stderr.inner {
             options.set(&"errStream".into(), &noop_stream::ffi::writable());
         }
-        let listeners =
-            Object::from_entries(&listeners).expect("Failed to convert listeners map to object");
+        let listeners = Object::from_entries(&listeners).expect("Failed to convert listeners map to object");
         options.set(&"listeners".into(), &listeners);
-        let options =
-            Object::from_entries(&options).expect("Failed to convert options map to object");
+        let options = Object::from_entries(&options).expect("Failed to convert options map to object");
         ffi::exec(&command, Some(args), &options)
             .await
             .map(|r| r.as_f64().expect("exec didn't return a number") as i32)
@@ -109,18 +104,20 @@ impl Command {
         self
     }
 
-    // Some bright spark had the idea of making an exec function that could both handle execvp and
-    // shell command style invocations rather than have two functions or some sort of flag to
-    // handle these different use cases. Consequently we now need to escape our command so the
-    // apparently bespoke unescaping strategy in `argStringToArray` will not mangle our command
+    // Some bright spark had the idea of making an exec function that could both
+    // handle execvp and shell command style invocations rather than have two
+    // functions or some sort of flag to handle these different use cases.
+    // Consequently we now need to escape our command so the apparently bespoke
+    // unescaping strategy in `argStringToArray` will not mangle our command
     // in the case it contains spaces or double quotes.
     fn escape_command(command: &str) -> String {
         let mut result = String::with_capacity(command.len());
-        // - Spaces must be located between quotes to not be considered a token separator.
+        // - Spaces must be located between quotes to not be considered a token
+        //   separator.
         // - Outside of double quotes backslash is itself.
-        // - Within double quotes, backslash is itself unless followed by a double quote in which
-        //   case it is the double quote. This means double quotes cannot surround a string-fragment
-        //   containing a trailing backslash.
+        // - Within double quotes, backslash is itself unless followed by a double quote
+        //   in which case it is the double quote. This means double quotes cannot
+        //   surround a string-fragment containing a trailing backslash.
         for c in command.chars() {
             match c {
                 ' ' => result.push_str("\" \""),
