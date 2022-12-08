@@ -73,7 +73,6 @@ impl Cargo {
             .stdout(Stdio::null());
         command.exec().await?;
         let output: String = output.lock().trim().to_string();
-        info!("Compiler version: {}", output);
         Ok(HashValue::from_bytes(output.as_bytes()))
     }
 
