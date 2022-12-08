@@ -135,7 +135,7 @@ async fn build_cached_folder_info(cache_type: CacheType) -> Result<CachedFolderI
     let fingerprint = fingerprint_directory_with_ignores(&path, &ignores).await?;
     let folder_info = CachedFolderInfo {
         path: path.to_string(),
-        fingerprint: fingerprint,
+        fingerprint,
         newly_created: false,
     };
     Ok(folder_info)
@@ -181,7 +181,7 @@ pub async fn restore_cargo_cache() -> Result<(), Error> {
         };
         let mut folder_info = build_cached_folder_info(cache_type).await?;
         folder_info.newly_created = newly_created;
-        let folder_info_serialized = serde_json::to_string_pretty(&folder_info)?;
+        let folder_info_serialized = serde_json::to_string(&folder_info)?;
         let folder_info_path = cached_folder_info_path(cache_type)?;
         let parent = folder_info_path.parent();
         node::fs::create_dir_all(&parent).await?;
