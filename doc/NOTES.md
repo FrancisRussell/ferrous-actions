@@ -13,3 +13,6 @@
 
 ## How to effectively clean target folder for CI caching
 - https://github.com/rust-lang/cargo/issues/5885
+
+## Layout of cargo build folder
+- https://github.com/rust-lang/cargo/blob/master/src/cargo/core/compiler/layout.rs
