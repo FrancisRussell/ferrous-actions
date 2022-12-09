@@ -98,8 +98,7 @@ impl<'a> Iterator for FlatteningIterator<'a> {
                     None => true,
                     Some((base_name, entry)) => {
                         let mut path = path.clone();
-                        path += &self.separator;
-                        path += base_name;
+                        path.extend([self.separator.as_str(), base_name]);
                         match entry {
                             Entry::File(metadata) => return Some((path.into(), metadata)),
                             Entry::Dir(sub_tree) => {

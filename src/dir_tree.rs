@@ -16,11 +16,7 @@ impl Ignores {
     }
 
     pub fn should_ignore(&self, name: &str, depth: usize) -> bool {
-        if let Some(names) = self.map.get(&depth) {
-            names.contains(name)
-        } else {
-            false
-        }
+        self.map.get(&depth).map(|names| names.contains(name)).unwrap_or(false)
     }
 }
 
@@ -39,7 +35,7 @@ where
 }
 
 #[async_recursion(?Send)]
-pub async fn apply_visitor_impl<V>(
+async fn apply_visitor_impl<V>(
     depth: usize,
     folder_path: &Path,
     ignores: &Ignores,
