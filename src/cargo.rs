@@ -64,10 +64,12 @@ impl Cargo {
         if let Some(toolchain) = toolchain {
             command.arg(format!("+{}", toolchain).as_str());
         }
-        command.arg("--version");
+        command.arg("-Vv");
         command
             .outline(move |line| {
-                *output_captured.lock() += line;
+                let mut out = output_captured.lock();
+                *out += line;
+                *out += "\n";
             })
             .stdout(Stdio::null());
         command.exec().await?;
