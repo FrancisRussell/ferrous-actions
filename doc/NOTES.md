@@ -10,3 +10,6 @@
 
 ## Issues with `rustup` and `cargo` acting as package managers
 - https://kornel.ski/rust-2019
+
+## How to effectively clean target folder for CI caching
+- https://github.com/rust-lang/cargo/issues/5885
