@@ -7,7 +7,6 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
-use std::cmp::Ordering;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::{btree_map, BTreeMap, VecDeque};
 use std::hash::{Hash, Hasher};
@@ -182,49 +181,24 @@ impl Fingerprint {
     }
 
     pub fn changes_from(&self, other: &Fingerprint) -> Vec<DeltaItem> {
-        let mut result = Vec::new();
-        let mut from_iter = other.iter_paths_and_metadata();
-        let mut to_iter = self.iter_paths_and_metadata();
+        use itertools::{EitherOrBoth, Itertools as _};
 
-        let mut from = None;
-        let mut to = None;
-        loop {
-            if from.is_none() {
-                from = from_iter.next();
-            }
-            if to.is_none() {
-                to = to_iter.next();
-            }
-            match (&from, &to) {
-                (Some(from_entry), Some(to_entry)) => match from_entry.0.cmp(&to_entry.0) {
-                    Ordering::Less => {
-                        result.push((from_entry.0.to_string(), DeltaAction::Removed));
-                        from = None;
+        let from_iter = other.iter_paths_and_metadata();
+        let to_iter = self.iter_paths_and_metadata();
+        from_iter
+            .merge_join_by(to_iter, |left, right| left.0.cmp(&right.0))
+            .filter_map(|element| match element {
+                EitherOrBoth::Both(left, right) => {
+                    if !left.1.equal_noteworthy(right.1) {
+                        Some((left.0.into_owned(), DeltaAction::Changed))
+                    } else {
+                        None
                     }
-                    Ordering::Greater => {
-                        result.push((to_entry.0.to_string(), DeltaAction::Added));
-                        to = None;
-                    }
-                    Ordering::Equal => {
-                        if !from_entry.1.equal_noteworthy(to_entry.1) {
-                            result.push((from_entry.0.to_string(), DeltaAction::Changed));
-                        }
-                        from = None;
-                        to = None;
-                    }
-                },
-                (Some(from_entry), None) => {
-                    result.push((from_entry.0.to_string(), DeltaAction::Removed));
-                    from = None;
                 }
-                (None, Some(to_entry)) => {
-                    result.push((to_entry.0.to_string(), DeltaAction::Added));
-                    to = None;
-                }
-                (None, None) => break,
-            }
-        }
-        result
+                EitherOrBoth::Left(left) => Some((left.0.into_owned(), DeltaAction::Removed)),
+                EitherOrBoth::Right(right) => Some((right.0.into_owned(), DeltaAction::Added)),
+            })
+            .collect()
     }
 }
 
