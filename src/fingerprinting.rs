@@ -85,31 +85,25 @@ pub struct Fingerprint {
 #[derive(Clone, Debug)]
 struct FlatteningIterator<'a> {
     separator: String,
-    iterator_stack: VecDeque<btree_map::Iter<'a, String, Entry>>,
-    path_stack: VecDeque<String>,
+    stack: VecDeque<(String, btree_map::Iter<'a, String, Entry>)>,
 }
 
 impl<'a> Iterator for FlatteningIterator<'a> {
     type Item = (Cow<'a, str>, &'a Metadata);
 
     fn next(&mut self) -> Option<Self::Item> {
-        while !self.iterator_stack.is_empty() {
+        while let Some((path, iter)) = self.stack.back_mut() {
             let pop = {
-                let iter = self
-                    .iterator_stack
-                    .back_mut()
-                    .expect("Iterator stack unexpectedly empty");
                 match iter.next() {
                     None => true,
                     Some((base_name, entry)) => {
-                        let mut path = self.path_stack.back().expect("Path stack unexpectedly empty").clone();
+                        let mut path = path.clone();
                         path += &self.separator;
                         path += base_name;
                         match entry {
                             Entry::File(metadata) => return Some((path.into(), metadata)),
                             Entry::Dir(sub_tree) => {
-                                self.iterator_stack.push_back(sub_tree.iter());
-                                self.path_stack.push_back(path);
+                                self.stack.push_back((path, sub_tree.iter()));
                                 false
                             }
                         }
@@ -117,8 +111,7 @@ impl<'a> Iterator for FlatteningIterator<'a> {
                 }
             };
             if pop {
-                self.iterator_stack.pop_back();
-                self.path_stack.pop_back();
+                self.stack.pop_back();
             }
         }
         None
@@ -174,8 +167,7 @@ impl Fingerprint {
 
     fn iter_paths_and_metadata(&self) -> FlatteningIterator<'_> {
         FlatteningIterator {
-            iterator_stack: VecDeque::from([self.tree_data.iter()]),
-            path_stack: VecDeque::from([".".into()]),
+            stack: VecDeque::from([(".".into(), self.tree_data.iter())]),
             separator: path::separator(),
         }
     }
