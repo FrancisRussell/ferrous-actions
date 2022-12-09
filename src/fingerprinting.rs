@@ -1,5 +1,5 @@
-pub use crate::file_tree::Ignores;
-use crate::file_tree::{apply_visitor, FileTreeVisitor};
+pub use crate::dir_tree::Ignores;
+use crate::dir_tree::{apply_visitor, DirTreeVisitor};
 use crate::node::fs;
 use crate::node::path::Path;
 use crate::Error;
@@ -242,7 +242,7 @@ impl FingerprintVisitor {
 }
 
 #[async_trait(?Send)]
-impl FileTreeVisitor for FingerprintVisitor {
+impl DirTreeVisitor for FingerprintVisitor {
     async fn enter_folder(&mut self, _path: &Path) -> Result<(), Error> {
         self.tree_data_stack.push_back(BTreeMap::new());
         Ok(())

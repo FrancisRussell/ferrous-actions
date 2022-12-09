@@ -25,7 +25,7 @@ impl Ignores {
 }
 
 #[async_trait(?Send)]
-pub trait FileTreeVisitor {
+pub trait DirTreeVisitor {
     async fn enter_folder(&mut self, path: &Path) -> Result<(), Error>;
     async fn exit_folder(&mut self, path: &Path) -> Result<(), Error>;
     async fn visit_file(&mut self, name: &Path) -> Result<(), Error>;
@@ -33,7 +33,7 @@ pub trait FileTreeVisitor {
 
 pub async fn apply_visitor<V>(folder_path: &Path, ignores: &Ignores, visitor: &mut V) -> Result<(), Error>
 where
-    V: FileTreeVisitor,
+    V: DirTreeVisitor,
 {
     apply_visitor_impl(0, folder_path, ignores, visitor).await
 }
@@ -46,7 +46,7 @@ pub async fn apply_visitor_impl<V>(
     visitor: &mut V,
 ) -> Result<(), Error>
 where
-    V: FileTreeVisitor,
+    V: DirTreeVisitor,
 {
     let dir = fs::read_dir(folder_path).await?;
     for entry in dir {
