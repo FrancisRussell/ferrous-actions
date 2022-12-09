@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::collections::hash_map::DefaultHasher;
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{btree_map, BTreeMap, VecDeque};
 use std::hash::{Hash, Hasher};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -83,8 +83,9 @@ pub struct Fingerprint {
     tree_data: BTreeMap<String, Entry>,
 }
 
+#[derive(Clone, Debug)]
 struct FlatteningIterator<'a> {
-    iterator_stack: VecDeque<std::collections::btree_map::Iter<'a, String, Entry>>,
+    iterator_stack: VecDeque<btree_map::Iter<'a, String, Entry>>,
     path_stack: VecDeque<String>,
 }
 
