@@ -82,7 +82,7 @@ pub struct Fingerprint {
     tree_data: BTreeMap<String, Entry>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 struct FlatteningIterator<'a> {
     separator: String,
     stack: VecDeque<(String, btree_map::Iter<'a, String, Entry>)>,
@@ -140,27 +140,6 @@ impl Fingerprint {
         hasher.finish()
     }
 
-    fn find_latest_modification(tree_data: &BTreeMap<String, Entry>) -> Option<DateTime<Utc>> {
-        let mut result = None;
-        for entry in tree_data.values() {
-            let modification = match entry {
-                Entry::File(metadata) => Some(metadata.modified),
-                Entry::Dir(sub_tree) => Self::find_latest_modification(sub_tree),
-            };
-            result = match result {
-                None => modification,
-                Some(existing) => Some({
-                    if let Some(modification) = modification {
-                        std::cmp::max(modification, existing)
-                    } else {
-                        existing
-                    }
-                }),
-            };
-        }
-        result
-    }
-
     pub fn modified(&self) -> DateTime<Utc> {
         self.modified
     }
@@ -202,6 +181,7 @@ pub async fn fingerprint_directory(path: &Path) -> Result<Fingerprint, Error> {
 
 struct FingerprintVisitor {
     tree_data_stack: VecDeque<BTreeMap<String, Entry>>,
+    modified: Option<DateTime<Utc>>,
 }
 
 impl FingerprintVisitor {
@@ -231,6 +211,10 @@ impl DirTreeVisitor for FingerprintVisitor {
         let file_name = path.file_name();
         let stats = fs::symlink_metadata(path).await?;
         let metadata = Metadata::from(&stats);
+        self.modified = Some(match self.modified {
+            None => metadata.modified,
+            Some(latest) => std::cmp::max(latest, metadata.modified),
+        });
         let entry = Entry::File(metadata);
         self.tree_data().insert(file_name, entry);
         Ok(())
@@ -240,6 +224,7 @@ impl DirTreeVisitor for FingerprintVisitor {
 pub async fn fingerprint_directory_with_ignores(path: &Path, ignores: &Ignores) -> Result<Fingerprint, Error> {
     let mut visitor = FingerprintVisitor {
         tree_data_stack: VecDeque::from([BTreeMap::new()]),
+        modified: None,
     };
     apply_visitor(path, ignores, &mut visitor).await?;
     assert_eq!(
@@ -252,8 +237,7 @@ pub async fn fingerprint_directory_with_ignores(path: &Path, ignores: &Ignores) 
         .pop_back()
         .expect("Tree data stack was unexpectedly empty");
     let content_hash = Fingerprint::compute_tree_hash(&tree_data);
-    let modified = Fingerprint::find_latest_modification(&tree_data);
-    let modified = if let Some(modified) = modified {
+    let modified = if let Some(modified) = visitor.modified {
         modified
     } else {
         // If we have no files, then just use the folder modified time
