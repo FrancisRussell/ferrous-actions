@@ -259,6 +259,20 @@ pub mod fs {
         Ok(Metadata { inner: stats })
     }
 
+    pub async fn utimes<P: Into<JsString>>(
+        path: P,
+        atime: &DateTime<Utc>,
+        mtime: &DateTime<Utc>,
+    ) -> Result<(), JsValue> {
+        use js_sys::Number;
+
+        let path = path.into();
+        let atime: Number = (atime.timestamp_millis() as f64).into();
+        let mtime: Number = (mtime.timestamp_millis() as f64).into();
+        ffi::utimes(&path, atime.as_ref(), mtime.as_ref()).await?;
+        Ok(())
+    }
+
     pub mod ffi {
         use js_sys::{JsString, Object};
         use wasm_bindgen::prelude::*;
@@ -351,6 +365,9 @@ pub mod fs {
 
             #[wasm_bindgen(catch)]
             pub async fn lstat(path: &JsString, options: Option<Object>) -> Result<JsValue, JsValue>;
+
+            #[wasm_bindgen(catch)]
+            pub async fn utimes(path: &JsString, atime: &JsValue, mtime: &JsValue) -> Result<JsValue, JsValue>;
         }
     }
 }
@@ -407,6 +424,11 @@ pub mod path {
 
         pub fn is_absolute(&self) -> bool {
             ffi::is_absolute(&self.inner)
+        }
+
+        pub fn file_name(&self) -> String {
+            let result = ffi::basename(&self.inner, None);
+            result.into()
         }
 
         pub async fn exists(&self) -> bool {
@@ -470,6 +492,8 @@ pub mod path {
             pub fn is_absolute(path: &JsString) -> bool;
             #[wasm_bindgen]
             pub fn relative(from: &JsString, to: &JsString) -> JsString;
+            #[wasm_bindgen]
+            pub fn basename(path: &JsString, suffix: Option<JsString>) -> JsString;
         }
     }
 }

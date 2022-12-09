@@ -15,6 +15,7 @@ mod cargo_install_hook;
 mod cross;
 mod date;
 mod error;
+mod file_tree;
 mod fingerprinting;
 pub mod node;
 mod nonce;
