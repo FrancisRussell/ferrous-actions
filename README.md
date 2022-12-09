@@ -22,7 +22,7 @@ platforms and more easily maintainable by developers who only know Rust.
 - [ ] Validate that all known supplied parameters are used
 - [ ] Handle conflicts between `cargo` and `rustup` installs of the same component.
 - [x] Cache intermediate artifacts for `cargo install` invocations.
-- [ ] Include binary name in name of cached build artifacts.
+- [x] Include binary name in name of cached build artifacts.
 - [x] Cache index
 - [x] Cache downloaded crates
 - [x] Cache downloaded Git repositories
@@ -30,6 +30,7 @@ platforms and more easily maintainable by developers who only know Rust.
 - [ ] Drop unused indices from cache
 - [ ] Drop unused crates from cache
 - [ ] Drop unused Git repos from cache
+- [ ] Drop unused `cargo install` build artifacts from cache
 
 ## Acknowledgements
 
