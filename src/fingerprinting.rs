@@ -1,7 +1,7 @@
 pub use crate::dir_tree::Ignores;
 use crate::dir_tree::{apply_visitor, DirTreeVisitor};
 use crate::node::fs;
-use crate::node::path::Path;
+use crate::node::path::{self, Path};
 use crate::Error;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -85,6 +85,7 @@ pub struct Fingerprint {
 
 #[derive(Clone, Debug)]
 struct FlatteningIterator<'a> {
+    separator: String,
     iterator_stack: VecDeque<btree_map::Iter<'a, String, Entry>>,
     path_stack: VecDeque<String>,
 }
@@ -103,7 +104,7 @@ impl<'a> Iterator for FlatteningIterator<'a> {
                     None => true,
                     Some((base_name, entry)) => {
                         let mut path = self.path_stack.back().expect("Path stack unexpectedly empty").clone();
-                        path += "/";
+                        path += &self.separator;
                         path += base_name;
                         match entry {
                             Entry::File(metadata) => return Some((path.into(), metadata)),
@@ -176,6 +177,7 @@ impl Fingerprint {
         FlatteningIterator {
             iterator_stack: VecDeque::from([self.tree_data.iter()]),
             path_stack: VecDeque::from([".".into()]),
+            separator: path::separator(),
         }
     }
 

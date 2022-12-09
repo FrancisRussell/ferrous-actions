@@ -472,6 +472,15 @@ pub mod path {
             .into()
     }
 
+    pub fn separator() -> String {
+        use wasm_bindgen::JsCast as _;
+        ffi::SEPARATOR
+            .clone()
+            .dyn_into::<JsString>()
+            .expect("separator wasn't a string")
+            .into()
+    }
+
     pub mod ffi {
         use js_sys::{JsString, Object};
         use wasm_bindgen::prelude::*;
@@ -480,6 +489,9 @@ pub mod path {
         extern "C" {
             #[wasm_bindgen(js_name = "delimiter")]
             pub static DELIMITER: Object;
+
+            #[wasm_bindgen(js_name = "sep")]
+            pub static SEPARATOR: Object;
 
             pub fn normalize(path: &JsString) -> JsString;
             #[wasm_bindgen(variadic)]
