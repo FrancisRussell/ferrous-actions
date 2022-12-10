@@ -267,8 +267,10 @@ pub mod fs {
         use js_sys::Number;
 
         let path = path.into();
-        let atime: Number = (atime.timestamp_millis() as f64).into();
-        let mtime: Number = (mtime.timestamp_millis() as f64).into();
+        // This was lots of fun to debug
+        let scale = 1000.0;
+        let atime: Number = ((atime.timestamp_millis() as f64) / scale).into();
+        let mtime: Number = ((mtime.timestamp_millis() as f64) / scale).into();
         ffi::utimes(&path, atime.as_ref(), mtime.as_ref()).await?;
         Ok(())
     }
