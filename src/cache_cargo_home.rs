@@ -184,8 +184,12 @@ pub async fn restore_cargo_cache() -> Result<(), Error> {
             actions::io::rm_rf(&folder_path).await?;
         }
         let cache_entry = build_cache_entry(cache_type, &lock_hash, &folder_path);
-        let newly_created = if cache_entry.restore().await.map_err(Error::Js)?.is_some() {
-            info!("Restored {} from cache.", cache_type.friendly_name());
+        let newly_created = if let Some(restore_key) = cache_entry.restore().await.map_err(Error::Js)? {
+            info!(
+                "Restored {} from cache using key {}.",
+                cache_type.friendly_name(),
+                restore_key
+            );
             false
         } else {
             info!("No existing cache entry for {} found.", cache_type.friendly_name());
