@@ -49,7 +49,7 @@ impl CacheKeyBuilder {
                 }
                 save_key += &format!("{}={}", attribute, value);
             }
-            save_key += " )";
+            save_key += ")";
         }
         let save_key = save_key.replace(',', ";");
         let mut result = CacheEntry::new(save_key.as_str());
