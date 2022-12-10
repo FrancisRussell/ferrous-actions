@@ -5,6 +5,7 @@
     clippy::missing_panics_doc
 )]
 
+mod access_times;
 mod action_paths;
 mod actions;
 mod annotation_hook;
@@ -14,7 +15,6 @@ mod cargo;
 mod cargo_hook;
 mod cargo_install_hook;
 mod cargo_lock_hashing;
-mod check_atime_support;
 mod cross;
 mod date;
 mod dir_tree;
