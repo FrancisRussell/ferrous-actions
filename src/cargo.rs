@@ -32,6 +32,33 @@ impl Cargo {
         Ok(result)
     }
 
+    pub async fn get_installed(&self) -> Result<Vec<String>, Error> {
+        use parking_lot::Mutex;
+        use std::sync::Arc;
+
+        // This was added to help remove non-Rustup installed cargo-fmt and rustfmt on
+        // the GitHub runners. However the binaries do not appear to be
+        // cargo-managed either.
+
+        let match_install =
+            regex::Regex::new(r"^(([[:word:]]|-)+) v([[:digit:]]|\.)+:").expect("Regex compilation failed");
+        let installs: Arc<Mutex<Vec<String>>> = Arc::default();
+        let installs_captured = installs.clone();
+        Command::from(&self.path)
+            .args(["install", "--list"])
+            .outline(move |line| {
+                if let Some(captures) = match_install.captures(line) {
+                    let name = captures.get(1).expect("Capture missing").as_str();
+                    installs_captured.lock().push(name.to_string());
+                }
+            })
+            .exec()
+            .await
+            .map_err(Error::Js)?;
+        let installs = installs.lock().drain(..).collect();
+        Ok(installs)
+    }
+
     async fn get_hooks_for_subcommand(
         &self,
         toolchain: Option<&str>,
