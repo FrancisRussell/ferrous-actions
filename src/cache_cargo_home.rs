@@ -1,5 +1,6 @@
 use crate::action_paths::get_action_cache_dir;
 use crate::actions::cache::CacheEntry;
+use crate::actions::core;
 use crate::fingerprinting::{fingerprint_directory_with_ignores, render_delta_items, Fingerprint, Ignores};
 use crate::node::os::homedir;
 use crate::node::path::Path;
@@ -9,6 +10,8 @@ use std::borrow::Cow;
 use std::collections::HashSet;
 use std::str::FromStr;
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator, IntoStaticStr};
+
+const CARGO_LOCK_HASH_KEY: &str = "CARGO_LOCK_HASH";
 
 fn find_cargo_home() -> Path {
     let mut path = homedir();
@@ -167,6 +170,10 @@ pub async fn restore_cargo_cache() -> Result<(), Error> {
         lock_hash.num_files,
         HashValue::from_bytes(&lock_hash.bytes)
     );
+    core::save_state(
+        CARGO_LOCK_HASH_KEY,
+        base64::encode_config(lock_hash.bytes, base64::URL_SAFE),
+    );
 
     for cache_type in get_types_to_cache()? {
         let folder_path = find_path(cache_type);
@@ -202,7 +209,16 @@ pub async fn restore_cargo_cache() -> Result<(), Error> {
 
 pub async fn save_cargo_cache() -> Result<(), Error> {
     use humantime::format_duration;
+    use rust_toolchain_manifest::HashValue;
     use wasm_bindgen::JsError;
+
+    let cargo_lock_hash = core::get_state(CARGO_LOCK_HASH_KEY).expect("Failed to find Cargo.lock hash");
+    let cargo_lock_hash =
+        base64::decode_config(&cargo_lock_hash, base64::URL_SAFE).expect("Failed to decode Cargo.lock hash");
+    info!(
+        "Cargo lock restored from state: {}",
+        HashValue::from_bytes(&cargo_lock_hash)
+    );
 
     for cache_type in get_types_to_cache()? {
         let folder_path = find_path(cache_type);

@@ -235,6 +235,23 @@ pub fn export_variable<N: Into<JsString>, V: Into<JsString>>(name: N, value: V) 
     ffi::export_variable(&name, &value);
 }
 
+pub fn save_state<N: Into<JsString>, V: Into<JsString>>(name: N, value: V) {
+    let name = name.into();
+    let value = value.into();
+    ffi::save_state(&name, &value);
+}
+
+pub fn get_state<N: Into<JsString>>(name: N) -> Option<String> {
+    let name = name.into();
+    let value: String = ffi::get_state(&name).into();
+    let value = value.trim();
+    if value.is_empty() {
+        None
+    } else {
+        Some(value.into())
+    }
+}
+
 #[allow(clippy::drop_non_drop)]
 pub mod ffi {
     use js_sys::{JsString, Object};
@@ -288,5 +305,11 @@ pub mod ffi {
 
         #[wasm_bindgen(js_name = "exportVariable")]
         pub fn export_variable(name: &JsString, value: &JsString);
+
+        #[wasm_bindgen(js_name = "saveState")]
+        pub fn save_state(name: &JsString, value: &JsString);
+
+        #[wasm_bindgen(js_name = "getState")]
+        pub fn get_state(name: &JsString) -> JsString;
     }
 }
