@@ -158,6 +158,16 @@ fn build_cache_entry(cache_type: CacheType, path: &Path) -> CacheEntry {
 }
 
 pub async fn restore_cargo_cache() -> Result<(), Error> {
+    use crate::cargo_lock_hashing::hash_cargo_lock_files;
+    use rust_toolchain_manifest::HashValue;
+    let cwd = node::process::cwd();
+    let lock_hash = hash_cargo_lock_files(&cwd).await?;
+    info!(
+        "Cargo lock hash computed from {} files: {}",
+        lock_hash.num_files,
+        HashValue::from_bytes(&lock_hash.bytes)
+    );
+
     for cache_type in get_types_to_cache()? {
         let folder_path = find_path(cache_type);
         if folder_path.exists().await {

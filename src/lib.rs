@@ -6,18 +6,19 @@
 )]
 
 mod action_paths;
-pub mod actions;
+mod actions;
 mod annotation_hook;
 mod cache_cargo_home;
 mod cargo;
 mod cargo_hook;
 mod cargo_install_hook;
+mod cargo_lock_hashing;
 mod cross;
 mod date;
 mod dir_tree;
 mod error;
 mod fingerprinting;
-pub mod node;
+mod node;
 mod nonce;
 mod noop_stream;
 mod package_manifest;
