@@ -288,7 +288,12 @@ pub async fn save_cargo_cache() -> Result<(), Error> {
                 folder_info_old.fingerprint.content_hash(),
                 folder_info_new.fingerprint.content_hash()
             );
+
+            // Due to file pruning in particular, our modification time can actually move
+            // backwards which causes an issue we convert to std::Duration
             let modification_delta = folder_info_new.fingerprint.modified() - folder_info_old.fingerprint.modified();
+            let modification_delta = std::cmp::max(chrono::Duration::zero(), modification_delta);
+
             let min_recache_interval = get_min_recache_interval(cache_type)?;
             let interval_is_sufficient = modification_delta > min_recache_interval;
             if !folder_info_old.newly_created && interval_is_sufficient {
