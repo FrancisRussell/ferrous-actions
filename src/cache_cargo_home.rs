@@ -4,7 +4,7 @@ use crate::actions::core;
 use crate::fingerprinting::{fingerprint_directory_with_ignores, render_delta_items, Fingerprint, Ignores};
 use crate::node::os::homedir;
 use crate::node::path::Path;
-use crate::{actions, error, info, node, warning, Error};
+use crate::{actions, error, info, node, notice, warning, Error};
 use rust_toolchain_manifest::HashValue;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
@@ -166,7 +166,20 @@ pub async fn restore_cargo_cache() -> Result<(), Error> {
 
     info!("Checking to see if filesystem supports access times...");
     let atimes_supported = supports_atime().await?;
-    info!("Access times supported: {}", atimes_supported);
+    if atimes_supported {
+        info!(concat!(
+            "File access times supported. Hooray! ",
+            "These will be used to intelligently decide what can be dropped from within cached cargo home items."
+        ));
+    } else {
+        notice!(concat!("File access times not supported - cannot perform intelligent cache pruning. ",
+            "Likely this platform is Windows. ",
+            "The hash of all Cargo.lock files found in this folder will be used as part of the key for cached cargo home entries. ",
+            "This means certain caches will be rebuilt from scratch whenever a Cargo.lock file changes. ",
+            "This is to avoid cache entries growing monotonically. ",
+            "Note that enabling file access times on Windows is generally a bad idea since Microsoft never implemented relatime semantics.")
+        );
+    }
 
     let cwd = node::process::cwd();
     let lock_hash = hash_cargo_lock_files(&cwd).await?;
