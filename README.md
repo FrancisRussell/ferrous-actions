@@ -27,10 +27,11 @@ platforms and more easily maintainable by developers who only know Rust.
 - [x] Cache downloaded crates
 - [x] Cache downloaded Git repositories
 - [x] Specify minimum time before items can be recached.
-- [ ] Drop unused indices from cache
-- [ ] Drop unused crates from cache
-- [ ] Drop unused Git repos from cache
+- [x] Drop unused indices from cache (keyed on Cargo.lock files)
+- [x] Drop unused crates from cache (keyed on Cargo.lock files)
+- [x] Drop unused Git repos from cache (keyed on Cargo.lock files)
 - [ ] Drop unused `cargo install` build artifacts from cache
+- [ ] Ignore Rustup toolchain files for all package installs
 
 ## Acknowledgements
 
