@@ -54,8 +54,8 @@ impl CacheType {
 
     fn friendly_name(&self) -> Cow<str> {
         match *self {
-            CacheType::Indices => "Registry indices",
-            CacheType::Crates => "Crate files",
+            CacheType::Indices => "registry indices",
+            CacheType::Crates => "crate files",
             CacheType::GitRepos => "Git repositories",
         }
         .into()
@@ -146,18 +146,16 @@ async fn build_cached_folder_info(cache_type: CacheType) -> Result<CachedFolderI
 }
 
 fn build_cache_entry(cache_type: CacheType, key: &HashValue, path: &Path) -> CacheEntry {
+    use crate::cache_key_builder::CacheKeyBuilder;
     use crate::date;
-    use crate::nonce::build_nonce;
-    let nonce = build_nonce(8);
-    let nonce = base64::encode_config(nonce, base64::URL_SAFE);
-    let name = cache_type.friendly_name();
 
+    let name = cache_type.friendly_name();
+    let mut key_builder = CacheKeyBuilder::new(&name);
+    key_builder.add_id_bytes(key.as_ref());
     let date = date::now();
-    let key = base64::encode_config(key.as_ref(), base64::URL_SAFE);
-    let primary_key = format!("{} - {} ({}; {})", name, key, date, nonce);
-    let mut cache_entry = CacheEntry::new(primary_key.as_str());
-    let secondary_key = format!("{} - {}", name, key);
-    cache_entry.restore_key(secondary_key.as_str());
+    key_builder.set_attribute("date", &date.to_string());
+    key_builder.set_attribute_nonce("nonce");
+    let mut cache_entry = key_builder.into_entry();
     cache_entry.path(path);
     cache_entry
 }

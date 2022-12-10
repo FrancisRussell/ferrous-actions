@@ -9,6 +9,7 @@ mod action_paths;
 mod actions;
 mod annotation_hook;
 mod cache_cargo_home;
+mod cache_key_builder;
 mod cargo;
 mod cargo_hook;
 mod cargo_install_hook;

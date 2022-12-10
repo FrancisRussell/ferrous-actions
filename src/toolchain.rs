@@ -1,4 +1,5 @@
 use crate::action_paths::{get_action_cache_dir, get_action_share_dir};
+use crate::actions::cache::CacheEntry;
 use crate::node::path::Path;
 use crate::node::{self};
 use crate::rustup::ToolchainConfig;
@@ -26,15 +27,14 @@ fn get_package_decompress_path(package: &ManifestPackage) -> Result<Path, Error>
     Ok(dir)
 }
 
-fn compute_package_cache_key(package: &ManifestPackage) -> String {
-    let package_hash = package.unique_identifier();
-    let package_hash = base64::encode_config(package_hash, base64::URL_SAFE);
-    let key = format!(
-        "{} ({}, {}) - {}",
-        package.name, package.supported_target, package.version, package_hash
-    );
-    // Keys cannot contain commas. Of course this is not documented.
-    key.replace(',', ";")
+fn compute_package_cache_key(package: &ManifestPackage) -> CacheEntry {
+    use crate::cache_key_builder::CacheKeyBuilder;
+
+    let mut builder = CacheKeyBuilder::new(&package.name);
+    builder.add_id_bytes(package.unique_identifier().as_ref());
+    builder.set_attribute("target", &package.supported_target.to_string());
+    builder.set_attribute("version", &package.version);
+    builder.into_entry()
 }
 
 fn default_target_for_platform() -> Result<Triple, Error> {
@@ -122,13 +122,11 @@ async fn cleanup_decompressed_package(package: &ManifestPackage) -> Result<(), E
 }
 
 async fn fetch_and_decompress_package(package: &ManifestPackage) -> Result<(), Error> {
-    use actions::cache::CacheEntry;
     use actions::tool_cache::{self, StreamCompression};
     use rust_toolchain_manifest::manifest::Compression;
 
-    let key = compute_package_cache_key(package);
     let extract_path = get_package_decompress_path(package)?;
-    let mut cache_entry = CacheEntry::new(key.as_str());
+    let mut cache_entry = compute_package_cache_key(package);
     cache_entry.path(&extract_path);
     if let Some(key) = cache_entry.restore().await? {
         info!("Restored files from cache with key {}", key);
