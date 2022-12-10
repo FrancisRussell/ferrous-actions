@@ -143,7 +143,7 @@ impl Fingerprint {
         self.modified
     }
 
-    fn iter_paths_and_metadata(&self) -> FlatteningIterator<'_> {
+    fn sorted_file_paths_and_metadata(&self) -> FlatteningIterator<'_> {
         FlatteningIterator {
             stack: VecDeque::from([(".".into(), self.tree_data.iter())]),
             separator: path::separator(),
@@ -153,8 +153,8 @@ impl Fingerprint {
     pub fn changes_from(&self, other: &Fingerprint) -> Vec<DeltaItem> {
         use itertools::{EitherOrBoth, Itertools as _};
 
-        let from_iter = other.iter_paths_and_metadata();
-        let to_iter = self.iter_paths_and_metadata();
+        let from_iter = other.sorted_file_paths_and_metadata();
+        let to_iter = self.sorted_file_paths_and_metadata();
         from_iter
             .merge_join_by(to_iter, |left, right| left.0.cmp(&right.0))
             .filter_map(|element| match element {

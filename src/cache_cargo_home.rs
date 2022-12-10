@@ -1,14 +1,18 @@
 use crate::action_paths::get_action_cache_dir;
 use crate::actions::cache::CacheEntry;
+use crate::actions::core;
 use crate::fingerprinting::{fingerprint_directory_with_ignores, render_delta_items, Fingerprint, Ignores};
 use crate::node::os::homedir;
 use crate::node::path::Path;
 use crate::{actions, error, info, node, warning, Error};
+use rust_toolchain_manifest::HashValue;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::collections::HashSet;
 use std::str::FromStr;
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator, IntoStaticStr};
+
+const CARGO_LOCK_HASH_KEY: &str = "CARGO_LOCK_HASH";
 
 fn find_cargo_home() -> Path {
     let mut path = homedir();
@@ -141,7 +145,7 @@ async fn build_cached_folder_info(cache_type: CacheType) -> Result<CachedFolderI
     Ok(folder_info)
 }
 
-fn build_cache_entry(cache_type: CacheType, path: &Path) -> CacheEntry {
+fn build_cache_entry(cache_type: CacheType, key: &HashValue, path: &Path) -> CacheEntry {
     use crate::date;
     use crate::nonce::build_nonce;
     let nonce = build_nonce(8);
@@ -149,15 +153,26 @@ fn build_cache_entry(cache_type: CacheType, path: &Path) -> CacheEntry {
     let name = cache_type.friendly_name();
 
     let date = date::now();
-    let primary_key = format!("{} ({}; {})", name, date, nonce);
+    let key = base64::encode_config(key.as_ref(), base64::URL_SAFE);
+    let primary_key = format!("{} - {} ({}; {})", name, key, date, nonce);
     let mut cache_entry = CacheEntry::new(primary_key.as_str());
-    let secondary_key = name.to_string();
+    let secondary_key = format!("{} - {}", name, key);
     cache_entry.restore_key(secondary_key.as_str());
     cache_entry.path(path);
     cache_entry
 }
 
 pub async fn restore_cargo_cache() -> Result<(), Error> {
+    use crate::cargo_lock_hashing::hash_cargo_lock_files;
+
+    let cwd = node::process::cwd();
+    let lock_hash = hash_cargo_lock_files(&cwd).await?;
+    let lock_hash = HashValue::from_bytes(&lock_hash.bytes);
+    core::save_state(
+        CARGO_LOCK_HASH_KEY,
+        base64::encode_config(lock_hash.as_ref(), base64::URL_SAFE),
+    );
+
     for cache_type in get_types_to_cache()? {
         let folder_path = find_path(cache_type);
         if folder_path.exists().await {
@@ -170,7 +185,7 @@ pub async fn restore_cargo_cache() -> Result<(), Error> {
             );
             actions::io::rm_rf(&folder_path).await?;
         }
-        let cache_entry = build_cache_entry(cache_type, &folder_path);
+        let cache_entry = build_cache_entry(cache_type, &lock_hash, &folder_path);
         let newly_created = if cache_entry.restore().await.map_err(Error::Js)?.is_some() {
             info!("Restored {} from cache.", cache_type.friendly_name());
             false
@@ -193,6 +208,10 @@ pub async fn restore_cargo_cache() -> Result<(), Error> {
 pub async fn save_cargo_cache() -> Result<(), Error> {
     use humantime::format_duration;
     use wasm_bindgen::JsError;
+
+    let lock_hash = core::get_state(CARGO_LOCK_HASH_KEY).expect("Failed to find Cargo.lock hash");
+    let lock_hash = base64::decode_config(&lock_hash, base64::URL_SAFE).expect("Failed to decode Cargo.lock hash");
+    let lock_hash = HashValue::from_bytes(&lock_hash);
 
     for cache_type in get_types_to_cache()? {
         let folder_path = find_path(cache_type);
@@ -226,7 +245,7 @@ pub async fn save_cargo_cache() -> Result<(), Error> {
                 info!("{}", render_delta_items(&delta));
             }
             if folder_info_old.newly_created || interval_is_sufficient {
-                let cache_entry = build_cache_entry(cache_type, &folder_path);
+                let cache_entry = build_cache_entry(cache_type, &lock_hash, &folder_path);
                 if let Err(e) = cache_entry.save().await.map_err(Error::Js) {
                     error!("Failed to save {} to cache: {}", cache_type.friendly_name(), e);
                 } else {
