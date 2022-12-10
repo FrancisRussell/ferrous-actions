@@ -1,3 +1,4 @@
+use crate::action_paths::get_action_cache_dir;
 use crate::actions::exec::Command;
 use crate::actions::io;
 use crate::annotation_hook::AnnotationHook;
@@ -5,9 +6,29 @@ use crate::cargo_hook::{CargoHook, CompositeCargoHook, NullHook};
 use crate::cargo_install_hook::CargoInstallHook;
 use crate::node::path::Path;
 use crate::node::process;
-use crate::Error;
+use crate::{node, nonce, Error};
 use rust_toolchain_manifest::HashValue;
 use std::borrow::Cow;
+
+async fn create_empty_dir() -> Result<Path, Error> {
+    let nonce = nonce::build_nonce(8);
+    let mut path = get_action_cache_dir()?;
+    path.push("empty-directories");
+    path.push(nonce.to_string().as_str());
+    node::fs::create_dir_all(&path).await?;
+    Ok(path)
+}
+
+struct ChangeCwdHook {
+    new_cwd: String,
+}
+
+impl CargoHook for ChangeCwdHook {
+    fn modify_command(&self, command: &mut Command) {
+        let path = Path::from(self.new_cwd.as_str());
+        command.current_dir(&path);
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct Cargo {
@@ -71,15 +92,23 @@ impl Cargo {
                 hooks.push(AnnotationHook::new(subcommand)?);
             }
             "install" => {
-                let compiler_hash = self.get_toolchain_hash(toolchain).await?;
+                // Due to the presence of rust toolchain files, actions-rs decides to change
+                // directory before invoking cargo install cross. We do the same for all
+                // installs, not just cross.
+                let empty_dir = create_empty_dir().await?;
+                let compiler_hash = self.get_toolchain_hash(toolchain, Some(&empty_dir)).await?;
+                let empty_cwd_hook = ChangeCwdHook {
+                    new_cwd: empty_dir.to_string(),
+                };
                 hooks.push(CargoInstallHook::new(&compiler_hash, args).await?);
+                hooks.push(empty_cwd_hook);
             }
             _ => {}
         }
         Ok(hooks)
     }
 
-    async fn get_toolchain_hash(&self, toolchain: Option<&str>) -> Result<HashValue, Error> {
+    async fn get_toolchain_hash(&self, toolchain: Option<&str>, cwd: Option<&Path>) -> Result<HashValue, Error> {
         use crate::actions::exec::Stdio;
         use parking_lot::Mutex;
         use std::sync::Arc;
@@ -90,6 +119,9 @@ impl Cargo {
         let output_captured = output.clone();
         if let Some(toolchain) = toolchain {
             command.arg(format!("+{}", toolchain).as_str());
+        }
+        if let Some(cwd) = cwd {
+            command.current_dir(cwd);
         }
         command.arg("-Vv");
         command
