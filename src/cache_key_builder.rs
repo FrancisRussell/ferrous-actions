@@ -35,25 +35,25 @@ impl CacheKeyBuilder {
         let id: [u8; 32] = self.hasher.finalize().into();
         let id = &id[..8];
         let id = base64::encode_config(id, base64::URL_SAFE);
-        let primary_key = format!("GitHub Rust Actions: {} - id={}", self.name, id);
-        let primary_key = primary_key.replace(',', ";");
-        let mut result = CacheEntry::new(primary_key.as_str());
+        let restore_key = format!("GitHub Rust Actions: {} - id={}", self.name, id);
+        let restore_key = restore_key.replace(',', ";");
+        let mut save_key = restore_key.clone();
         if !self.attributes.is_empty() {
-            let mut secondary_key = primary_key;
-            secondary_key += " (";
+            save_key += " (";
             let mut first = true;
             for (attribute, value) in self.attributes {
                 if first {
                     first = false;
                 } else {
-                    secondary_key += "; ";
+                    save_key += "; ";
                 }
-                secondary_key += &format!("{}={}", attribute, value);
+                save_key += &format!("{}={}", attribute, value);
             }
-            secondary_key += " )";
-            let secondary_key = secondary_key.replace(',', ";");
-            result.restore_key(secondary_key);
+            save_key += " )";
         }
+        let save_key = save_key.replace(',', ";");
+        let mut result = CacheEntry::new(save_key.as_str());
+        result.restore_key(restore_key);
         result
     }
 }
