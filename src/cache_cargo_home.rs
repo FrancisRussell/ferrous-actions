@@ -161,7 +161,12 @@ fn build_cache_entry(cache_type: CacheType, key: &HashValue, path: &Path) -> Cac
 }
 
 pub async fn restore_cargo_cache() -> Result<(), Error> {
+    use crate::check_atime_support::supports_atime;
     use crate::cargo_lock_hashing::hash_cargo_lock_files;
+
+    info!("Checking to see if filesystem supports access times...");
+    let atimes_supported = supports_atime().await?;
+    info!("Access times supported: {}", atimes_supported);
 
     let cwd = node::process::cwd();
     let lock_hash = hash_cargo_lock_files(&cwd).await?;

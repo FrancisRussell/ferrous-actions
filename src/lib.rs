@@ -14,6 +14,7 @@ mod cargo;
 mod cargo_hook;
 mod cargo_install_hook;
 mod cargo_lock_hashing;
+mod check_atime_support;
 mod cross;
 mod date;
 mod dir_tree;
