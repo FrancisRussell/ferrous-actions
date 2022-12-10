@@ -1,9 +1,7 @@
 use crate::action_paths::get_action_cache_dir;
 use crate::node::path::Path;
 use crate::nonce::build_nonce;
-use crate::node;
-use crate::Error;
-use crate::warning;
+use crate::{node, warning, Error};
 use std::time::Duration;
 
 async fn get_atime_check_dir() -> Result<Path, Error> {
@@ -41,12 +39,18 @@ pub async fn supports_atime() -> Result<bool, Error> {
             return Ok(false);
         }
     }
-    // Even HFS+ only has second-granularity timestamps. ext3 *may* be second granularity in
-    // certain cases.
-    async_std::task::sleep(Duration::from_secs(2)).await;
-    node::fs::read_file(&file_path).await?;
-    {
-        let metadata = node::fs::symlink_metadata(&file_path).await?;
-        Ok(metadata.accessed() > metadata.modified())
+    // Even HFS+ only has second-granularity timestamps. ext3 *may* be second
+    // granularity in certain cases. Test for high resolutions first to avoid
+    // long waits.
+    for duration in [Duration::from_millis(2), Duration::from_secs(2)] {
+        async_std::task::sleep(duration).await;
+        node::fs::read_file(&file_path).await?;
+        {
+            let metadata = node::fs::symlink_metadata(&file_path).await?;
+            if metadata.accessed() > metadata.modified() {
+                return Ok(true);
+            }
+        }
     }
+    Ok(false)
 }
