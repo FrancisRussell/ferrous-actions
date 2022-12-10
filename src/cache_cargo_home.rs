@@ -92,6 +92,17 @@ impl CacheType {
         ignores
     }
 
+    fn prunable_entries_depth(self) -> usize {
+        match self {
+            CacheType::Indices => 0,
+            CacheType::Crates => {
+                // This means we can prune individual crate files within an index
+                1
+            }
+            CacheType::GitRepos => 0,
+        }
+    }
+
     fn default_min_recache_interval(self) -> chrono::Duration {
         match self {
             CacheType::Indices => chrono::Duration::days(1),
@@ -255,7 +266,7 @@ pub async fn save_cargo_cache() -> Result<(), Error> {
 
         let unaccessed = folder_info_new
             .fingerprint
-            .get_unaccessed_since(&folder_info_old.fingerprint, usize::MAX);
+            .get_unaccessed_since(&folder_info_old.fingerprint, cache_type.prunable_entries_depth());
         info!("Unaccessed files: {:#?}", unaccessed);
 
         if folder_info_old.fingerprint.content_hash() == folder_info_new.fingerprint.content_hash() {
