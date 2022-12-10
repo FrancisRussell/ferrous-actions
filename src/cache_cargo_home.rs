@@ -252,6 +252,12 @@ pub async fn save_cargo_cache() -> Result<(), Error> {
             ));
             return Err(Error::Js(error.into()));
         }
+
+        let unaccessed = folder_info_new
+            .fingerprint
+            .get_unaccessed_since(&folder_info_old.fingerprint, usize::MAX);
+        info!("Unaccessed files: {:#?}", unaccessed);
+
         if folder_info_old.fingerprint.content_hash() == folder_info_new.fingerprint.content_hash() {
             info!("{} unchanged, no need to write to cache", folder_path);
         } else {
@@ -264,7 +270,7 @@ pub async fn save_cargo_cache() -> Result<(), Error> {
             let modification_delta = folder_info_new.fingerprint.modified() - folder_info_old.fingerprint.modified();
             let min_recache_interval = get_min_recache_interval(cache_type)?;
             let interval_is_sufficient = modification_delta > min_recache_interval;
-            if interval_is_sufficient {
+            if !folder_info_old.newly_created && interval_is_sufficient {
                 let delta = folder_info_new.fingerprint.changes_from(&folder_info_old.fingerprint);
                 info!("{}", render_delta_items(&delta));
             }

@@ -11,13 +11,14 @@ use std::collections::hash_map::DefaultHasher;
 use std::collections::{btree_map, BTreeMap, VecDeque};
 use std::hash::{Hash, Hasher};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub struct Metadata {
     uid: u64,
     gid: u64,
     len: u64,
     mode: u64,
     modified: DateTime<Utc>,
+    accessed: DateTime<Utc>,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, strum::Display)]
@@ -46,6 +47,7 @@ impl From<&fs::Metadata> for Metadata {
             len: stats.len(),
             mode: stats.mode(),
             modified: stats.modified(),
+            accessed: stats.accessed(),
         }
     }
 }
@@ -69,7 +71,7 @@ impl Metadata {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 enum Entry {
     File(Metadata),
     Dir(BTreeMap<String, Entry>),
@@ -169,6 +171,50 @@ impl Fingerprint {
                 EitherOrBoth::Right(right) => Some((right.0.into_owned(), DeltaAction::Added)),
             })
             .collect()
+    }
+
+    fn get_unaccessed_since_helper<'a>(
+        path: &Path,
+        from_iter: btree_map::Iter<'a, String, Entry>,
+        to_iter: btree_map::Iter<'a, String, Entry>,
+        depth: usize,
+    ) -> Vec<Path> {
+        use itertools::{EitherOrBoth, Itertools as _};
+
+        let predicated = |element, condition| if condition { vec![element] } else { vec![] };
+
+        from_iter
+            .merge_join_by(to_iter, |left, right| left.0.cmp(&right.0))
+            .map(|element| match element {
+                EitherOrBoth::Left(_) => vec![],
+                EitherOrBoth::Right(_) => vec![],
+                EitherOrBoth::Both(left, right) => {
+                    let path = {
+                        let mut path = path.clone();
+                        path.push(left.0.as_str());
+                        path
+                    };
+                    match (left.1, right.1) {
+                        (Entry::File(meta1), Entry::File(meta2)) => predicated(path, meta1 == meta2),
+                        (Entry::Dir(tree1), Entry::Dir(tree2)) => {
+                            if depth == 0 {
+                                predicated(path, tree1 == tree2)
+                            } else {
+                                Self::get_unaccessed_since_helper(&path, tree1.iter(), tree2.iter(), depth - 1)
+                            }
+                        }
+                        (Entry::Dir(_), Entry::File(_)) => vec![],
+                        (Entry::File(_), Entry::Dir(_)) => vec![],
+                    }
+                }
+            })
+            .flatten()
+            .collect()
+    }
+
+    pub fn get_unaccessed_since(&self, other: &Fingerprint, depth: usize) -> Vec<Path> {
+        let path = Path::from(".");
+        Self::get_unaccessed_since_helper(&path, other.tree_data.iter(), self.tree_data.iter(), depth)
     }
 }
 
