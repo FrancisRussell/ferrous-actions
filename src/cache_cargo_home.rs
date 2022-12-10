@@ -250,7 +250,7 @@ pub async fn save_cargo_cache() -> Result<(), Error> {
 
     for cache_type in get_types_to_cache()? {
         let folder_path = find_path(cache_type);
-        let folder_info_new = build_cached_folder_info(cache_type).await?;
+        let mut folder_info_new = build_cached_folder_info(cache_type).await?;
         let folder_info_old: CachedFolderInfo = {
             let folder_info_path = cached_folder_info_path(cache_type)?;
             let folder_info_serialized = node::fs::read_file(&folder_info_path).await?;
@@ -267,7 +267,17 @@ pub async fn save_cargo_cache() -> Result<(), Error> {
         let unaccessed = folder_info_new
             .fingerprint
             .get_unaccessed_since(&folder_info_old.fingerprint, cache_type.prunable_entries_depth());
-        info!("Unaccessed files: {:#?}", unaccessed);
+
+        if !unaccessed.is_empty() {
+            for relative_path in unaccessed {
+                info!("Pruning unused cache element: {}", relative_path);
+                let mut full_path = folder_path.clone();
+                full_path.push(relative_path);
+                actions::io::rm_rf(&full_path).await?;
+            }
+            // We need to refingerprint after deleting things
+            folder_info_new = build_cached_folder_info(cache_type).await?;
+        }
 
         if folder_info_old.fingerprint.content_hash() == folder_info_new.fingerprint.content_hash() {
             info!("{} unchanged, no need to write to cache", folder_path);
