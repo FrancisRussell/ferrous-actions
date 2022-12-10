@@ -8,8 +8,6 @@ use async_trait::async_trait;
 use rust_toolchain_manifest::HashValue;
 use std::borrow::Cow;
 
-const NONCE_SIZE_BYTES: usize = 8;
-
 const MAX_ARG_STRING_LENGTH: usize = 80;
 
 fn get_package_build_dir(hash: &HashValue) -> Result<Path, Error> {
@@ -21,7 +19,6 @@ fn get_package_build_dir(hash: &HashValue) -> Result<Path, Error> {
 
 pub struct CargoInstallHook {
     hash: HashValue,
-    nonce: HashValue,
     build_dir: String,
     fingerprint: Option<Fingerprint>,
     arg_string: String,
@@ -33,7 +30,6 @@ impl CargoInstallHook {
         I: IntoIterator<Item = A>,
         A: AsRef<str>,
     {
-        use crate::nonce::build_nonce;
         let mut hasher = blake3::Hasher::new();
         hasher.update(toolchain_hash.as_ref());
         let arg_string = {
@@ -56,7 +52,6 @@ impl CargoInstallHook {
         let build_dir = get_package_build_dir(&hash)?;
         let mut result = CargoInstallHook {
             hash,
-            nonce: build_nonce(NONCE_SIZE_BYTES),
             build_dir: build_dir.to_string(),
             fingerprint: None,
             arg_string,
@@ -87,35 +82,23 @@ impl CargoInstallHook {
         Ok(fingerprint)
     }
 
-    fn build_key(&self, with_nonce: bool) -> String {
-        let mut result = format!(
-            "Cargo package build artifacts - {}",
-            base64::encode_config(&self.hash, base64::URL_SAFE),
-        );
-        if with_nonce {
-            let arg_string = {
-                let mut arg_string = self.arg_string.clone();
-                if arg_string.len() > MAX_ARG_STRING_LENGTH {
-                    let ellipsis = "...";
-                    arg_string.truncate(MAX_ARG_STRING_LENGTH - ellipsis.len());
-                    arg_string += ellipsis;
-                }
-                arg_string.replace(',', ";")
-            };
-            result += &format!(
-                " ({}; {})",
-                arg_string,
-                base64::encode_config(&self.nonce, base64::URL_SAFE)
-            );
-        }
-        result
-    }
-
     fn build_cache_entry(&self) -> CacheEntry {
-        let primary_key = self.build_key(true);
-        let mut cache_entry = CacheEntry::new(primary_key.as_str());
-        let secondary_key = self.build_key(false);
-        cache_entry.restore_key(secondary_key.as_str());
+        use crate::cache_key_builder::CacheKeyBuilder;
+
+        let mut key_builder = CacheKeyBuilder::new("cargo install build artifacts");
+        key_builder.add_id_bytes(self.hash.as_ref());
+        let arg_string = {
+            let mut arg_string = self.arg_string.clone();
+            if arg_string.len() > MAX_ARG_STRING_LENGTH {
+                let ellipsis = "...";
+                arg_string.truncate(MAX_ARG_STRING_LENGTH - ellipsis.len());
+                arg_string += ellipsis;
+            }
+            arg_string
+        };
+        key_builder.set_attribute("args", &arg_string);
+        key_builder.set_attribute_nonce("nonce");
+        let mut cache_entry = key_builder.into_entry();
         cache_entry.path(&Path::from(self.build_dir.as_str()));
         cache_entry
     }

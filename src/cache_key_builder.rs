@@ -1,5 +1,5 @@
-use std::collections::BTreeMap;
 use crate::actions::cache::CacheEntry;
+use std::collections::BTreeMap;
 
 pub struct CacheKeyBuilder {
     name: String,
@@ -25,7 +25,7 @@ impl CacheKeyBuilder {
     }
 
     pub fn set_attribute_nonce(&mut self, name: &str) {
-    use crate::nonce::build_nonce;
+        use crate::nonce::build_nonce;
         let nonce = build_nonce(8);
         let nonce = base64::encode_config(nonce, base64::URL_SAFE);
         self.set_attribute(name, &nonce);

@@ -54,8 +54,8 @@ impl CacheType {
 
     fn friendly_name(&self) -> Cow<str> {
         match *self {
-            CacheType::Indices => "Registry indices",
-            CacheType::Crates => "Crate files",
+            CacheType::Indices => "registry indices",
+            CacheType::Crates => "crate files",
             CacheType::GitRepos => "Git repositories",
         }
         .into()
@@ -146,8 +146,8 @@ async fn build_cached_folder_info(cache_type: CacheType) -> Result<CachedFolderI
 }
 
 fn build_cache_entry(cache_type: CacheType, key: &HashValue, path: &Path) -> CacheEntry {
-    use crate::date;
     use crate::cache_key_builder::CacheKeyBuilder;
+    use crate::date;
 
     let name = cache_type.friendly_name();
     let mut key_builder = CacheKeyBuilder::new(&name);
