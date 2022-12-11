@@ -44,31 +44,31 @@ pub mod fs {
     }
 
     impl FileType {
-        pub fn is_file(&self) -> bool {
+        pub fn is_file(self) -> bool {
             self.inner == FileTypeEnum::File
         }
 
-        pub fn is_dir(&self) -> bool {
+        pub fn is_dir(self) -> bool {
             self.inner == FileTypeEnum::Dir
         }
 
-        pub fn is_symlink(&self) -> bool {
+        pub fn is_symlink(self) -> bool {
             self.inner == FileTypeEnum::Symlink
         }
 
-        pub fn is_fifo(&self) -> bool {
+        pub fn is_fifo(self) -> bool {
             self.inner == FileTypeEnum::Fifo
         }
 
-        pub fn is_socket(&self) -> bool {
+        pub fn is_socket(self) -> bool {
             self.inner == FileTypeEnum::Socket
         }
 
-        pub fn is_block_device(&self) -> bool {
+        pub fn is_block_device(self) -> bool {
             self.inner == FileTypeEnum::BlockDev
         }
 
-        pub fn is_char_device(&self) -> bool {
+        pub fn is_char_device(self) -> bool {
             self.inner == FileTypeEnum::CharDev
         }
     }
@@ -218,37 +218,48 @@ pub mod fs {
 
     impl Metadata {
         pub fn uid(&self) -> u64 {
-            self.inner.uid() as u64
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            let uid = self.inner.uid() as u64;
+            uid
         }
 
         pub fn gid(&self) -> u64 {
-            self.inner.gid() as u64
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            let gid = self.inner.gid() as u64;
+            gid
         }
 
         #[allow(clippy::len_without_is_empty)]
         pub fn len(&self) -> u64 {
-            self.inner.size() as u64
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            let len = self.inner.size() as u64;
+            len
         }
 
         pub fn mode(&self) -> u64 {
-            self.inner.mode() as u64
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            let mode = self.inner.mode() as u64;
+            mode
         }
 
         pub fn accessed(&self) -> DateTime<Utc> {
-            let naive = NaiveDateTime::from_timestamp_millis(self.inner.access_time_ms() as i64)
-                .expect("Access time out of bounds");
+            #[allow(clippy::cast_possible_truncation)]
+            let ms = self.inner.access_time_ms() as i64;
+            let naive = NaiveDateTime::from_timestamp_millis(ms).expect("Access time out of bounds");
             DateTime::from_utc(naive, Utc)
         }
 
         pub fn modified(&self) -> DateTime<Utc> {
-            let naive = NaiveDateTime::from_timestamp_millis(self.inner.modification_time_ms() as i64)
-                .expect("Modification time out of bounds");
+            #[allow(clippy::cast_possible_truncation)]
+            let ms = self.inner.modification_time_ms() as i64;
+            let naive = NaiveDateTime::from_timestamp_millis(ms).expect("Modification time out of bounds");
             DateTime::from_utc(naive, Utc)
         }
 
         pub fn created(&self) -> DateTime<Utc> {
-            let naive = NaiveDateTime::from_timestamp_millis(self.inner.created_time_ms() as i64)
-                .expect("Creation time out of bounds");
+            #[allow(clippy::cast_possible_truncation)]
+            let ms = self.inner.created_time_ms() as i64;
+            let naive = NaiveDateTime::from_timestamp_millis(ms).expect("Creation time out of bounds");
             DateTime::from_utc(naive, Utc)
         }
 
@@ -265,17 +276,19 @@ pub mod fs {
 
     pub async fn utimes<P: Into<JsString>>(
         path: P,
-        atime: &DateTime<Utc>,
-        mtime: &DateTime<Utc>,
+        a_time: &DateTime<Utc>,
+        m_time: &DateTime<Utc>,
     ) -> Result<(), JsValue> {
         use js_sys::Number;
 
         let path = path.into();
         // This was lots of fun to debug
         let scale = 1000.0;
-        let atime: Number = ((atime.timestamp_millis() as f64) / scale).into();
-        let mtime: Number = ((mtime.timestamp_millis() as f64) / scale).into();
-        ffi::utimes(&path, atime.as_ref(), mtime.as_ref()).await?;
+        #[allow(clippy::cast_precision_loss)]
+        let a_time: Number = ((a_time.timestamp_millis() as f64) / scale).into();
+        #[allow(clippy::cast_precision_loss)]
+        let m_time: Number = ((m_time.timestamp_millis() as f64) / scale).into();
+        ffi::utimes(&path, a_time.as_ref(), m_time.as_ref()).await?;
         Ok(())
     }
 

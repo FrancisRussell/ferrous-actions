@@ -75,9 +75,11 @@ impl Command {
         let listeners = Object::from_entries(&listeners).expect("Failed to convert listeners map to object");
         options.set(&"listeners".into(), &listeners);
         let options = Object::from_entries(&options).expect("Failed to convert options map to object");
-        ffi::exec(&command, Some(args), &options)
-            .await
-            .map(|r| r.as_f64().expect("exec didn't return a number") as i32)
+        ffi::exec(&command, Some(args), &options).await.map(|r| {
+            #[allow(clippy::cast_possible_truncation)]
+            let code = r.as_f64().expect("exec didn't return a number") as i32;
+            code
+        })
     }
 
     pub fn outline<F: Fn(&str) + 'static>(&mut self, callback: F) -> &mut Command {

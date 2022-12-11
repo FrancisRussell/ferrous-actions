@@ -19,7 +19,7 @@ impl Ignores {
     }
 
     pub fn should_ignore(&self, name: &str, depth: usize) -> bool {
-        self.map.get(&depth).map(|names| names.contains(name)).unwrap_or(false)
+        self.map.get(&depth).map_or(false, |names| names.contains(name))
     }
 }
 

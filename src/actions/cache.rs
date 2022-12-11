@@ -47,7 +47,11 @@ impl CacheEntry {
         let result = result
             .dyn_ref::<js_sys::Number>()
             .ok_or_else(|| JsError::new("saveCache didn't return a number"))
-            .map(|n| n.value_of() as i64)?;
+            .map(|n| {
+                #[allow(clippy::cast_possible_truncation)]
+                let id = n.value_of() as i64;
+                id
+            })?;
         Ok(result)
     }
 

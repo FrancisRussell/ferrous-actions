@@ -7,9 +7,10 @@ pub async fn sleep(duration: &Duration) {
     let mut sender = Some(sender);
     let callback: Closure<dyn FnMut()> = Closure::new(move || {
         if let Some(s) = sender.take() {
-            s.send(()).expect("Unable to send wake-up")
+            s.send(()).expect("Unable to send wake-up");
         }
     });
+    #[allow(clippy::cast_precision_loss)]
     let millis = (duration.as_micros() as f64) / 1000.0;
     let millis: js_sys::Number = millis.into();
     ffi::set_timeout(callback.as_ref(), millis);

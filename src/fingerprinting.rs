@@ -97,22 +97,20 @@ impl<'a> Iterator for FlatteningIterator<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         while let Some((path, content)) = self.stack.pop_back() {
             match content {
-                Either::Left(mut iter) => {
-                    match iter.next() {
-                        None => {},
-                        Some((base_name, entry)) => {
-                            let mut item_path = path.clone();
-                            item_path.extend([self.separator.as_str(), base_name]);
-                            self.stack.push_back((path, Either::Left(iter)));
-                            match entry {
-                                Entry::File(metadata) => return Some((item_path.into(), *metadata)),
-                                Entry::Dir(sub_tree) => {
-                                    self.stack.push_back((item_path, Either::Left(sub_tree.iter())));
-                                }
+                Either::Left(mut iter) => match iter.next() {
+                    None => {}
+                    Some((base_name, entry)) => {
+                        let mut item_path = path.clone();
+                        item_path.extend([self.separator.as_str(), base_name]);
+                        self.stack.push_back((path, Either::Left(iter)));
+                        match entry {
+                            Entry::File(metadata) => return Some((item_path.into(), *metadata)),
+                            Entry::Dir(sub_tree) => {
+                                self.stack.push_back((item_path, Either::Left(sub_tree.iter())));
                             }
                         }
                     }
-                }
+                },
                 Either::Right(metadata) => {
                     return Some((path.into(), metadata));
                 }
@@ -168,10 +166,10 @@ impl Fingerprint {
             .merge_join_by(to_iter, |left, right| left.0.cmp(&right.0))
             .filter_map(|element| match element {
                 EitherOrBoth::Both(left, right) => {
-                    if !left.1.equal_noteworthy(&right.1) {
-                        Some((left.0.into_owned(), DeltaAction::Changed))
-                    } else {
+                    if left.1.equal_noteworthy(&right.1) {
                         None
+                    } else {
+                        Some((left.0.into_owned(), DeltaAction::Changed))
                     }
                 }
                 EitherOrBoth::Left(left) => Some((left.0.into_owned(), DeltaAction::Removed)),
@@ -190,8 +188,7 @@ impl Fingerprint {
     {
         let predicated = |element, condition| if condition { vec![element] } else { vec![] };
         match element {
-            EitherOrBoth::Left(_) => vec![],
-            EitherOrBoth::Right(_) => vec![],
+            EitherOrBoth::Left(_) | EitherOrBoth::Right(_) => vec![],
             EitherOrBoth::Both(left, right) => {
                 let path = {
                     let mut path = path.clone();
@@ -207,8 +204,7 @@ impl Fingerprint {
                             Self::get_unaccessed_process_iterators(&path, tree1.iter(), tree2.iter(), depth - 1)
                         }
                     }
-                    (Entry::Dir(_), Entry::File(_)) => vec![],
-                    (Entry::File(_), Entry::Dir(_)) => vec![],
+                    (Entry::Dir(_), Entry::File(_)) | (Entry::File(_), Entry::Dir(_)) => vec![],
                 }
             }
         }
