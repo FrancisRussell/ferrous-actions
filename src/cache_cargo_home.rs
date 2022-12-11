@@ -163,7 +163,7 @@ fn build_cache_entry(cache_type: CacheType, key: &HashValue, path: &Path) -> Cac
     let name = cache_type.friendly_name();
     let mut key_builder = CacheKeyBuilder::new(&name);
     key_builder.add_id_bytes(key.as_ref());
-    let date = date::now();
+    let date = date::now_local();
     key_builder.set_attribute("date", &date.to_string());
     key_builder.set_attribute_nonce("nonce");
     let mut cache_entry = key_builder.into_entry();
@@ -241,6 +241,7 @@ pub async fn restore_cargo_cache() -> Result<(), Error> {
 }
 
 pub async fn save_cargo_cache() -> Result<(), Error> {
+    use crate::date;
     use humantime::format_duration;
     use wasm_bindgen::JsError;
 
@@ -289,9 +290,20 @@ pub async fn save_cargo_cache() -> Result<(), Error> {
                 folder_info_new.fingerprint.content_hash()
             );
 
-            // Due to file pruning in particular, our modification time can actually move
-            // backwards which causes an issue we convert to std::Duration
-            let modification_delta = folder_info_new.fingerprint.modified() - folder_info_old.fingerprint.modified();
+            // If we have no files in the old fingerprint, we assume it was updated at the
+            // epoch. If we have no files in the new fingerprint, we assume it
+            // was updated now. Basically, when we do not have a modification
+            // time, we will return a delta that indicates the folder is
+            // significantly out of date. Otherwise, we might end up not storing a
+            // new cache entry when we create or fully empty a folder.
+            let old_fingerprint = folder_info_old.fingerprint.modified().unwrap_or_default();
+            let new_fingerprint = folder_info_new
+                .fingerprint
+                .modified()
+                .unwrap_or_else(|| date::now_utc());
+
+            // Be more robust against our file modification time moving backwards.
+            let modification_delta = new_fingerprint - old_fingerprint;
             let modification_delta = std::cmp::max(chrono::Duration::zero(), modification_delta);
 
             let min_recache_interval = get_min_recache_interval(cache_type)?;

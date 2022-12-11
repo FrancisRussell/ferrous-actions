@@ -80,7 +80,7 @@ enum Entry {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Fingerprint {
     content_hash: u64,
-    modified: DateTime<Utc>,
+    modified: Option<DateTime<Utc>>,
     tree_data: BTreeMap<String, Entry>,
 }
 
@@ -141,7 +141,7 @@ impl Fingerprint {
         hasher.finish()
     }
 
-    pub fn modified(&self) -> DateTime<Utc> {
+    pub fn modified(&self) -> Option<DateTime<Utc>> {
         self.modified
     }
 
@@ -282,16 +282,9 @@ pub async fn fingerprint_directory_with_ignores(path: &Path, ignores: &Ignores) 
         .pop_back()
         .expect("Tree data stack was unexpectedly empty");
     let content_hash = Fingerprint::compute_tree_hash(&tree_data);
-    let modified = if let Some(modified) = visitor.modified {
-        modified
-    } else {
-        // If we have no files, then just use the folder modified time
-        let stats = fs::symlink_metadata(path).await?;
-        stats.modified()
-    };
     let result = Fingerprint {
         content_hash,
-        modified,
+        modified: visitor.modified,
         tree_data,
     };
     Ok(result)
