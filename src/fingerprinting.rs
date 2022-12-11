@@ -95,31 +95,25 @@ impl<'a> Iterator for FlatteningIterator<'a> {
     type Item = (Cow<'a, str>, Metadata);
 
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some((path, content)) = self.stack.back_mut() {
+        while let Some((path, content)) = self.stack.pop_back() {
             match content {
-                Either::Left(iter) => {
-                    let pop = match iter.next() {
-                        None => true,
+                Either::Left(mut iter) => {
+                    match iter.next() {
+                        None => {},
                         Some((base_name, entry)) => {
-                            let mut path = path.clone();
-                            path.extend([self.separator.as_str(), base_name]);
+                            let mut item_path = path.clone();
+                            item_path.extend([self.separator.as_str(), base_name]);
+                            self.stack.push_back((path, Either::Left(iter)));
                             match entry {
-                                Entry::File(metadata) => return Some((path.into(), *metadata)),
+                                Entry::File(metadata) => return Some((item_path.into(), *metadata)),
                                 Entry::Dir(sub_tree) => {
-                                    self.stack.push_back((path, Either::Left(sub_tree.iter())));
-                                    false
+                                    self.stack.push_back((item_path, Either::Left(sub_tree.iter())));
                                 }
                             }
                         }
-                    };
-                    if pop {
-                        self.stack.pop_back();
                     }
                 }
                 Either::Right(metadata) => {
-                    let path = path.clone();
-                    let metadata = *metadata;
-                    self.stack.pop_back();
                     return Some((path.into(), metadata));
                 }
             }
