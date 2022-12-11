@@ -12,7 +12,7 @@ use std::collections::HashSet;
 use std::str::FromStr;
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator, IntoStaticStr};
 
-const CARGO_LOCK_HASH_KEY: &str = "CARGO_LOCK_HASH";
+const ID_HASH_KEY: &str = "ID_HASH";
 
 fn find_cargo_home() -> Path {
     homedir().join(".cargo")
@@ -202,13 +202,16 @@ pub async fn restore_cargo_cache() -> Result<(), Error> {
         );
     }
 
-    let cwd = node::process::cwd();
-    let lock_hash = hash_cargo_lock_files(&cwd).await?;
-    let lock_hash = HashValue::from_bytes(&lock_hash.bytes);
-    core::save_state(
-        CARGO_LOCK_HASH_KEY,
-        base64::encode_config(lock_hash.as_ref(), base64::URL_SAFE),
-    );
+    let id_hash = if atimes_supported {
+        // We can't use the empty array because it will encode to an empty string
+        HashValue::from_bytes(&[42u8])
+    } else {
+        let cwd = node::process::cwd();
+        let lock_hash = hash_cargo_lock_files(&cwd).await?;
+        HashValue::from_bytes(&lock_hash.bytes)
+    };
+
+    core::save_state(ID_HASH_KEY, base64::encode_config(id_hash.as_ref(), base64::URL_SAFE));
 
     for cache_type in get_types_to_cache()? {
         let folder_path = find_path(cache_type);
@@ -226,7 +229,7 @@ pub async fn restore_cargo_cache() -> Result<(), Error> {
                 actions::io::rm_rf(&folder_path).await?;
             }
         }
-        let cache_entry = build_cache_entry(cache_type, &lock_hash, &folder_path);
+        let cache_entry = build_cache_entry(cache_type, &id_hash, &folder_path);
         if let Some(restore_key) = cache_entry.restore().await.map_err(Error::Js)? {
             info!(
                 "Restored {} from cache using key {}.",
@@ -256,9 +259,9 @@ pub async fn save_cargo_cache() -> Result<(), Error> {
     use humantime::format_duration;
     use wasm_bindgen::JsError;
 
-    let lock_hash = core::get_state(CARGO_LOCK_HASH_KEY).expect("Failed to find Cargo.lock hash");
-    let lock_hash = base64::decode_config(&lock_hash, base64::URL_SAFE).expect("Failed to decode Cargo.lock hash");
-    let lock_hash = HashValue::from_bytes(&lock_hash);
+    let id_hash = core::get_state(ID_HASH_KEY).expect("Failed to find artifact ID hash");
+    let id_hash = base64::decode_config(&id_hash, base64::URL_SAFE).expect("Failed to decode artifact ID hash");
+    let id_hash = HashValue::from_bytes(&id_hash);
 
     for cache_type in get_types_to_cache()? {
         let folder_path = find_path(cache_type);
@@ -327,7 +330,7 @@ pub async fn save_cargo_cache() -> Result<(), Error> {
                 let delta = folder_info_new.fingerprint.changes_from(&folder_info_old.fingerprint);
                 info!("{}", render_delta_items(&delta));
 
-                let cache_entry = build_cache_entry(cache_type, &lock_hash, &folder_path);
+                let cache_entry = build_cache_entry(cache_type, &id_hash, &folder_path);
                 if let Err(e) = cache_entry.save().await.map_err(Error::Js) {
                     error!("Failed to save {} to cache: {}", cache_type.friendly_name(), e);
                 } else {
