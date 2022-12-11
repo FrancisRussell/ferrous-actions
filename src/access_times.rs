@@ -5,6 +5,8 @@ use crate::nonce::build_nonce;
 use crate::{node, warning, Error};
 use async_trait::async_trait;
 
+const WAIT_ATIME_UPDATED_MS: u64 = 5;
+
 fn default_access_time_offset() -> chrono::Duration {
     // This is somewhat arbitrary - we could set all access timestamps back to the
     // epoch. The offset time is guaranteed to be valid and is far enough in the
@@ -56,6 +58,8 @@ async fn set_atime_behind_mtime(path: &Path, duration: &chrono::Duration) -> Res
 }
 
 pub async fn supports_atime() -> Result<bool, Error> {
+    use crate::sleep;
+
     let atime_check_dir = get_atime_check_dir().await?;
     let file_path = {
         let mut file_path = atime_check_dir.clone();
@@ -76,6 +80,9 @@ pub async fn supports_atime() -> Result<bool, Error> {
         }
     }
     node::fs::read_file(&file_path).await?;
+    // Wait a few ms, just in case
+    sleep::sleep(&std::time::Duration::from_millis(WAIT_ATIME_UPDATED_MS)).await;
     let metadata = node::fs::symlink_metadata(&file_path).await?;
-    Ok(metadata.accessed() > metadata.modified())
+    // This needs to be >= and not > since times are discrete
+    Ok(metadata.accessed() >= metadata.modified())
 }
