@@ -107,10 +107,10 @@ impl CacheType {
 
     fn prunable_entries_depth(self) -> usize {
         match self {
-            CacheType::Indices | CacheType::GitRepos => 0,
+            CacheType::Indices | CacheType::GitRepos => 1,
             CacheType::Crates => {
                 // This means we can prune individual crate files within an index
-                1
+                2
             }
         }
     }
