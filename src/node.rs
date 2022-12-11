@@ -456,6 +456,13 @@ pub mod path {
         pub async fn exists(&self) -> bool {
             super::fs::ffi::access(&self.inner, None).await.is_ok()
         }
+
+        #[must_use]
+        pub fn join<P: Into<Path>>(&self, path: P) -> Path {
+            let mut result = self.clone();
+            result.push(path.into());
+            result
+        }
     }
 
     impl std::fmt::Debug for Path {

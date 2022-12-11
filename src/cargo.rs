@@ -12,9 +12,9 @@ use std::borrow::Cow;
 
 async fn create_empty_dir() -> Result<Path, Error> {
     let nonce = nonce::build_nonce(8);
-    let mut path = get_action_cache_dir()?;
-    path.push("empty-directories");
-    path.push(nonce.to_string().as_str());
+    let path = get_action_cache_dir()?
+        .join("empty-directories")
+        .join(nonce.to_string().as_str());
     node::fs::create_dir_all(&path).await?;
     Ok(path)
 }
@@ -44,8 +44,7 @@ impl Cargo {
     }
 
     pub async fn from_path(path: &Path) -> Result<Cargo, Error> {
-        let mut full_path = process::cwd();
-        full_path.push(path.clone());
+        let full_path = process::cwd().join(path.clone());
         if !full_path.exists().await {
             return Err(Error::PathDoesNotExist(full_path.to_string()));
         }

@@ -13,7 +13,7 @@ use std::collections::{btree_map, BTreeMap, VecDeque};
 use std::hash::{Hash, Hasher};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Eq, PartialEq)]
-pub struct Metadata {
+struct Metadata {
     uid: u64,
     gid: u64,
     len: u64,
@@ -166,11 +166,7 @@ impl Fingerprint {
             .merge_join_by(to_iter, |left, right| left.0.cmp(&right.0))
             .filter_map(|element| match element {
                 EitherOrBoth::Both(left, right) => {
-                    if left.1.equal_noteworthy(&right.1) {
-                        None
-                    } else {
-                        Some((left.0.into_owned(), DeltaAction::Changed))
-                    }
+                    (!left.1.equal_noteworthy(&right.1)).then(|| (left.0.into_owned(), DeltaAction::Changed))
                 }
                 EitherOrBoth::Left(left) => Some((left.0.into_owned(), DeltaAction::Removed)),
                 EitherOrBoth::Right(right) => Some((right.0.into_owned(), DeltaAction::Added)),
@@ -190,11 +186,7 @@ impl Fingerprint {
         match element {
             EitherOrBoth::Left(_) | EitherOrBoth::Right(_) => vec![],
             EitherOrBoth::Both(left, right) => {
-                let path = {
-                    let mut path = path.clone();
-                    path.push(left.0.as_ref());
-                    path
-                };
+                let path = path.join(left.0.as_ref());
                 match (left.1, right.1) {
                     (Entry::File(meta1), Entry::File(meta2)) => predicated(path, meta1 == meta2),
                     (Entry::Dir(tree1), Entry::Dir(tree2)) => {
@@ -234,17 +226,17 @@ impl Fingerprint {
 }
 
 #[allow(dead_code)]
-pub async fn fingerprint_directory(path: &Path) -> Result<Fingerprint, Error> {
+pub async fn fingerprint_path(path: &Path) -> Result<Fingerprint, Error> {
     let ignores = Ignores::default();
-    fingerprint_directory_with_ignores(path, &ignores).await
+    fingerprint_path_with_ignores(path, &ignores).await
 }
 
-struct FingerprintVisitor {
+struct BuildFingerprintVisitor {
     stack: VecDeque<Entry>,
     modified: Option<DateTime<Utc>>,
 }
 
-impl FingerprintVisitor {
+impl BuildFingerprintVisitor {
     fn push_file(&mut self, file_name: String, metadata: Metadata) {
         let to_insert = Entry::File(metadata);
         match self.stack.back_mut() {
@@ -262,7 +254,7 @@ impl FingerprintVisitor {
 }
 
 #[async_trait(?Send)]
-impl DirTreeVisitor for FingerprintVisitor {
+impl DirTreeVisitor for BuildFingerprintVisitor {
     async fn enter_folder(&mut self, _path: &Path) -> Result<(), Error> {
         self.stack.push_back(Entry::Dir(BTreeMap::new()));
         Ok(())
@@ -296,8 +288,8 @@ impl DirTreeVisitor for FingerprintVisitor {
     }
 }
 
-pub async fn fingerprint_directory_with_ignores(path: &Path, ignores: &Ignores) -> Result<Fingerprint, Error> {
-    let mut visitor = FingerprintVisitor {
+pub async fn fingerprint_path_with_ignores(path: &Path, ignores: &Ignores) -> Result<Fingerprint, Error> {
+    let mut visitor = BuildFingerprintVisitor {
         stack: VecDeque::new(),
         modified: None,
     };

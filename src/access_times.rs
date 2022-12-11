@@ -43,8 +43,7 @@ pub async fn revert_folder_access_times(path: &Path) -> Result<(), Error> {
 }
 
 async fn get_atime_check_dir() -> Result<Path, Error> {
-    let mut dir = get_action_cache_dir()?;
-    dir.push("check-atime-support");
+    let dir = get_action_cache_dir()?.join("check-atime-support");
     node::fs::create_dir_all(&dir).await?;
     Ok(dir)
 }
@@ -62,10 +61,8 @@ pub async fn supports_atime() -> Result<bool, Error> {
 
     let atime_check_dir = get_atime_check_dir().await?;
     let file_path = {
-        let mut file_path = atime_check_dir.clone();
         let nonce = build_nonce(8);
-        file_path.push(nonce.to_string().as_str());
-        file_path
+        atime_check_dir.join(nonce.to_string().as_str())
     };
     let data = [0u8; 1];
     node::fs::write_file(&file_path, &data).await?;

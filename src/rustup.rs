@@ -86,9 +86,7 @@ impl Rustup {
             }
             _ => return Err(Error::UnsupportedPlatform(platform)),
         }
-        let mut cargo_bin_path = node::os::homedir();
-        cargo_bin_path.push(".cargo");
-        cargo_bin_path.push("bin");
+        let cargo_bin_path = node::os::homedir().join(".cargo").join("bin");
         info!("Adding {:?} to path", cargo_bin_path);
         core::add_path(&cargo_bin_path);
         Self::get().await

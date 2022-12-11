@@ -1,7 +1,7 @@
 use crate::action_paths::get_action_cache_dir;
 use crate::actions::cache::CacheEntry;
 use crate::actions::core;
-use crate::fingerprinting::{fingerprint_directory_with_ignores, render_delta_items, Fingerprint, Ignores};
+use crate::fingerprinting::{fingerprint_path_with_ignores, render_delta_items, Fingerprint, Ignores};
 use crate::node::os::homedir;
 use crate::node::path::Path;
 use crate::{actions, error, info, node, notice, warning, Error};
@@ -15,15 +15,11 @@ use strum::{Display, EnumIter, EnumString, IntoEnumIterator, IntoStaticStr};
 const CARGO_LOCK_HASH_KEY: &str = "CARGO_LOCK_HASH";
 
 fn find_cargo_home() -> Path {
-    let mut path = homedir();
-    path.push(".cargo");
-    path
+    homedir().join(".cargo")
 }
 
 fn find_path(cache_type: CacheType) -> Path {
-    let mut path = find_cargo_home();
-    path.push(cache_type.relative_path());
-    path
+    find_cargo_home().join(cache_type.relative_path())
 }
 
 fn find_delete_paths(cache_type: CacheType) -> Vec<Path> {
@@ -31,20 +27,15 @@ fn find_delete_paths(cache_type: CacheType) -> Vec<Path> {
     cache_type
         .relative_delete_paths()
         .into_iter()
-        .map(|p| {
-            let mut path = home_path.clone();
-            path.push(p);
-            path
-        })
+        .map(|p| home_path.join(p))
         .collect()
 }
 
 fn cached_folder_info_path(cache_type: CacheType) -> Result<Path, Error> {
-    let mut dir = get_action_cache_dir()?;
-    dir.push("cached_folder_info");
     let file_name = format!("{}.json", cache_type.short_name());
-    dir.push(file_name.as_str());
-    Ok(dir)
+    Ok(get_action_cache_dir()?
+        .join("cached_folder_info")
+        .join(file_name.as_str()))
 }
 
 #[derive(Debug, Clone, Copy, EnumIter, EnumString, Eq, Hash, PartialEq, IntoStaticStr, Display)]
@@ -76,21 +67,9 @@ impl CacheType {
 
     fn relative_path(self) -> Path {
         match self {
-            CacheType::Indices => {
-                let mut path = Path::from("registry");
-                path.push("index");
-                path
-            }
-            CacheType::Crates => {
-                let mut path = Path::from("registry");
-                path.push("cache");
-                path
-            }
-            CacheType::GitRepos => {
-                let mut path = Path::from("git");
-                path.push("db");
-                path
-            }
+            CacheType::Indices => Path::from("registry").join("index"),
+            CacheType::Crates => Path::from("registry").join("cache"),
+            CacheType::GitRepos => Path::from("git").join("db"),
         }
     }
 
@@ -106,14 +85,10 @@ impl CacheType {
                 // Maybe we need to delete registry/index/*/.cache/
             }
             CacheType::Crates => {
-                let mut path = Path::from("registry");
-                path.push("src");
-                result.push(path);
+                result.push(Path::from("registry").join("src"));
             }
             CacheType::GitRepos => {
-                let mut path = Path::from("git");
-                path.push("checkouts");
-                result.push(path);
+                result.push(Path::from("git").join("checkouts"));
             }
         }
         result
@@ -183,7 +158,7 @@ struct CachedFolderInfo {
 async fn build_cached_folder_info(cache_type: CacheType) -> Result<CachedFolderInfo, Error> {
     let path = find_path(cache_type);
     let ignores = cache_type.ignores();
-    let fingerprint = fingerprint_directory_with_ignores(&path, &ignores).await?;
+    let fingerprint = fingerprint_path_with_ignores(&path, &ignores).await?;
     let folder_info = CachedFolderInfo {
         path: path.to_string(),
         fingerprint,
@@ -309,8 +284,7 @@ pub async fn save_cargo_cache() -> Result<(), Error> {
         if do_prune {
             for relative_path in unaccessed {
                 info!("Pruning unused cache element: {}", relative_path);
-                let mut full_path = folder_path.clone();
-                full_path.push(relative_path);
+                let full_path = folder_path.join(relative_path);
                 actions::io::rm_rf(&full_path).await?;
             }
             // We need to refingerprint after deleting things
