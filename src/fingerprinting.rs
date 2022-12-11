@@ -12,6 +12,8 @@ use std::collections::hash_map::DefaultHasher;
 use std::collections::{btree_map, BTreeMap, VecDeque};
 use std::hash::{Hash, Hasher};
 
+const ROOT_NAME: &str = ".";
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Eq, PartialEq)]
 struct Metadata {
     uid: u64,
@@ -152,7 +154,7 @@ impl Fingerprint {
             Entry::Dir(sub_tree) => Either::Left(sub_tree.iter()),
         };
         FlatteningIterator {
-            stack: VecDeque::from([(".".into(), root_content)]),
+            stack: VecDeque::from([(ROOT_NAME.into(), root_content)]),
             separator: path::separator(),
         }
     }
@@ -216,10 +218,9 @@ impl Fingerprint {
     }
 
     pub fn get_unaccessed_since(&self, other: &Fingerprint, depth: usize) -> Vec<Path> {
-        let root_name = ".";
-        let root_path = Path::from(root_name);
-        let left = (root_name, &other.root);
-        let right = (root_name, &self.root);
+        let root_path = Path::from(ROOT_NAME);
+        let left = (ROOT_NAME, &other.root);
+        let right = (ROOT_NAME, &self.root);
         let element = EitherOrBoth::Both(left, right);
         Self::get_unaccessed_since_process_either(&root_path, element, depth)
     }
