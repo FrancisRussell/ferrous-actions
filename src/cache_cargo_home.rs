@@ -269,7 +269,8 @@ pub async fn save_cargo_cache() -> Result<(), Error> {
             .fingerprint
             .get_unaccessed_since(&folder_info_old.fingerprint, cache_type.prunable_entries_depth());
 
-        if !unaccessed.is_empty() {
+        let do_prune = !unaccessed.is_empty();
+        if do_prune {
             for relative_path in unaccessed {
                 info!("Pruning unused cache element: {}", relative_path);
                 let mut full_path = folder_path.clone();
@@ -292,7 +293,10 @@ pub async fn save_cargo_cache() -> Result<(), Error> {
 
             // If we have no files in the old fingerprint, we assume it was updated at the
             // epoch. If we have no files in the new fingerprint, we assume it
-            // was updated now. Basically, when we do not have a modification
+            // was updated now. If we pruned items we also override the modification
+            // timestamp with the current time.
+            //
+            // Basically, when we do not have a modification
             // time, we will return a delta that indicates the folder is
             // significantly out of date. Otherwise, we might end up not storing a
             // new cache entry when we create or fully empty a folder.
@@ -300,6 +304,7 @@ pub async fn save_cargo_cache() -> Result<(), Error> {
             let new_fingerprint = folder_info_new
                 .fingerprint
                 .modified()
+                .filter(|_| !do_prune)
                 .unwrap_or_else(|| date::now_utc());
 
             // Be more robust against our file modification time moving backwards.
