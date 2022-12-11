@@ -76,7 +76,7 @@ impl CargoInstallHook {
         // https://github.com/rust-lang/cargo/blob/70898e522116f6c23971e2a554b2dc85fd4c84cd/src/cargo/util/rustc.rs#L306
 
         let mut ignores = Ignores::default();
-        ignores.add(0, ".rustc_info.json");
+        ignores.add(1, ".rustc_info.json");
 
         let fingerprint = fingerprint_path_with_ignores(path, &ignores).await?;
         Ok(fingerprint)
