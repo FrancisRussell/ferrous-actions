@@ -52,16 +52,16 @@ where
     }
     let metadata = fs::symlink_metadata(path).await?;
     if metadata.is_directory() {
-        visitor.enter_folder(&path).await?;
+        visitor.enter_folder(path).await?;
         let depth = depth + 1;
         let dir = fs::read_dir(path).await?;
         for entry in dir {
             let path = entry.path();
             apply_visitor_impl(depth, &path, ignores, visitor).await?;
         }
-        visitor.exit_folder(&path).await?;
+        visitor.exit_folder(path).await?;
     } else {
-        visitor.visit_file(&path).await?;
+        visitor.visit_file(path).await?;
     }
     Ok(())
 }

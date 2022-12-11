@@ -6,7 +6,9 @@ pub async fn sleep(duration: &Duration) {
     let (sender, receiver) = futures::channel::oneshot::channel();
     let mut sender = Some(sender);
     let callback: Closure<dyn FnMut()> = Closure::new(move || {
-        sender.take().map(|s| s.send(()).expect("Unable to send wake-up"));
+        if let Some(s) = sender.take() {
+            s.send(()).expect("Unable to send wake-up")
+        }
     });
     let millis = (duration.as_micros() as f64) / 1000.0;
     let millis: js_sys::Number = millis.into();

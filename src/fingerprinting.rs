@@ -12,7 +12,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::collections::{btree_map, BTreeMap, VecDeque};
 use std::hash::{Hash, Hasher};
 
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Eq, PartialEq)]
 pub struct Metadata {
     uid: u64,
     gid: u64,
@@ -104,7 +104,7 @@ impl<'a> Iterator for FlatteningIterator<'a> {
                             let mut path = path.clone();
                             path.extend([self.separator.as_str(), base_name]);
                             match entry {
-                                Entry::File(metadata) => return Some((path.into(), metadata.clone())),
+                                Entry::File(metadata) => return Some((path.into(), *metadata)),
                                 Entry::Dir(sub_tree) => {
                                     self.stack.push_back((path, Either::Left(sub_tree.iter())));
                                     false
@@ -118,7 +118,7 @@ impl<'a> Iterator for FlatteningIterator<'a> {
                 }
                 Either::Right(metadata) => {
                     let path = path.clone();
-                    let metadata = metadata.clone();
+                    let metadata = *metadata;
                     self.stack.pop_back();
                     return Some((path.into(), metadata));
                 }
@@ -142,7 +142,7 @@ impl Fingerprint {
             Entry::Dir(sub_tree) => {
                 for (name, entry) in sub_tree {
                     name.hash(&mut hasher);
-                    let hash = Self::compute_entry_hash(&entry);
+                    let hash = Self::compute_entry_hash(entry);
                     hash.hash(&mut hasher);
                 }
             }
@@ -156,7 +156,7 @@ impl Fingerprint {
 
     fn sorted_file_paths_and_metadata(&self) -> FlatteningIterator<'_> {
         let root_content = match &self.root {
-            Entry::File(metadata) => Either::Right(metadata.clone()),
+            Entry::File(metadata) => Either::Right(*metadata),
             Entry::Dir(sub_tree) => Either::Left(sub_tree.iter()),
         };
         FlatteningIterator {
