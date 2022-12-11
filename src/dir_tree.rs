@@ -3,7 +3,10 @@ use crate::node::path::Path;
 use crate::Error;
 use async_recursion::async_recursion;
 use async_trait::async_trait;
+use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
+
+pub const ROOT_NAME: &str = ".";
 
 #[derive(Debug, Default, Clone)]
 pub struct Ignores {
@@ -35,30 +38,30 @@ where
 }
 
 #[async_recursion(?Send)]
-async fn apply_visitor_impl<V>(
-    depth: usize,
-    folder_path: &Path,
-    ignores: &Ignores,
-    visitor: &mut V,
-) -> Result<(), Error>
+async fn apply_visitor_impl<V>(depth: usize, path: &Path, ignores: &Ignores, visitor: &mut V) -> Result<(), Error>
 where
     V: DirTreeVisitor,
 {
-    let dir = fs::read_dir(folder_path).await?;
-    for entry in dir {
-        let file_name = entry.file_name();
-        if ignores.should_ignore(&file_name, depth) {
-            continue;
+    let file_name: Cow<str> = if depth == 0 {
+        ROOT_NAME.into()
+    } else {
+        path.file_name().into()
+    };
+    if ignores.should_ignore(&file_name, depth) {
+        return Ok(());
+    }
+    let metadata = fs::symlink_metadata(path).await?;
+    if metadata.is_directory() {
+        visitor.enter_folder(&path).await?;
+        let depth = depth + 1;
+        let dir = fs::read_dir(path).await?;
+        for entry in dir {
+            let path = entry.path();
+            apply_visitor_impl(depth, &path, ignores, visitor).await?;
         }
-        let file_type = entry.file_type();
-        let path = entry.path();
-        if file_type.is_dir() {
-            visitor.enter_folder(&path).await?;
-            apply_visitor_impl(depth + 1, &path, ignores, visitor).await?;
-            visitor.exit_folder(&path).await?;
-        } else {
-            visitor.visit_file(&path).await?;
-        }
+        visitor.exit_folder(&path).await?;
+    } else {
+        visitor.visit_file(&path).await?;
     }
     Ok(())
 }

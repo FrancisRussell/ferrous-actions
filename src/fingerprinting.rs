@@ -5,6 +5,7 @@ use crate::node::path::{self, Path};
 use crate::Error;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+use itertools::{Either, EitherOrBoth};
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::collections::hash_map::DefaultHasher;
@@ -81,38 +82,46 @@ enum Entry {
 pub struct Fingerprint {
     content_hash: u64,
     modified: Option<DateTime<Utc>>,
-    tree_data: BTreeMap<String, Entry>,
+    root: Entry,
 }
 
 #[derive(Debug)]
 struct FlatteningIterator<'a> {
     separator: String,
-    stack: VecDeque<(String, btree_map::Iter<'a, String, Entry>)>,
+    stack: VecDeque<(String, Either<btree_map::Iter<'a, String, Entry>, Metadata>)>,
 }
 
 impl<'a> Iterator for FlatteningIterator<'a> {
-    type Item = (Cow<'a, str>, &'a Metadata);
+    type Item = (Cow<'a, str>, Metadata);
 
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some((path, iter)) = self.stack.back_mut() {
-            let pop = {
-                match iter.next() {
-                    None => true,
-                    Some((base_name, entry)) => {
-                        let mut path = path.clone();
-                        path.extend([self.separator.as_str(), base_name]);
-                        match entry {
-                            Entry::File(metadata) => return Some((path.into(), metadata)),
-                            Entry::Dir(sub_tree) => {
-                                self.stack.push_back((path, sub_tree.iter()));
-                                false
+        while let Some((path, content)) = self.stack.back_mut() {
+            match content {
+                Either::Left(iter) => {
+                    let pop = match iter.next() {
+                        None => true,
+                        Some((base_name, entry)) => {
+                            let mut path = path.clone();
+                            path.extend([self.separator.as_str(), base_name]);
+                            match entry {
+                                Entry::File(metadata) => return Some((path.into(), metadata.clone())),
+                                Entry::Dir(sub_tree) => {
+                                    self.stack.push_back((path, Either::Left(sub_tree.iter())));
+                                    false
+                                }
                             }
                         }
+                    };
+                    if pop {
+                        self.stack.pop_back();
                     }
                 }
-            };
-            if pop {
-                self.stack.pop_back();
+                Either::Right(metadata) => {
+                    let path = path.clone();
+                    let metadata = metadata.clone();
+                    self.stack.pop_back();
+                    return Some((path.into(), metadata));
+                }
             }
         }
         None
@@ -124,16 +133,16 @@ impl Fingerprint {
         self.content_hash
     }
 
-    fn compute_tree_hash(tree_data: &BTreeMap<String, Entry>) -> u64 {
+    fn compute_entry_hash(entry: &Entry) -> u64 {
         let mut hasher = DefaultHasher::default();
-        for (name, entry) in tree_data {
-            name.hash(&mut hasher);
-            match entry {
-                Entry::File(metadata) => {
-                    metadata.hash_noteworthy(&mut hasher);
-                }
-                Entry::Dir(sub_tree) => {
-                    let hash = Self::compute_tree_hash(sub_tree);
+        match entry {
+            Entry::File(metadata) => {
+                metadata.hash_noteworthy(&mut hasher);
+            }
+            Entry::Dir(sub_tree) => {
+                for (name, entry) in sub_tree {
+                    name.hash(&mut hasher);
+                    let hash = Self::compute_entry_hash(&entry);
                     hash.hash(&mut hasher);
                 }
             }
@@ -146,14 +155,18 @@ impl Fingerprint {
     }
 
     fn sorted_file_paths_and_metadata(&self) -> FlatteningIterator<'_> {
+        let root_content = match &self.root {
+            Entry::File(metadata) => Either::Right(metadata.clone()),
+            Entry::Dir(sub_tree) => Either::Left(sub_tree.iter()),
+        };
         FlatteningIterator {
-            stack: VecDeque::from([(".".into(), self.tree_data.iter())]),
+            stack: VecDeque::from([(".".into(), root_content)]),
             separator: path::separator(),
         }
     }
 
     pub fn changes_from(&self, other: &Fingerprint) -> Vec<DeltaItem> {
-        use itertools::{EitherOrBoth, Itertools as _};
+        use itertools::Itertools as _;
 
         let from_iter = other.sorted_file_paths_and_metadata();
         let to_iter = self.sorted_file_paths_and_metadata();
@@ -161,7 +174,7 @@ impl Fingerprint {
             .merge_join_by(to_iter, |left, right| left.0.cmp(&right.0))
             .filter_map(|element| match element {
                 EitherOrBoth::Both(left, right) => {
-                    if !left.1.equal_noteworthy(right.1) {
+                    if !left.1.equal_noteworthy(&right.1) {
                         Some((left.0.into_owned(), DeltaAction::Changed))
                     } else {
                         None
@@ -173,47 +186,60 @@ impl Fingerprint {
             .collect()
     }
 
-    fn get_unaccessed_since_helper<'a>(
+    fn get_unaccessed_since_process_either<S>(
         path: &Path,
-        from_iter: btree_map::Iter<'a, String, Entry>,
-        to_iter: btree_map::Iter<'a, String, Entry>,
+        element: EitherOrBoth<(S, &Entry), (S, &Entry)>,
         depth: usize,
-    ) -> Vec<Path> {
-        use itertools::{EitherOrBoth, Itertools as _};
-
+    ) -> Vec<Path>
+    where
+        S: AsRef<str>,
+    {
         let predicated = |element, condition| if condition { vec![element] } else { vec![] };
+        match element {
+            EitherOrBoth::Left(_) => vec![],
+            EitherOrBoth::Right(_) => vec![],
+            EitherOrBoth::Both(left, right) => {
+                let path = {
+                    let mut path = path.clone();
+                    path.push(left.0.as_ref());
+                    path
+                };
+                match (left.1, right.1) {
+                    (Entry::File(meta1), Entry::File(meta2)) => predicated(path, meta1 == meta2),
+                    (Entry::Dir(tree1), Entry::Dir(tree2)) => {
+                        if depth == 0 {
+                            predicated(path, tree1 == tree2)
+                        } else {
+                            Self::get_unaccessed_process_iterators(&path, tree1.iter(), tree2.iter(), depth - 1)
+                        }
+                    }
+                    (Entry::Dir(_), Entry::File(_)) => vec![],
+                    (Entry::File(_), Entry::Dir(_)) => vec![],
+                }
+            }
+        }
+    }
+
+    fn get_unaccessed_process_iterators<'a, I, S>(path: &Path, from_iter: I, to_iter: I, depth: usize) -> Vec<Path>
+    where
+        I: Iterator<Item = (S, &'a Entry)>,
+        S: AsRef<str>,
+    {
+        use itertools::Itertools as _;
 
         from_iter
-            .merge_join_by(to_iter, |left, right| left.0.cmp(right.0))
-            .flat_map(|element| match element {
-                EitherOrBoth::Left(_) => vec![],
-                EitherOrBoth::Right(_) => vec![],
-                EitherOrBoth::Both(left, right) => {
-                    let path = {
-                        let mut path = path.clone();
-                        path.push(left.0.as_str());
-                        path
-                    };
-                    match (left.1, right.1) {
-                        (Entry::File(meta1), Entry::File(meta2)) => predicated(path, meta1 == meta2),
-                        (Entry::Dir(tree1), Entry::Dir(tree2)) => {
-                            if depth == 0 {
-                                predicated(path, tree1 == tree2)
-                            } else {
-                                Self::get_unaccessed_since_helper(&path, tree1.iter(), tree2.iter(), depth - 1)
-                            }
-                        }
-                        (Entry::Dir(_), Entry::File(_)) => vec![],
-                        (Entry::File(_), Entry::Dir(_)) => vec![],
-                    }
-                }
-            })
+            .merge_join_by(to_iter, |left, right| left.0.as_ref().cmp(right.0.as_ref()))
+            .flat_map(|element| Self::get_unaccessed_since_process_either(path, element, depth))
             .collect()
     }
 
     pub fn get_unaccessed_since(&self, other: &Fingerprint, depth: usize) -> Vec<Path> {
-        let path = Path::from(".");
-        Self::get_unaccessed_since_helper(&path, other.tree_data.iter(), self.tree_data.iter(), depth)
+        let root_name = ".";
+        let root_path = Path::from(root_name);
+        let left = (root_name, &other.root);
+        let right = (root_name, &self.root);
+        let element = EitherOrBoth::Both(left, right);
+        Self::get_unaccessed_since_process_either(&root_path, element, depth)
     }
 }
 
@@ -224,67 +250,78 @@ pub async fn fingerprint_directory(path: &Path) -> Result<Fingerprint, Error> {
 }
 
 struct FingerprintVisitor {
-    tree_data_stack: VecDeque<BTreeMap<String, Entry>>,
+    stack: VecDeque<Entry>,
     modified: Option<DateTime<Utc>>,
 }
 
 impl FingerprintVisitor {
-    fn tree_data(&mut self) -> &mut BTreeMap<String, Entry> {
-        self.tree_data_stack.back_mut().expect("Missing tree data on stack")
+    fn push_file(&mut self, file_name: String, metadata: Metadata) {
+        let to_insert = Entry::File(metadata);
+        match self.stack.back_mut() {
+            None => self.stack.push_back(to_insert),
+            Some(entry) => match entry {
+                Entry::File(_) => {
+                    self.stack.push_back(to_insert);
+                }
+                Entry::Dir(ref mut map) => {
+                    map.insert(file_name, to_insert);
+                }
+            },
+        }
     }
 }
 
 #[async_trait(?Send)]
 impl DirTreeVisitor for FingerprintVisitor {
     async fn enter_folder(&mut self, _path: &Path) -> Result<(), Error> {
-        self.tree_data_stack.push_back(BTreeMap::new());
+        self.stack.push_back(Entry::Dir(BTreeMap::new()));
         Ok(())
     }
 
     async fn exit_folder(&mut self, path: &Path) -> Result<(), Error> {
-        let dir_data = self.tree_data_stack.pop_back().expect("Missing tree data stack entry");
-        if !dir_data.is_empty() {
-            let dir_name = path.file_name();
-            let entry = Entry::Dir(dir_data);
-            self.tree_data().insert(dir_name, entry);
+        if self.stack.len() > 1 {
+            let entry = self.stack.pop_back().expect("Missing tree visitor stack entry");
+            let name = path.file_name();
+            match self.stack.back_mut() {
+                None => panic!("Missing parent entry on tree visitor stack"),
+                Some(Entry::File(_)) => panic!("Parent entry on tree visitor stack wasn't a folder"),
+                Some(Entry::Dir(map)) => {
+                    map.insert(name, entry);
+                }
+            }
         }
         Ok(())
     }
 
     async fn visit_file(&mut self, path: &Path) -> Result<(), Error> {
-        let file_name = path.file_name();
         let stats = fs::symlink_metadata(path).await?;
         let metadata = Metadata::from(&stats);
         self.modified = Some(match self.modified {
             None => metadata.modified,
             Some(latest) => std::cmp::max(latest, metadata.modified),
         });
-        let entry = Entry::File(metadata);
-        self.tree_data().insert(file_name, entry);
+        let file_name = path.file_name();
+        self.push_file(file_name, metadata);
         Ok(())
     }
 }
 
 pub async fn fingerprint_directory_with_ignores(path: &Path, ignores: &Ignores) -> Result<Fingerprint, Error> {
     let mut visitor = FingerprintVisitor {
-        tree_data_stack: VecDeque::from([BTreeMap::new()]),
+        stack: VecDeque::new(),
         modified: None,
     };
     apply_visitor(path, ignores, &mut visitor).await?;
-    assert_eq!(
-        visitor.tree_data_stack.len(),
-        1,
-        "Tree data stack should only have single entry"
-    );
-    let tree_data = visitor
-        .tree_data_stack
+    assert_eq!(visitor.stack.len(), 1, "Tree data stack should only have single entry");
+    let root = visitor
+        .stack
         .pop_back()
         .expect("Tree data stack was unexpectedly empty");
-    let content_hash = Fingerprint::compute_tree_hash(&tree_data);
+    let content_hash = Fingerprint::compute_entry_hash(&root);
     let result = Fingerprint {
         content_hash,
         modified: visitor.modified,
-        tree_data,
+        root,
     };
     Ok(result)
 }

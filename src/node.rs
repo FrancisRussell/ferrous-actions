@@ -251,6 +251,10 @@ pub mod fs {
                 .expect("Creation time out of bounds");
             DateTime::from_utc(naive, Utc)
         }
+
+        pub fn is_directory(&self) -> bool {
+            self.inner.is_directory()
+        }
     }
 
     pub async fn symlink_metadata<P: Into<JsString>>(path: P) -> Result<Metadata, JsValue> {
@@ -337,6 +341,9 @@ pub mod fs {
 
             #[wasm_bindgen(method, getter)]
             pub fn mode(this: &Stats) -> f64;
+
+            #[wasm_bindgen(method, js_name = "isDirectory")]
+            pub fn is_directory(this: &Stats) -> bool;
         }
 
         #[wasm_bindgen(module = "fs/promises")]

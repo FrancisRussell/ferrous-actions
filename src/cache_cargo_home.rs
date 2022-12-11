@@ -123,7 +123,7 @@ impl CacheType {
         let mut ignores = Ignores::default();
         match self {
             CacheType::Indices => {
-                ignores.add(1, ".last-updated");
+                ignores.add(2, ".last-updated");
             }
             CacheType::Crates | CacheType::GitRepos => {}
         }
