@@ -96,7 +96,7 @@ impl CacheType {
 
     fn relative_delete_paths(self) -> Vec<Path> {
         // These are paths we should delete at the same time as restoring the cache.
-        // This is mainly because we want to see what in the cached is accessed,
+        // This is mainly because we want to see what in the cache is accessed,
         // and leaving derived information about can cause cached items to never
         // have their content read, leading to items being evicted from and then
         // restored back to the cache.
