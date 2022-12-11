@@ -26,6 +26,19 @@ fn find_path(cache_type: CacheType) -> Path {
     path
 }
 
+fn find_delete_paths(cache_type: CacheType) -> Vec<Path> {
+    let home_path = find_cargo_home();
+    cache_type
+        .relative_delete_paths()
+        .into_iter()
+        .map(|p| {
+            let mut path = home_path.clone();
+            path.push(p);
+            path
+        })
+        .collect()
+}
+
 fn cached_folder_info_path(cache_type: CacheType) -> Result<Path, Error> {
     let mut dir = get_action_cache_dir()?;
     dir.push("cached_folder_info");
@@ -79,6 +92,31 @@ impl CacheType {
                 path
             }
         }
+    }
+
+    fn relative_delete_paths(self) -> Vec<Path> {
+        // These are paths we should delete at the same time as restoring the cache.
+        // This is mainly because we want to see what in the cached is accessed,
+        // and leaving derived information about can cause cached items to never
+        // have their content read, leading to items being evicted from and then
+        // restored back to the cache.
+        let mut result = vec![self.relative_path()];
+        match self {
+            CacheType::Indices => {
+                // Maybe we need to delete registry/index/*/.cache/
+            }
+            CacheType::Crates => {
+                let mut path = Path::from("registry");
+                path.push("src");
+                result.push(path);
+            }
+            CacheType::GitRepos => {
+                let mut path = Path::from("git");
+                path.push("checkouts");
+                result.push(path);
+            }
+        }
+        result
     }
 
     fn ignores(self) -> Ignores {
@@ -203,12 +241,16 @@ pub async fn restore_cargo_cache() -> Result<(), Error> {
         if folder_path.exists().await {
             warning!(
                 concat!(
-                    "Cache action will delete existing contents of {}. ",
+                    "Cache action will delete existing contents of {} and derived information. ",
                     "To avoid this warning, place this action earlier or delete this before running the action."
                 ),
                 folder_path
             );
-            actions::io::rm_rf(&folder_path).await?;
+        }
+        for folder_path in find_delete_paths(cache_type) {
+            if folder_path.exists().await {
+                actions::io::rm_rf(&folder_path).await?;
+            }
         }
         let cache_entry = build_cache_entry(cache_type, &lock_hash, &folder_path);
         if let Some(restore_key) = cache_entry.restore().await.map_err(Error::Js)? {
