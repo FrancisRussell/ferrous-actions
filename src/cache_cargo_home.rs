@@ -300,7 +300,7 @@ pub async fn save_cargo_cache() -> Result<(), Error> {
                 .fingerprint
                 .modified()
                 .filter(|_| !do_prune)
-                .unwrap_or_else(|| date::now_utc());
+                .unwrap_or_else(date::now_utc);
 
             // Be more robust against our file modification time moving backwards.
             let modification_delta = new_fingerprint - old_fingerprint;

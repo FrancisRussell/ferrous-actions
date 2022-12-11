@@ -184,8 +184,8 @@ impl Fingerprint {
         let predicated = |element, condition| if condition { vec![element] } else { vec![] };
 
         from_iter
-            .merge_join_by(to_iter, |left, right| left.0.cmp(&right.0))
-            .map(|element| match element {
+            .merge_join_by(to_iter, |left, right| left.0.cmp(right.0))
+            .flat_map(|element| match element {
                 EitherOrBoth::Left(_) => vec![],
                 EitherOrBoth::Right(_) => vec![],
                 EitherOrBoth::Both(left, right) => {
@@ -208,7 +208,6 @@ impl Fingerprint {
                     }
                 }
             })
-            .flatten()
             .collect()
     }
 
