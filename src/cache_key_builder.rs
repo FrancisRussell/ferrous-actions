@@ -1,6 +1,8 @@
 use crate::actions::cache::CacheEntry;
 use std::collections::BTreeMap;
 
+const CACHE_ENTRY_VERSION: &str = "1";
+
 pub struct CacheKeyBuilder {
     name: String,
     hasher: blake3::Hasher,
@@ -9,9 +11,11 @@ pub struct CacheKeyBuilder {
 
 impl CacheKeyBuilder {
     pub fn new(name: &str) -> CacheKeyBuilder {
+        let mut hasher = blake3::Hasher::new();
+        hasher.update(CACHE_ENTRY_VERSION.as_ref());
         CacheKeyBuilder {
             name: name.into(),
-            hasher: blake3::Hasher::new(),
+            hasher,
             attributes: BTreeMap::new(),
         }
     }

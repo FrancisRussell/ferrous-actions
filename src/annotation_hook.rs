@@ -66,6 +66,7 @@ impl AnnotationHook {
     }
 
     fn annotation_level(level: DiagnosticLevel) -> AnnotationLevel {
+        #[allow(clippy::match_same_arms)]
         match level {
             DiagnosticLevel::Ice | DiagnosticLevel::Error => AnnotationLevel::Error,
             DiagnosticLevel::Warning => AnnotationLevel::Warning,

@@ -7,16 +7,12 @@ pub fn get_action_name() -> Cow<'static, str> {
 }
 
 pub fn get_action_share_dir() -> Result<Path, Error> {
-    let mut dir = node::os::homedir();
-    dir.push(".local");
-    dir.push("share");
-    dir.push(get_action_name().as_ref());
-    Ok(dir)
+    Ok(node::os::homedir()
+        .join(".local")
+        .join("share")
+        .join(get_action_name().as_ref()))
 }
 
 pub fn get_action_cache_dir() -> Result<Path, Error> {
-    let mut dir = node::os::homedir();
-    dir.push(".cache");
-    dir.push(get_action_name().as_ref());
-    Ok(dir)
+    Ok(node::os::homedir().join(".cache").join(get_action_name().as_ref()))
 }

@@ -5,6 +5,7 @@
     clippy::missing_panics_doc
 )]
 
+mod access_times;
 mod action_paths;
 mod actions;
 mod annotation_hook;
@@ -26,6 +27,7 @@ mod package_manifest;
 mod rng;
 mod run;
 mod rustup;
+mod sleep;
 mod toolchain;
 mod utils;
 

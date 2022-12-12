@@ -11,9 +11,9 @@ use std::borrow::Cow;
 const MAX_ARG_STRING_LENGTH: usize = 80;
 
 fn get_package_build_dir(hash: &HashValue) -> Result<Path, Error> {
-    let mut dir = get_action_cache_dir()?;
-    dir.push("package-build-artifacts");
-    dir.push(base64::encode_config(hash, base64::URL_SAFE).as_str());
+    let dir = get_action_cache_dir()?
+        .join("package-build-artifacts")
+        .join(base64::encode_config(hash, base64::URL_SAFE).as_str());
     Ok(dir)
 }
 
@@ -66,7 +66,7 @@ impl CargoInstallHook {
     }
 
     async fn fingerprint_build_dir(path: &Path) -> Result<Fingerprint, Error> {
-        use crate::fingerprinting::{fingerprint_directory_with_ignores, Ignores};
+        use crate::fingerprinting::{fingerprint_path_with_ignores, Ignores};
 
         // It seems that between runs something causes the rustc fingerprint to change.
         // It looks like this could simply be the file modification timestamp. This
@@ -76,9 +76,9 @@ impl CargoInstallHook {
         // https://github.com/rust-lang/cargo/blob/70898e522116f6c23971e2a554b2dc85fd4c84cd/src/cargo/util/rustc.rs#L306
 
         let mut ignores = Ignores::default();
-        ignores.add(0, ".rustc_info.json");
+        ignores.add(1, ".rustc_info.json");
 
-        let fingerprint = fingerprint_directory_with_ignores(path, &ignores).await?;
+        let fingerprint = fingerprint_path_with_ignores(path, &ignores).await?;
         Ok(fingerprint)
     }
 

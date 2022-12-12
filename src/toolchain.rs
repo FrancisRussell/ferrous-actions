@@ -13,17 +13,17 @@ use target_lexicon::Triple;
 const MAX_CONCURRENT_PACKAGE_INSTALLS: usize = 4;
 
 fn get_cargo_home(toolchain: &Toolchain) -> Result<Path, Error> {
-    let mut dir = get_action_share_dir()?;
-    dir.push("toolchains");
-    dir.push(toolchain.to_string().as_str());
+    let dir = get_action_share_dir()?
+        .join("toolchains")
+        .join(toolchain.to_string().as_str());
     Ok(dir)
 }
 
 fn get_package_decompress_path(package: &ManifestPackage) -> Result<Path, Error> {
-    let mut dir = get_action_cache_dir()?;
-    dir.push("package-decompression");
     let package_hash = package.unique_identifier();
-    dir.push(base64::encode_config(package_hash, base64::URL_SAFE).as_str());
+    let dir = get_action_cache_dir()?
+        .join("package-decompression")
+        .join(base64::encode_config(package_hash, base64::URL_SAFE).as_str());
     Ok(dir)
 }
 
@@ -58,8 +58,7 @@ async fn overlay_and_move_dir(from: &Path, to: &Path) -> Result<(), Error> {
         let dir = node::fs::read_dir(from).await?;
         for entry in dir {
             let from = entry.path();
-            let mut to = to.clone();
-            to.push(entry.file_name().as_str());
+            let to = to.join(entry.file_name().as_str());
             let file_type = entry.file_type();
             if file_type.is_dir() {
                 overlay_and_move_dir(&from, &to).await?;
@@ -81,8 +80,7 @@ async fn install_components(toolchain: &Toolchain, package: &ManifestPackage) ->
     let extract_path = get_package_decompress_path(package)?;
     let dir = node::fs::read_dir(&extract_path).await?;
     for entry in dir.filter(|d| d.file_type().is_dir()) {
-        let mut components_path = entry.path();
-        components_path.push("components");
+        let components_path = entry.path().join("components");
         let components: Vec<String> = node::fs::read_file(&components_path)
             .await
             .map(|data| String::from_utf8_lossy(&data[..]).into_owned())?
@@ -90,19 +88,15 @@ async fn install_components(toolchain: &Toolchain, package: &ManifestPackage) ->
             .map(String::from)
             .collect();
         for component in components {
-            let mut component_path = entry.path();
-            component_path.push(Path::from(component.as_str()));
-            let mut manifest_path = component_path.clone();
-            manifest_path.push("manifest.in");
+            let component_path = entry.path().join(component.as_str());
+            let manifest_path = component_path.clone().join("manifest.in");
             let manifest = node::fs::read_file(&manifest_path)
                 .await
                 .map(|data| String::from_utf8_lossy(&data[..]).into_owned())?;
             let manifest = PackageManifest::from_str(manifest.as_str())?;
             for (entry_type, path) in manifest.iter() {
-                let mut source = component_path.clone();
-                source.push(path.clone());
-                let mut dest = cargo_home.clone();
-                dest.push(path.clone());
+                let source = component_path.join(path.clone());
+                let dest = cargo_home.join(path.clone());
                 node::fs::create_dir_all(&dest.parent()).await?;
 
                 match *entry_type {
@@ -189,11 +183,7 @@ pub async fn install_toolchain(toolchain_config: &ToolchainConfig) -> Result<(),
     process_packages.try_collect().await?;
 
     if toolchain_config.default {
-        let cargo_bin = {
-            let mut cargo_bin = get_cargo_home(&toolchain)?;
-            cargo_bin.push("bin");
-            cargo_bin
-        };
+        let cargo_bin = get_cargo_home(&toolchain)?.join("bin");
         actions::core::add_path(&cargo_bin);
     }
     Ok(())

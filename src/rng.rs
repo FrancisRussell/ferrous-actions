@@ -54,7 +54,9 @@ impl MathRandomRng {
                 .random()
                 .as_f64()
                 .expect("Math.random() didn't return a float");
+            #[allow(clippy::cast_precision_loss)]
             let random = random * ((1u64 << f64::MANTISSA_DIGITS) as f64);
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
             let random = random as u64;
             self.hasher.update(&random.to_le_bytes());
         }
