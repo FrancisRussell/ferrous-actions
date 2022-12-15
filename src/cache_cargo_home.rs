@@ -283,6 +283,7 @@ pub async fn save_cargo_cache() -> Result<(), Error> {
         // Delete items that should never make it into the cache
         for delete_path in find_additional_delete_paths(cache_type).await? {
             if delete_path.exists().await {
+                info!("Pruning redundant cache element: {}", delete_path);
                 actions::io::rm_rf(&delete_path).await?;
             }
         }
