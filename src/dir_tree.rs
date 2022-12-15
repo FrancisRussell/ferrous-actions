@@ -4,7 +4,8 @@ use crate::Error;
 use async_recursion::async_recursion;
 use async_trait::async_trait;
 use std::borrow::Cow;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
+use simple_path_match::PathMatch;
 
 pub const ROOT_NAME: &str = ".";
 
@@ -26,8 +27,8 @@ impl Ignores {
 #[async_trait(?Send)]
 pub trait DirTreeVisitor {
     async fn enter_folder(&mut self, path: &Path) -> Result<(), Error>;
-    async fn exit_folder(&mut self, path: &Path) -> Result<(), Error>;
     async fn visit_file(&mut self, name: &Path) -> Result<(), Error>;
+    async fn exit_folder(&mut self, path: &Path) -> Result<(), Error>;
 }
 
 pub async fn apply_visitor<V>(folder_path: &Path, ignores: &Ignores, visitor: &mut V) -> Result<(), Error>
@@ -64,4 +65,58 @@ where
         visitor.visit_file(path).await?;
     }
     Ok(())
+}
+
+#[derive(Debug)]
+struct PathMatchVisitor<'a> {
+    matching_paths: Vec<Path>,
+    matcher: &'a PathMatch,
+    path_stack: VecDeque<Path>,
+}
+
+impl<'a> PathMatchVisitor<'a> {
+    fn full_path_to_relative(&self, full_path: &Path) -> Path {
+        self.path_stack
+            .back()
+            .map(|p| p.join(full_path.file_name().as_str()))
+            .unwrap_or_else(|| Path::from("."))
+    }
+
+    fn visit_path(&mut self, absolute: &Path, relative: &Path) {
+        if self.matcher.matches(relative.to_string()) {
+            self.matching_paths.push(absolute.clone());
+        }
+    }
+}
+
+#[async_trait(?Send)]
+impl<'a> DirTreeVisitor for PathMatchVisitor<'a> {
+    async fn enter_folder(&mut self, full: &Path) -> Result<(), Error> {
+        let relative = self.full_path_to_relative(full);
+        self.visit_path(&full, &relative);
+        self.path_stack.push_back(relative);
+        Ok(())
+    }
+
+    async fn visit_file(&mut self, full: &Path) -> Result<(), Error> {
+        let relative = self.full_path_to_relative(full);
+        self.visit_path(&full, &relative);
+        Ok(())
+    }
+
+    async fn exit_folder(&mut self, _: &Path) -> Result<(), Error> {
+        self.path_stack.pop_back();
+        Ok(())
+    }
+}
+
+pub async fn match_relative_paths(path: &Path, matcher: &PathMatch) -> Result<Vec<Path>, Error> {
+    let mut visitor = PathMatchVisitor {
+        matching_paths: Vec::new(),
+        matcher,
+        path_stack: VecDeque::new(),
+    };
+    let ignores = Ignores::default();
+    apply_visitor(path, &ignores, &mut visitor).await?;
+    Ok(visitor.matching_paths)
 }

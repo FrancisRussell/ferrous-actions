@@ -11,6 +11,8 @@ use std::borrow::Cow;
 use std::collections::HashSet;
 use std::str::FromStr;
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator, IntoStaticStr};
+use simple_path_match::PathMatchBuilder;
+use crate::dir_tree::match_relative_paths;
 
 const ID_HASH_KEY: &str = "ID_HASH";
 
@@ -22,13 +24,13 @@ fn find_path(cache_type: CacheType) -> Path {
     find_cargo_home().join(cache_type.relative_path())
 }
 
-fn find_delete_paths(cache_type: CacheType) -> Vec<Path> {
+async fn find_delete_paths(cache_type: CacheType) -> Result<Vec<Path>, Error> {
+    let mut path_match_builder = PathMatchBuilder::new(&node::path::separator());
+    cache_type.add_relative_delete_paths(&mut path_match_builder)?;
+    let path_matcher = path_match_builder.build()?;
     let home_path = find_cargo_home();
-    cache_type
-        .relative_delete_paths()
-        .into_iter()
-        .map(|p| home_path.join(p))
-        .collect()
+    let result = match_relative_paths(&home_path, &path_matcher).await?;
+    Ok(result)
 }
 
 fn cached_folder_info_path(cache_type: CacheType) -> Result<Path, Error> {
@@ -73,25 +75,24 @@ impl CacheType {
         }
     }
 
-    fn relative_delete_paths(self) -> Vec<Path> {
+    fn add_relative_delete_paths(self, match_builder: &mut PathMatchBuilder) -> Result<(), Error> {
         // These are paths we should delete at the same time as restoring the cache.
         // This is mainly because we want to see what in the cache is accessed,
         // and leaving derived information about can cause cached items to never
         // have their content read, leading to items being evicted from and then
         // restored back to the cache.
-        let mut result = vec![self.relative_path()];
         match self {
             CacheType::Indices => {
                 // Maybe we need to delete registry/index/*/.cache/
             }
             CacheType::Crates => {
-                result.push(Path::from("registry").join("src"));
+                match_builder.add_pattern("registry/src")?;
             }
             CacheType::GitRepos => {
-                result.push(Path::from("git").join("checkouts"));
+                match_builder.add_pattern("git/checkouts")?;
             }
         }
-        result
+        Ok(())
     }
 
     fn ignores(self) -> Ignores {
@@ -224,7 +225,7 @@ pub async fn restore_cargo_cache() -> Result<(), Error> {
                 folder_path
             );
         }
-        for folder_path in find_delete_paths(cache_type) {
+        for folder_path in find_delete_paths(cache_type).await? {
             if folder_path.exists().await {
                 actions::io::rm_rf(&folder_path).await?;
             }
