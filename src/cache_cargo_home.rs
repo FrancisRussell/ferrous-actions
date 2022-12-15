@@ -83,7 +83,7 @@ impl CacheType {
         // restored back to the cache.
         match self {
             CacheType::Indices => {
-                // Maybe we need to delete registry/index/*/.cache/
+                match_builder.add_pattern("registry/index/*/.cache")?;
             }
             CacheType::Crates => {
                 match_builder.add_pattern("registry/src")?;
