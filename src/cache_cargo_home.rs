@@ -24,9 +24,9 @@ fn find_path(cache_type: CacheType) -> Path {
     find_cargo_home().join(cache_type.relative_path())
 }
 
-async fn find_delete_paths(cache_type: CacheType) -> Result<Vec<Path>, Error> {
+async fn find_additional_delete_paths(cache_type: CacheType) -> Result<Vec<Path>, Error> {
     let mut path_match_builder = PathMatchBuilder::new(&node::path::separator());
-    cache_type.add_relative_delete_paths(&mut path_match_builder)?;
+    cache_type.add_additional_delete_paths(&mut path_match_builder)?;
     let path_matcher = path_match_builder.build()?;
     let home_path = find_cargo_home();
     let result = match_relative_paths(&home_path, &path_matcher).await?;
@@ -75,12 +75,11 @@ impl CacheType {
         }
     }
 
-    fn add_relative_delete_paths(self, match_builder: &mut PathMatchBuilder) -> Result<(), Error> {
-        // These are paths we should delete at the same time as restoring the cache.
-        // This is mainly because we want to see what in the cache is accessed,
-        // and leaving derived information about can cause cached items to never
-        // have their content read, leading to items being evicted from and then
-        // restored back to the cache.
+    fn add_additional_delete_paths(self, match_builder: &mut PathMatchBuilder) -> Result<(), Error> {
+        // These are paths we should delete at the same time as restoring the cache and also before
+        // saving.  This is mainly because we want to see what in the cache is accessed, and
+        // leaving derived information about can cause cached items to never have their content
+        // read, leading to items being evicted from and then restored back to the cache.
         match self {
             CacheType::Indices => {
                 match_builder.add_pattern("registry/index/*/.cache")?;
@@ -224,10 +223,11 @@ pub async fn restore_cargo_cache() -> Result<(), Error> {
                 ),
                 folder_path
             );
+            actions::io::rm_rf(&folder_path).await?;
         }
-        for folder_path in find_delete_paths(cache_type).await? {
-            if folder_path.exists().await {
-                actions::io::rm_rf(&folder_path).await?;
+        for delete_path in find_additional_delete_paths(cache_type).await? {
+            if delete_path.exists().await {
+                actions::io::rm_rf(&delete_path).await?;
             }
         }
         let cache_entry = build_cache_entry(cache_type, &id_hash, &folder_path);
@@ -280,6 +280,14 @@ pub async fn save_cargo_cache() -> Result<(), Error> {
             return Err(Error::Js(error.into()));
         }
 
+        // Delete items that should never make it into the cache
+        for delete_path in find_additional_delete_paths(cache_type).await? {
+            if delete_path.exists().await {
+                actions::io::rm_rf(&delete_path).await?;
+            }
+        }
+
+        // Identify unaccessed items and prune them
         let unaccessed = folder_info_new
             .fingerprint
             .get_unaccessed_since(&folder_info_old.fingerprint, cache_type.prunable_entries_depth());
