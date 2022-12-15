@@ -29,7 +29,11 @@ async fn find_additional_delete_paths(cache_type: CacheType) -> Result<Vec<Path>
     cache_type.add_additional_delete_paths(&mut path_match_builder)?;
     let path_matcher = path_match_builder.build()?;
     let home_path = find_cargo_home();
-    let result = match_relative_paths(&home_path, &path_matcher).await?;
+    let result = if home_path.exists().await {
+        match_relative_paths(&home_path, &path_matcher).await?
+    } else {
+        Vec::new()
+    };
     Ok(result)
 }
 
