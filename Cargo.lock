@@ -805,7 +805,7 @@ checksum = "43b2853a4d09f215c24cc5489c992ce46052d359b5109343cbafbf26bc62f8a3"
 [[package]]
 name = "simple-path-match"
 version = "0.1.0"
-source = "git+https://github.com/FrancisRussell/simple-path-match.git?rev=1d3f6c0795d562ba6393244f66d5767813cc5e64#1d3f6c0795d562ba6393244f66d5767813cc5e64"
+source = "git+https://github.com/FrancisRussell/simple-path-match.git?rev=80251d18a0d2826cb592f2c6931f022d571ddaf4#80251d18a0d2826cb592f2c6931f022d571ddaf4"
 dependencies = [
  "itertools",
  "regex",

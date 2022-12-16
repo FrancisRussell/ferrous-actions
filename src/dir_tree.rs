@@ -26,6 +26,9 @@ impl Ignores {
 
 #[async_trait(?Send)]
 pub trait DirTreeVisitor {
+    async fn should_enter(&self, _path: &Path) -> Result<bool, Error> {
+        Ok(true)
+    }
     async fn enter_folder(&mut self, path: &Path) -> Result<(), Error>;
     async fn visit_entry(&mut self, name: &Path, is_file: bool) -> Result<(), Error>;
     async fn exit_folder(&mut self, path: &Path) -> Result<(), Error>;
@@ -53,14 +56,18 @@ where
     }
     let metadata = fs::symlink_metadata(path).await?;
     if metadata.is_directory() {
-        visitor.enter_folder(path).await?;
-        let depth = depth + 1;
-        let dir = fs::read_dir(path).await?;
-        for entry in dir {
-            let path = entry.path();
-            apply_visitor_impl(depth, &path, ignores, visitor).await?;
+        if visitor.should_enter(path).await? {
+            visitor.enter_folder(path).await?;
+            let depth = depth + 1;
+            let dir = fs::read_dir(path).await?;
+            for entry in dir {
+                let path = entry.path();
+                apply_visitor_impl(depth, &path, ignores, visitor).await?;
+            }
+            visitor.exit_folder(path).await?;
+        } else {
+            visitor.visit_entry(path, false).await?;
         }
-        visitor.exit_folder(path).await?;
     } else {
         visitor.visit_entry(path, true).await?;
     }
@@ -83,6 +90,7 @@ impl<'a> PathMatchVisitor<'a> {
     }
 
     fn visit_path(&mut self, absolute: &Path, relative: &Path) {
+        crate::info!("Visiting path: {}", absolute);
         if self.matcher.matches(relative.to_string()) {
             self.matching_paths.push(absolute.clone());
         }
@@ -91,6 +99,11 @@ impl<'a> PathMatchVisitor<'a> {
 
 #[async_trait(?Send)]
 impl<'a> DirTreeVisitor for PathMatchVisitor<'a> {
+    async fn should_enter(&self, full: &Path) -> Result<bool, Error> {
+        let relative = self.full_path_to_relative(full);
+        Ok(self.matcher.matches_prefix(relative.to_string()))
+    }
+
     async fn enter_folder(&mut self, full: &Path) -> Result<(), Error> {
         let relative = self.full_path_to_relative(full);
         self.visit_path(&full, &relative);
