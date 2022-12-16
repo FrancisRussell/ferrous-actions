@@ -100,8 +100,13 @@ impl<'a> PathMatchVisitor<'a> {
 #[async_trait(?Send)]
 impl<'a> DirTreeVisitor for PathMatchVisitor<'a> {
     async fn should_enter(&self, full: &Path) -> Result<bool, Error> {
-        let relative = self.full_path_to_relative(full);
-        Ok(self.matcher.matches_prefix(relative.to_string()))
+        let result = if self.path_stack.len() >= self.matcher.max_depth() {
+            false
+        } else {
+            let relative = self.full_path_to_relative(full);
+            self.matcher.matches_prefix(relative.to_string())
+        };
+        Ok(result)
     }
 
     async fn enter_folder(&mut self, full: &Path) -> Result<(), Error> {
