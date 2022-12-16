@@ -90,7 +90,6 @@ impl<'a> PathMatchVisitor<'a> {
     }
 
     fn visit_path(&mut self, absolute: &Path, relative: &Path) {
-        crate::info!("Visiting path: {}", absolute);
         if self.matcher.matches(relative.to_string()) {
             self.matching_paths.push(absolute.clone());
         }
