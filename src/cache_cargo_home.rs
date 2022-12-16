@@ -285,11 +285,15 @@ pub async fn save_cargo_cache() -> Result<(), Error> {
             return Err(Error::Js(error.into()));
         }
 
+        // If we prune redundant or unused files, we need to rebuild
+        let mut rebuild_fingerprint = false;
+
         // Delete items that should never make it into the cache
         for delete_path in find_additional_delete_paths(cache_type).await? {
             if delete_path.exists().await {
                 info!("Pruning redundant cache element: {}", delete_path);
                 actions::io::rm_rf(&delete_path).await?;
+                rebuild_fingerprint = true;
             }
         }
 
@@ -304,8 +308,11 @@ pub async fn save_cargo_cache() -> Result<(), Error> {
                 info!("Pruning unused cache element: {}", relative_path);
                 let full_path = folder_path.join(relative_path);
                 actions::io::rm_rf(&full_path).await?;
+                rebuild_fingerprint = true;
             }
-            // We need to refingerprint after deleting things
+        }
+
+        if rebuild_fingerprint {
             folder_info_new = build_cached_folder_info(cache_type).await?;
         }
 
