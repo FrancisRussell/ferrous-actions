@@ -3,9 +3,9 @@ use crate::node::path::Path;
 use crate::Error;
 use async_recursion::async_recursion;
 use async_trait::async_trait;
+use simple_path_match::PathMatch;
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet, VecDeque};
-use simple_path_match::PathMatch;
 
 pub const ROOT_NAME: &str = ".";
 

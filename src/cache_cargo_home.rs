@@ -1,18 +1,18 @@
 use crate::action_paths::get_action_cache_dir;
 use crate::actions::cache::CacheEntry;
 use crate::actions::core;
+use crate::dir_tree::match_relative_paths;
 use crate::fingerprinting::{fingerprint_path_with_ignores, render_delta_items, Fingerprint, Ignores};
 use crate::node::os::homedir;
 use crate::node::path::Path;
 use crate::{actions, error, info, node, notice, warning, Error};
 use rust_toolchain_manifest::HashValue;
 use serde::{Deserialize, Serialize};
+use simple_path_match::PathMatchBuilder;
 use std::borrow::Cow;
 use std::collections::HashSet;
 use std::str::FromStr;
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator, IntoStaticStr};
-use simple_path_match::PathMatchBuilder;
-use crate::dir_tree::match_relative_paths;
 
 const ID_HASH_KEY: &str = "ID_HASH";
 
@@ -80,10 +80,11 @@ impl CacheType {
     }
 
     fn add_additional_delete_paths(self, match_builder: &mut PathMatchBuilder) -> Result<(), Error> {
-        // These are paths we should delete at the same time as restoring the cache and also before
-        // saving.  This is mainly because we want to see what in the cache is accessed, and
-        // leaving derived information about can cause cached items to never have their content
-        // read, leading to items being evicted from and then restored back to the cache.
+        // These are paths we should delete at the same time as restoring the cache and
+        // also before saving.  This is mainly because we want to see what in
+        // the cache is accessed, and leaving derived information about can
+        // cause cached items to never have their content read, leading to items
+        // being evicted from and then restored back to the cache.
         match self {
             CacheType::Indices => {
                 match_builder.add_pattern("registry/index/*/.cache")?;
