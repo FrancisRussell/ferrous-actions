@@ -27,7 +27,7 @@ impl Ignores {
 #[async_trait(?Send)]
 pub trait DirTreeVisitor {
     async fn enter_folder(&mut self, path: &Path) -> Result<(), Error>;
-    async fn visit_file(&mut self, name: &Path) -> Result<(), Error>;
+    async fn visit_entry(&mut self, name: &Path, is_file: bool) -> Result<(), Error>;
     async fn exit_folder(&mut self, path: &Path) -> Result<(), Error>;
 }
 
@@ -62,7 +62,7 @@ where
         }
         visitor.exit_folder(path).await?;
     } else {
-        visitor.visit_file(path).await?;
+        visitor.visit_entry(path, true).await?;
     }
     Ok(())
 }
@@ -98,7 +98,7 @@ impl<'a> DirTreeVisitor for PathMatchVisitor<'a> {
         Ok(())
     }
 
-    async fn visit_file(&mut self, full: &Path) -> Result<(), Error> {
+    async fn visit_entry(&mut self, full: &Path, _is_file: bool) -> Result<(), Error> {
         let relative = self.full_path_to_relative(full);
         self.visit_path(&full, &relative);
         Ok(())

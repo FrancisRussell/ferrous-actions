@@ -278,15 +278,19 @@ impl DirTreeVisitor for BuildFingerprintVisitor {
         Ok(())
     }
 
-    async fn visit_file(&mut self, path: &Path) -> Result<(), Error> {
-        let stats = fs::symlink_metadata(path).await?;
-        let metadata = Metadata::from(&stats);
-        self.modified = Some(match self.modified {
-            None => metadata.modified,
-            Some(latest) => std::cmp::max(latest, metadata.modified),
-        });
-        let file_name = path.file_name();
-        self.push_file(file_name, metadata);
+    async fn visit_entry(&mut self, path: &Path, is_file: bool) -> Result<(), Error> {
+        if is_file {
+            let stats = fs::symlink_metadata(path).await?;
+            let metadata = Metadata::from(&stats);
+            self.modified = Some(match self.modified {
+                None => metadata.modified,
+                Some(latest) => std::cmp::max(latest, metadata.modified),
+            });
+            let file_name = path.file_name();
+            self.push_file(file_name, metadata);
+        } else {
+            panic!("Expected to descend into all directories");
+        }
         Ok(())
     }
 }

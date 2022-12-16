@@ -19,8 +19,8 @@ impl DirTreeVisitor for FindFilesVisitor {
         Ok(())
     }
 
-    async fn visit_file(&mut self, path: &Path) -> Result<(), Error> {
-        if path.file_name() == self.name {
+    async fn visit_entry(&mut self, path: &Path, is_file: bool) -> Result<(), Error> {
+        if is_file && path.file_name() == self.name {
             self.paths.push(path.clone());
         }
         Ok(())
