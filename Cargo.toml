@@ -43,7 +43,7 @@ rev = "ae0c7dd5d3df8d5f919e0d9b565850e4c0cdfc6f"
 
 [dependencies.simple-path-match]
 git = "https://github.com/FrancisRussell/simple-path-match.git"
-rev = "80251d18a0d2826cb592f2c6931f022d571ddaf4"
+rev = "aa9a9b04fa2bd628757a95399bfdc1ebe40ab7f5"
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3"
