@@ -242,25 +242,32 @@ pub mod fs {
             mode
         }
 
-        pub fn accessed(&self) -> DateTime<Utc> {
+        fn utc_ms_to_time(millis: f64) -> DateTime<Utc> {
+            const MS_IN_S: f64 = 1000.0;
+            const NS_IN_MS: f64 = 1e6;
+            let floored = (millis / MS_IN_S).floor();
             #[allow(clippy::cast_possible_truncation)]
-            let ms = self.inner.access_time_ms() as i64;
-            let naive = NaiveDateTime::from_timestamp_millis(ms).expect("Access time out of bounds");
+            let seconds = floored as i64;
+            let nanos = (millis - floored * MS_IN_S) * NS_IN_MS;
+            #[allow(clippy::cast_possible_truncation)]
+            let nanos = nanos as u32;
+            let naive = NaiveDateTime::from_timestamp_opt(seconds, nanos).expect("File time out of bounds");
             DateTime::from_utc(naive, Utc)
+        }
+
+        pub fn accessed(&self) -> DateTime<Utc> {
+            let ms = self.inner.access_time_ms();
+            Self::utc_ms_to_time(ms)
         }
 
         pub fn modified(&self) -> DateTime<Utc> {
-            #[allow(clippy::cast_possible_truncation)]
-            let ms = self.inner.modification_time_ms() as i64;
-            let naive = NaiveDateTime::from_timestamp_millis(ms).expect("Modification time out of bounds");
-            DateTime::from_utc(naive, Utc)
+            let ms = self.inner.modification_time_ms();
+            Self::utc_ms_to_time(ms)
         }
 
         pub fn created(&self) -> DateTime<Utc> {
-            #[allow(clippy::cast_possible_truncation)]
-            let ms = self.inner.created_time_ms() as i64;
-            let naive = NaiveDateTime::from_timestamp_millis(ms).expect("Creation time out of bounds");
-            DateTime::from_utc(naive, Utc)
+            let ms = self.inner.created_time_ms();
+            Self::utc_ms_to_time(ms)
         }
 
         pub fn is_directory(&self) -> bool {
