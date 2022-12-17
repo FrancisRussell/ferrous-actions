@@ -90,7 +90,7 @@ pub struct Fingerprint {
 #[derive(Debug)]
 struct FlatteningIterator<'a> {
     separator: String,
-    stack: VecDeque<(String, Either<btree_map::Iter<'a, String, Entry>, Metadata>)>,
+    stack: VecDeque<(Option<String>, Either<btree_map::Iter<'a, String, Entry>, Metadata>)>,
 }
 
 impl<'a> Iterator for FlatteningIterator<'a> {
@@ -102,18 +102,20 @@ impl<'a> Iterator for FlatteningIterator<'a> {
                 Either::Left(mut iter) => match iter.next() {
                     None => {}
                     Some((base_name, entry)) => {
-                        let mut item_path = path.clone();
-                        item_path.extend([self.separator.as_str(), base_name]);
+                        let mut item_path = path.as_deref().unwrap_or("").to_string();
+                        item_path += base_name;
                         self.stack.push_back((path, Either::Left(iter)));
                         match entry {
                             Entry::File(metadata) => return Some((item_path.into(), *metadata)),
                             Entry::Dir(sub_tree) => {
-                                self.stack.push_back((item_path, Either::Left(sub_tree.iter())));
+                                item_path += self.separator.as_str();
+                                self.stack.push_back((Some(item_path), Either::Left(sub_tree.iter())));
                             }
                         }
                     }
                 },
                 Either::Right(metadata) => {
+                    let path = path.unwrap_or_else(|| ROOT_NAME.to_string());
                     return Some((path.into(), metadata));
                 }
             }
@@ -154,7 +156,7 @@ impl Fingerprint {
             Entry::Dir(sub_tree) => Either::Left(sub_tree.iter()),
         };
         FlatteningIterator {
-            stack: VecDeque::from([(ROOT_NAME.into(), root_content)]),
+            stack: VecDeque::from([(None, root_content)]),
             separator: path::separator(),
         }
     }
@@ -276,15 +278,19 @@ impl DirTreeVisitor for BuildFingerprintVisitor {
         Ok(())
     }
 
-    async fn visit_file(&mut self, path: &Path) -> Result<(), Error> {
-        let stats = fs::symlink_metadata(path).await?;
-        let metadata = Metadata::from(&stats);
-        self.modified = Some(match self.modified {
-            None => metadata.modified,
-            Some(latest) => std::cmp::max(latest, metadata.modified),
-        });
-        let file_name = path.file_name();
-        self.push_file(file_name, metadata);
+    async fn visit_entry(&mut self, path: &Path, is_file: bool) -> Result<(), Error> {
+        if is_file {
+            let stats = fs::symlink_metadata(path).await?;
+            let metadata = Metadata::from(&stats);
+            self.modified = Some(match self.modified {
+                None => metadata.modified,
+                Some(latest) => std::cmp::max(latest, metadata.modified),
+            });
+            let file_name = path.file_name();
+            self.push_file(file_name, metadata);
+        } else {
+            panic!("Expected to descend into all directories");
+        }
         Ok(())
     }
 }

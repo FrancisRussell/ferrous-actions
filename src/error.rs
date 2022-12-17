@@ -45,6 +45,9 @@ pub enum Error {
 
     #[error("Path does not exist: {0}")]
     PathDoesNotExist(String),
+
+    #[error("Error during path match construction: {0}")]
+    PathMatchPatternError(#[from] simple_path_match::PatternError),
 }
 
 impl From<JsValue> for Error {

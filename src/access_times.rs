@@ -28,8 +28,13 @@ impl DirTreeVisitor for RevertAccessTime {
         Ok(())
     }
 
-    async fn visit_file(&mut self, path: &Path) -> Result<(), Error> {
-        set_atime_behind_mtime(path, &self.duration).await
+    async fn visit_entry(&mut self, path: &Path, is_file: bool) -> Result<(), Error> {
+        if is_file {
+            set_atime_behind_mtime(path, &self.duration).await?;
+        } else {
+            panic!("Expected to descend into all directories");
+        }
+        Ok(())
     }
 }
 
