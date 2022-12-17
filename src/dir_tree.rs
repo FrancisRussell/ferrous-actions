@@ -110,14 +110,14 @@ impl<'a> DirTreeVisitor for PathMatchVisitor<'a> {
 
     async fn enter_folder(&mut self, full: &Path) -> Result<(), Error> {
         let relative = self.full_path_to_relative(full);
-        self.visit_path(&full, &relative);
+        self.visit_path(full, &relative);
         self.path_stack.push_back(relative);
         Ok(())
     }
 
     async fn visit_entry(&mut self, full: &Path, _is_file: bool) -> Result<(), Error> {
         let relative = self.full_path_to_relative(full);
-        self.visit_path(&full, &relative);
+        self.visit_path(full, &relative);
         Ok(())
     }
 
