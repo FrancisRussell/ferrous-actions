@@ -2,7 +2,7 @@ use crate::actions::cache::CacheEntry;
 use crate::safe_encoding;
 use std::collections::BTreeMap;
 
-const CACHE_ENTRY_VERSION: &str = "2";
+const CACHE_ENTRY_VERSION: &str = "3";
 
 pub struct CacheKeyBuilder {
     name: String,
