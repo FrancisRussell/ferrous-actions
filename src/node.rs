@@ -243,7 +243,7 @@ pub mod fs {
         }
 
         fn utc_ms_to_time(millis: f64) -> DateTime<Utc> {
-            const MS_IN_S: f64 = 1000.0;
+            const MS_IN_S: f64 = 1e3;
             const NS_IN_MS: f64 = 1e6;
             let floored = (millis / MS_IN_S).floor();
             #[allow(clippy::cast_possible_truncation)]
@@ -281,6 +281,15 @@ pub mod fs {
         Ok(Metadata { inner: stats })
     }
 
+    fn timestamp_to_seconds(timestamp: &DateTime<Utc>) -> f64 {
+        // utimes takes timestamps in seconds - this was fun to debug
+        const NS_IN_S: f64 = 1e9;
+        #[allow(clippy::cast_precision_loss)]
+        let whole = timestamp.timestamp() as f64;
+        let fractional = f64::from(timestamp.timestamp_subsec_nanos()) / NS_IN_S;
+        whole + fractional
+    }
+
     pub async fn lutimes<P: Into<JsString>>(
         path: P,
         a_time: &DateTime<Utc>,
@@ -289,12 +298,8 @@ pub mod fs {
         use js_sys::Number;
 
         let path = path.into();
-        // This was lots of fun to debug
-        let scale = 1000.0;
-        #[allow(clippy::cast_precision_loss)]
-        let a_time: Number = ((a_time.timestamp_millis() as f64) / scale).into();
-        #[allow(clippy::cast_precision_loss)]
-        let m_time: Number = ((m_time.timestamp_millis() as f64) / scale).into();
+        let a_time: Number = timestamp_to_seconds(a_time).into();
+        let m_time: Number = timestamp_to_seconds(m_time).into();
         ffi::lutimes(&path, a_time.as_ref(), m_time.as_ref()).await?;
         Ok(())
     }
