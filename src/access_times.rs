@@ -57,7 +57,7 @@ async fn set_atime_behind_mtime(path: &Path, duration: &chrono::Duration) -> Res
     let metadata = node::fs::symlink_metadata(path).await?;
     let m_time = metadata.modified();
     let a_time = m_time - *duration;
-    node::fs::utimes(path, &a_time, &m_time).await?;
+    node::fs::lutimes(path, &a_time, &m_time).await?;
     Ok(())
 }
 

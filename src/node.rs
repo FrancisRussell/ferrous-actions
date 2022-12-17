@@ -242,25 +242,32 @@ pub mod fs {
             mode
         }
 
-        pub fn accessed(&self) -> DateTime<Utc> {
+        fn utc_ms_to_time(millis: f64) -> DateTime<Utc> {
+            const MS_IN_S: f64 = 1e3;
+            const NS_IN_MS: f64 = 1e6;
+            let floored = (millis / MS_IN_S).floor();
             #[allow(clippy::cast_possible_truncation)]
-            let ms = self.inner.access_time_ms() as i64;
-            let naive = NaiveDateTime::from_timestamp_millis(ms).expect("Access time out of bounds");
+            let seconds = floored as i64;
+            let nanos = (millis - floored * MS_IN_S) * NS_IN_MS;
+            #[allow(clippy::cast_possible_truncation)]
+            let nanos = nanos as u32;
+            let naive = NaiveDateTime::from_timestamp_opt(seconds, nanos).expect("File time out of bounds");
             DateTime::from_utc(naive, Utc)
+        }
+
+        pub fn accessed(&self) -> DateTime<Utc> {
+            let ms = self.inner.access_time_ms();
+            Self::utc_ms_to_time(ms)
         }
 
         pub fn modified(&self) -> DateTime<Utc> {
-            #[allow(clippy::cast_possible_truncation)]
-            let ms = self.inner.modification_time_ms() as i64;
-            let naive = NaiveDateTime::from_timestamp_millis(ms).expect("Modification time out of bounds");
-            DateTime::from_utc(naive, Utc)
+            let ms = self.inner.modification_time_ms();
+            Self::utc_ms_to_time(ms)
         }
 
         pub fn created(&self) -> DateTime<Utc> {
-            #[allow(clippy::cast_possible_truncation)]
-            let ms = self.inner.created_time_ms() as i64;
-            let naive = NaiveDateTime::from_timestamp_millis(ms).expect("Creation time out of bounds");
-            DateTime::from_utc(naive, Utc)
+            let ms = self.inner.created_time_ms();
+            Self::utc_ms_to_time(ms)
         }
 
         pub fn is_directory(&self) -> bool {
@@ -274,7 +281,16 @@ pub mod fs {
         Ok(Metadata { inner: stats })
     }
 
-    pub async fn utimes<P: Into<JsString>>(
+    fn timestamp_to_seconds(timestamp: &DateTime<Utc>) -> f64 {
+        // utimes takes timestamps in seconds - this was fun to debug
+        const NS_IN_S: f64 = 1e9;
+        #[allow(clippy::cast_precision_loss)]
+        let whole = timestamp.timestamp() as f64;
+        let fractional = f64::from(timestamp.timestamp_subsec_nanos()) / NS_IN_S;
+        whole + fractional
+    }
+
+    pub async fn lutimes<P: Into<JsString>>(
         path: P,
         a_time: &DateTime<Utc>,
         m_time: &DateTime<Utc>,
@@ -282,13 +298,9 @@ pub mod fs {
         use js_sys::Number;
 
         let path = path.into();
-        // This was lots of fun to debug
-        let scale = 1000.0;
-        #[allow(clippy::cast_precision_loss)]
-        let a_time: Number = ((a_time.timestamp_millis() as f64) / scale).into();
-        #[allow(clippy::cast_precision_loss)]
-        let m_time: Number = ((m_time.timestamp_millis() as f64) / scale).into();
-        ffi::utimes(&path, a_time.as_ref(), m_time.as_ref()).await?;
+        let a_time: Number = timestamp_to_seconds(a_time).into();
+        let m_time: Number = timestamp_to_seconds(m_time).into();
+        ffi::lutimes(&path, a_time.as_ref(), m_time.as_ref()).await?;
         Ok(())
     }
 
@@ -389,7 +401,7 @@ pub mod fs {
             pub async fn lstat(path: &JsString, options: Option<Object>) -> Result<JsValue, JsValue>;
 
             #[wasm_bindgen(catch)]
-            pub async fn utimes(path: &JsString, atime: &JsValue, mtime: &JsValue) -> Result<JsValue, JsValue>;
+            pub async fn lutimes(path: &JsString, atime: &JsValue, mtime: &JsValue) -> Result<JsValue, JsValue>;
         }
     }
 }
