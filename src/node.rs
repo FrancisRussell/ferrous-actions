@@ -274,7 +274,7 @@ pub mod fs {
         Ok(Metadata { inner: stats })
     }
 
-    pub async fn utimes<P: Into<JsString>>(
+    pub async fn lutimes<P: Into<JsString>>(
         path: P,
         a_time: &DateTime<Utc>,
         m_time: &DateTime<Utc>,
@@ -288,7 +288,7 @@ pub mod fs {
         let a_time: Number = ((a_time.timestamp_millis() as f64) / scale).into();
         #[allow(clippy::cast_precision_loss)]
         let m_time: Number = ((m_time.timestamp_millis() as f64) / scale).into();
-        ffi::utimes(&path, a_time.as_ref(), m_time.as_ref()).await?;
+        ffi::lutimes(&path, a_time.as_ref(), m_time.as_ref()).await?;
         Ok(())
     }
 
@@ -389,7 +389,7 @@ pub mod fs {
             pub async fn lstat(path: &JsString, options: Option<Object>) -> Result<JsValue, JsValue>;
 
             #[wasm_bindgen(catch)]
-            pub async fn utimes(path: &JsString, atime: &JsValue, mtime: &JsValue) -> Result<JsValue, JsValue>;
+            pub async fn lutimes(path: &JsString, atime: &JsValue, mtime: &JsValue) -> Result<JsValue, JsValue>;
         }
     }
 }
