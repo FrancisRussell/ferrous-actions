@@ -3,7 +3,7 @@ use crate::actions::cache::CacheEntry;
 use crate::cargo_hook::CargoHook;
 use crate::fingerprinting::{render_delta_items, Fingerprint};
 use crate::node::path::Path;
-use crate::{actions, error, info, node, warning, Error};
+use crate::{actions, error, info, node, safe_encoding, warning, Error};
 use async_trait::async_trait;
 use rust_toolchain_manifest::HashValue;
 use std::borrow::Cow;
@@ -13,7 +13,7 @@ const MAX_ARG_STRING_LENGTH: usize = 80;
 fn get_package_build_dir(hash: &HashValue) -> Result<Path, Error> {
     let dir = get_action_cache_dir()?
         .join("package-build-artifacts")
-        .join(base64::encode_config(hash, base64::URL_SAFE).as_str());
+        .join(safe_encoding::encode(hash).as_str());
     Ok(dir)
 }
 

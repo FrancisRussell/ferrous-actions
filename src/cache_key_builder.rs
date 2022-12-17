@@ -1,7 +1,8 @@
 use crate::actions::cache::CacheEntry;
+use crate::safe_encoding;
 use std::collections::BTreeMap;
 
-const CACHE_ENTRY_VERSION: &str = "1";
+const CACHE_ENTRY_VERSION: &str = "2";
 
 pub struct CacheKeyBuilder {
     name: String,
@@ -31,14 +32,14 @@ impl CacheKeyBuilder {
     pub fn set_attribute_nonce(&mut self, name: &str) {
         use crate::nonce::build_nonce;
         let nonce = build_nonce(8);
-        let nonce = base64::encode_config(nonce, base64::URL_SAFE);
+        let nonce = safe_encoding::encode(nonce);
         self.set_attribute(name, &nonce);
     }
 
     pub fn into_entry(self) -> CacheEntry {
         let id: [u8; 32] = self.hasher.finalize().into();
         let id = &id[..8];
-        let id = base64::encode_config(id, base64::URL_SAFE);
+        let id = safe_encoding::encode(id);
         let restore_key = format!("GitHub Rust Actions: {} - id={}", self.name, id);
         let restore_key = restore_key.replace(',', ";");
         let mut save_key = restore_key.clone();

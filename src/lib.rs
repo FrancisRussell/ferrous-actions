@@ -27,6 +27,7 @@ mod package_manifest;
 mod rng;
 mod run;
 mod rustup;
+mod safe_encoding;
 mod sleep;
 mod toolchain;
 mod utils;

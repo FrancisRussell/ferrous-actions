@@ -5,7 +5,7 @@ use crate::dir_tree::match_relative_paths;
 use crate::fingerprinting::{fingerprint_path_with_ignores, render_delta_items, Fingerprint, Ignores};
 use crate::node::os::homedir;
 use crate::node::path::Path;
-use crate::{actions, error, info, node, notice, warning, Error};
+use crate::{actions, error, info, node, notice, safe_encoding, warning, Error};
 use rust_toolchain_manifest::HashValue;
 use serde::{Deserialize, Serialize};
 use simple_path_match::PathMatchBuilder;
@@ -216,7 +216,7 @@ pub async fn restore_cargo_cache() -> Result<(), Error> {
         HashValue::from_bytes(&lock_hash.bytes)
     };
 
-    core::save_state(ID_HASH_KEY, base64::encode_config(id_hash.as_ref(), base64::URL_SAFE));
+    core::save_state(ID_HASH_KEY, safe_encoding::encode(&id_hash));
 
     for cache_type in get_types_to_cache()? {
         let folder_path = find_path(cache_type);
@@ -266,7 +266,7 @@ pub async fn save_cargo_cache() -> Result<(), Error> {
     use wasm_bindgen::JsError;
 
     let id_hash = core::get_state(ID_HASH_KEY).expect("Failed to find artifact ID hash");
-    let id_hash = base64::decode_config(&id_hash, base64::URL_SAFE).expect("Failed to decode artifact ID hash");
+    let id_hash = safe_encoding::decode(&id_hash).expect("Failed to decode artifact ID hash");
     let id_hash = HashValue::from_bytes(&id_hash);
 
     for cache_type in get_types_to_cache()? {
