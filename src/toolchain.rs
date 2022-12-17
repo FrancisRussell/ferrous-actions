@@ -3,7 +3,7 @@ use crate::actions::cache::CacheEntry;
 use crate::node::path::Path;
 use crate::node::{self};
 use crate::rustup::ToolchainConfig;
-use crate::{actions, info, Error};
+use crate::{actions, info, safe_encoding, Error};
 use async_recursion::async_recursion;
 use rust_toolchain_manifest::manifest::ManifestPackage;
 use rust_toolchain_manifest::Toolchain;
@@ -23,7 +23,7 @@ fn get_package_decompress_path(package: &ManifestPackage) -> Result<Path, Error>
     let package_hash = package.unique_identifier();
     let dir = get_action_cache_dir()?
         .join("package-decompression")
-        .join(base64::encode_config(package_hash, base64::URL_SAFE).as_str());
+        .join(safe_encoding::encode(package_hash).as_str());
     Ok(dir)
 }
 
