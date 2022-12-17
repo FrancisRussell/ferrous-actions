@@ -3,7 +3,7 @@ use base64::engine::fast_portable::FastPortable;
 fn build_engine() -> FastPortable {
     let config = base64::engine::fast_portable::NO_PAD;
     let alphabet = &base64::alphabet::URL_SAFE;
-    FastPortable::from(&alphabet, config)
+    FastPortable::from(alphabet, config)
 }
 
 pub fn encode<I: AsRef<[u8]>>(input: I) -> String {

@@ -82,6 +82,27 @@ pub mod fs {
         CharDev,
         Fifo,
         Socket,
+        Unknown,
+    }
+
+    fn determine_file_type(file_type: &ffi::FileType) -> FileTypeEnum {
+        if file_type.is_block_device() {
+            FileTypeEnum::BlockDev
+        } else if file_type.is_character_device() {
+            FileTypeEnum::CharDev
+        } else if file_type.is_socket() {
+            FileTypeEnum::Socket
+        } else if file_type.is_fifo() {
+            FileTypeEnum::Fifo
+        } else if file_type.is_symbolic_link() {
+            FileTypeEnum::Symlink
+        } else if file_type.is_directory() {
+            FileTypeEnum::Dir
+        } else if file_type.is_file() {
+            FileTypeEnum::File
+        } else {
+            FileTypeEnum::Unknown
+        }
     }
 
     #[derive(Debug)]
@@ -108,24 +129,9 @@ pub mod fs {
         }
 
         pub fn file_type(&self) -> FileType {
-            let inner = if self.inner.is_block_device() {
-                FileTypeEnum::BlockDev
-            } else if self.inner.is_character_device() {
-                FileTypeEnum::CharDev
-            } else if self.inner.is_socket() {
-                FileTypeEnum::Socket
-            } else if self.inner.is_fifo() {
-                FileTypeEnum::Fifo
-            } else if self.inner.is_symbolic_link() {
-                FileTypeEnum::Symlink
-            } else if self.inner.is_directory() {
-                FileTypeEnum::Dir
-            } else if self.inner.is_file() {
-                FileTypeEnum::File
-            } else {
-                panic!("Unhandled directory entry type")
-            };
-            FileType { inner }
+            FileType {
+                inner: determine_file_type(&self.inner),
+            }
         }
     }
 
@@ -270,6 +276,12 @@ pub mod fs {
             Self::utc_ms_to_time(ms)
         }
 
+        pub fn file_type(&self) -> FileType {
+            FileType {
+                inner: determine_file_type(&self.inner),
+            }
+        }
+
         pub fn is_directory(&self) -> bool {
             self.inner.is_directory()
         }
@@ -309,41 +321,44 @@ pub mod fs {
         use wasm_bindgen::prelude::*;
         use wasm_bindgen::JsValue;
 
-        #[wasm_bindgen(module = "fs")]
+        #[wasm_bindgen]
         extern "C" {
-            #[wasm_bindgen(js_name = "Dirent")]
             #[derive(Debug)]
-            pub type DirEnt;
+            pub type FileType;
 
-            #[wasm_bindgen(method, js_class = "Dirent", js_name = "isDirectory")]
-            pub fn is_directory(this: &DirEnt) -> bool;
+            #[wasm_bindgen(method, js_name = "isDirectory")]
+            pub fn is_directory(this: &FileType) -> bool;
 
-            #[wasm_bindgen(method, js_class = "Dirent", js_name = "isFile")]
-            pub fn is_file(this: &DirEnt) -> bool;
+            #[wasm_bindgen(method, js_name = "isFile")]
+            pub fn is_file(this: &FileType) -> bool;
 
-            #[wasm_bindgen(method, js_class = "Dirent", js_name = "isBlockDevice")]
-            pub fn is_block_device(this: &DirEnt) -> bool;
+            #[wasm_bindgen(method, js_name = "isBlockDevice")]
+            pub fn is_block_device(this: &FileType) -> bool;
 
-            #[wasm_bindgen(method, js_class = "Dirent", js_name = "isCharacterDevice")]
-            pub fn is_character_device(this: &DirEnt) -> bool;
+            #[wasm_bindgen(method, js_name = "isCharacterDevice")]
+            pub fn is_character_device(this: &FileType) -> bool;
 
-            #[wasm_bindgen(method, js_class = "Dirent", js_name = "isFIFO")]
-            pub fn is_fifo(this: &DirEnt) -> bool;
+            #[wasm_bindgen(method, js_name = "isFIFO")]
+            pub fn is_fifo(this: &FileType) -> bool;
 
-            #[wasm_bindgen(method, js_class = "Dirent", js_name = "isSocket")]
-            pub fn is_socket(this: &DirEnt) -> bool;
+            #[wasm_bindgen(method, js_name = "isSocket")]
+            pub fn is_socket(this: &FileType) -> bool;
 
-            #[wasm_bindgen(method, js_class = "Dirent", js_name = "isSymbolicLink")]
-            pub fn is_symbolic_link(this: &DirEnt) -> bool;
-
-            #[wasm_bindgen(method, getter, js_name = "name")]
-            pub fn get_name(this: &DirEnt) -> JsString;
+            #[wasm_bindgen(method, js_name = "isSymbolicLink")]
+            pub fn is_symbolic_link(this: &FileType) -> bool;
         }
 
         #[wasm_bindgen(module = "fs")]
         extern "C" {
-            #[wasm_bindgen(js_name = "Stats")]
             #[derive(Debug)]
+            #[wasm_bindgen(js_name = "DirEnt", extends = FileType)]
+            pub type DirEnt;
+
+            #[wasm_bindgen(method, getter, js_name = "name")]
+            pub fn get_name(this: &DirEnt) -> JsString;
+
+            #[derive(Debug)]
+            #[wasm_bindgen(js_name = "Stats", extends = FileType)]
             pub type Stats;
 
             #[wasm_bindgen(method, getter)]
@@ -366,9 +381,6 @@ pub mod fs {
 
             #[wasm_bindgen(method, getter)]
             pub fn mode(this: &Stats) -> f64;
-
-            #[wasm_bindgen(method, js_name = "isDirectory")]
-            pub fn is_directory(this: &Stats) -> bool;
         }
 
         #[wasm_bindgen(module = "fs/promises")]
