@@ -3,7 +3,7 @@ use crate::actions::cache::CacheEntry;
 use crate::node::path::Path;
 use crate::node::{self};
 use crate::rustup::ToolchainConfig;
-use crate::{actions, info, safe_encoding, Error};
+use crate::{actions, info, Error};
 use async_recursion::async_recursion;
 use rust_toolchain_manifest::manifest::ManifestPackage;
 use rust_toolchain_manifest::Toolchain;
@@ -20,10 +20,12 @@ fn get_cargo_home(toolchain: &Toolchain) -> Result<Path, Error> {
 }
 
 fn get_package_decompress_path(package: &ManifestPackage) -> Result<Path, Error> {
+    // We must not use base64 encoding for the folder name because that
+    // implies the platform filename is case sensitive.
     let package_hash = package.unique_identifier();
     let dir = get_action_cache_dir()?
         .join("package-decompression")
-        .join(safe_encoding::encode(package_hash).as_str());
+        .join(package_hash.to_string().as_str());
     Ok(dir)
 }
 
