@@ -86,10 +86,12 @@ pub struct Fingerprint {
     root: Entry,
 }
 
+type BranchIter<'a> = btree_map::Iter<'a, String, Entry>;
+
 #[derive(Debug)]
 struct FlatteningIterator<'a> {
     separator: String,
-    stack: VecDeque<(Option<String>, Either<btree_map::Iter<'a, String, Entry>, Metadata>)>,
+    stack: VecDeque<(Option<String>, Either<BranchIter<'a>, Metadata>)>,
 }
 
 impl<'a> Iterator for FlatteningIterator<'a> {
