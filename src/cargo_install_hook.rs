@@ -1,5 +1,5 @@
 use crate::action_paths::get_action_cache_dir;
-use crate::actions::cache::CacheEntry;
+use crate::actions::cache::Entry as CacheEntry;
 use crate::cargo_hook::CargoHook;
 use crate::fingerprinting::{render_delta_items, Fingerprint};
 use crate::node::path::Path;

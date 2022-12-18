@@ -1,5 +1,5 @@
 use crate::action_paths::get_action_cache_dir;
-use crate::actions::cache::CacheEntry;
+use crate::actions::cache::Entry as CacheEntry;
 use crate::actions::core;
 use crate::dir_tree::match_relative_paths;
 use crate::fingerprinting::{fingerprint_path_with_ignores, render_delta_items, Fingerprint, Ignores};

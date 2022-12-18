@@ -1,4 +1,4 @@
-use crate::actions::cache::CacheEntry;
+use crate::actions::cache::Entry as CacheEntry;
 use crate::safe_encoding;
 use std::collections::BTreeMap;
 
