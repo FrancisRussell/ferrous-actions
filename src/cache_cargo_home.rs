@@ -173,12 +173,11 @@ async fn build_cached_folder_info(cache_type: CacheType) -> Result<CachedFolderI
 
 fn build_cache_entry(cache_type: CacheType, key: &HashValue, path: &Path) -> CacheEntry {
     use crate::cache_key_builder::CacheKeyBuilder;
-    use crate::system::date;
 
     let name = cache_type.friendly_name();
     let mut key_builder = CacheKeyBuilder::new(&name);
     key_builder.add_id_bytes(key.as_ref());
-    let date = date::now_local();
+    let date = chrono::Local::now();
     key_builder.set_attribute("date", &date.to_string());
     key_builder.set_attribute_nonce("nonce");
     let mut cache_entry = key_builder.into_entry();
@@ -261,7 +260,6 @@ pub async fn restore_cargo_cache() -> Result<(), Error> {
 }
 
 pub async fn save_cargo_cache() -> Result<(), Error> {
-    use crate::system::date;
     use humantime::format_duration;
     use wasm_bindgen::JsError;
 
@@ -340,7 +338,7 @@ pub async fn save_cargo_cache() -> Result<(), Error> {
                 .fingerprint
                 .modified()
                 .filter(|_| !do_prune)
-                .unwrap_or_else(date::now_utc);
+                .unwrap_or_else(chrono::Utc::now);
 
             // Be more robust against our file modification time moving backwards.
             let modification_delta = new_fingerprint - old_fingerprint;
