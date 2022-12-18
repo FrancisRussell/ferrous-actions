@@ -1,6 +1,6 @@
 use crate::node::path::Path;
 use chrono::{DateTime, NaiveDateTime, Utc};
-use js_sys::{JsString, Uint8Array};
+use js_sys::{BigInt, JsString, Object, Uint8Array};
 use std::collections::VecDeque;
 use wasm_bindgen::{JsCast, JsError, JsValue};
 
@@ -134,8 +134,6 @@ pub async fn write_file<P: Into<JsString>>(path: P, data: &[u8]) -> Result<(), J
 }
 
 pub async fn read_dir<P: Into<JsString>>(path: P) -> Result<ReadDir, JsValue> {
-    use js_sys::Object;
-
     let path: JsString = path.into();
     let options = js_sys::Map::new();
     options.set(&"withFileTypes".into(), &true.into());
@@ -154,8 +152,6 @@ pub async fn read_dir<P: Into<JsString>>(path: P) -> Result<ReadDir, JsValue> {
 }
 
 pub async fn create_dir_all<P: Into<JsString>>(path: P) -> Result<(), JsValue> {
-    use js_sys::Object;
-
     let options = js_sys::Map::new();
     options.set(&"recursive".into(), &true.into());
     let options = Object::from_entries(&options).expect("Failed to convert options map to object");
@@ -190,56 +186,53 @@ pub struct Metadata {
 
 impl Metadata {
     pub fn uid(&self) -> u64 {
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-        let uid = self.inner.uid() as u64;
-        uid
+        self.inner.uid().try_into().expect("UID too large")
     }
 
     pub fn gid(&self) -> u64 {
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-        let gid = self.inner.gid() as u64;
-        gid
+        self.inner.gid().try_into().expect("GID too large")
     }
 
     #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> u64 {
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-        let len = self.inner.size() as u64;
-        len
+        self.inner.size().try_into().expect("File size too large")
     }
 
     pub fn mode(&self) -> u64 {
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-        let mode = self.inner.mode() as u64;
-        mode
+        self.inner.mode().try_into().expect("File mode too large")
     }
 
-    fn utc_ms_to_time(millis: f64) -> DateTime<Utc> {
-        const MS_IN_S: f64 = 1e3;
-        const NS_IN_MS: f64 = 1e6;
-        let floored = (millis / MS_IN_S).floor();
-        #[allow(clippy::cast_possible_truncation)]
-        let seconds = floored as i64;
-        let nanos = (millis - floored * MS_IN_S) * NS_IN_MS;
-        #[allow(clippy::cast_possible_truncation)]
-        let nanos = nanos as u32;
-        let naive = NaiveDateTime::from_timestamp_opt(seconds, nanos).expect("File time out of bounds");
+    fn utc_ns_to_time(ns: BigInt) -> DateTime<Utc> {
+        const NS_IN_S: i128 = 1000 * 1000 * 1000;
+        let ns = i128::try_from(ns).expect("Timestamp out of range");
+        let (secs, subsec_nanos) = {
+            let mut seconds = ns / NS_IN_S;
+            let mut nanoseconds = ns % NS_IN_S;
+            if nanoseconds < 0 {
+                seconds -= 1;
+                nanoseconds += NS_IN_S;
+            }
+            (seconds, nanoseconds)
+        };
+        let secs: i64 = secs.try_into().expect("Seconds out of range");
+        let subsec_nanos: u32 = subsec_nanos.try_into().expect("Nanoseconds out of range");
+        let naive = NaiveDateTime::from_timestamp_opt(secs, subsec_nanos).expect("File time out of bounds");
         DateTime::from_utc(naive, Utc)
     }
 
     pub fn accessed(&self) -> DateTime<Utc> {
-        let ms = self.inner.access_time_ms();
-        Self::utc_ms_to_time(ms)
+        let ns = self.inner.access_time_ns();
+        Self::utc_ns_to_time(ns)
     }
 
     pub fn modified(&self) -> DateTime<Utc> {
-        let ms = self.inner.modification_time_ms();
-        Self::utc_ms_to_time(ms)
+        let ns = self.inner.modification_time_ns();
+        Self::utc_ns_to_time(ns)
     }
 
     pub fn created(&self) -> DateTime<Utc> {
-        let ms = self.inner.created_time_ms();
-        Self::utc_ms_to_time(ms)
+        let ns = self.inner.created_time_ns();
+        Self::utc_ns_to_time(ns)
     }
 
     pub fn file_type(&self) -> FileType {
@@ -255,7 +248,10 @@ impl Metadata {
 
 pub async fn symlink_metadata<P: Into<JsString>>(path: P) -> Result<Metadata, JsValue> {
     let path = path.into();
-    let stats = ffi::lstat(&path, None).await.map(Into::<ffi::Stats>::into)?;
+    let options = js_sys::Map::new();
+    options.set(&"bigint".into(), &true.into());
+    let options = Object::from_entries(&options).expect("Failed to convert options map to object");
+    let stats = ffi::lstat(&path, Some(options)).await.map(Into::<ffi::Stats>::into)?;
     Ok(Metadata { inner: stats })
 }
 
@@ -283,7 +279,7 @@ pub async fn lutimes<P: Into<JsString>>(
 }
 
 pub mod ffi {
-    use js_sys::{JsString, Object};
+    use js_sys::{BigInt, JsString, Object};
     use wasm_bindgen::prelude::*;
     use wasm_bindgen::JsValue;
 
@@ -328,25 +324,25 @@ pub mod ffi {
         pub type Stats;
 
         #[wasm_bindgen(method, getter)]
-        pub fn size(this: &Stats) -> f64;
+        pub fn size(this: &Stats) -> BigInt;
 
-        #[wasm_bindgen(method, getter, js_name = "atimeMs")]
-        pub fn access_time_ms(this: &Stats) -> f64;
+        #[wasm_bindgen(method, getter, js_name = "atimeNs")]
+        pub fn access_time_ns(this: &Stats) -> BigInt;
 
-        #[wasm_bindgen(method, getter, js_name = "mtimeMs")]
-        pub fn modification_time_ms(this: &Stats) -> f64;
+        #[wasm_bindgen(method, getter, js_name = "mtimeNs")]
+        pub fn modification_time_ns(this: &Stats) -> BigInt;
 
-        #[wasm_bindgen(method, getter, js_name = "birthtimeMs")]
-        pub fn created_time_ms(this: &Stats) -> f64;
-
-        #[wasm_bindgen(method, getter)]
-        pub fn uid(this: &Stats) -> f64;
+        #[wasm_bindgen(method, getter, js_name = "birthtimeNs")]
+        pub fn created_time_ns(this: &Stats) -> BigInt;
 
         #[wasm_bindgen(method, getter)]
-        pub fn gid(this: &Stats) -> f64;
+        pub fn uid(this: &Stats) -> BigInt;
 
         #[wasm_bindgen(method, getter)]
-        pub fn mode(this: &Stats) -> f64;
+        pub fn gid(this: &Stats) -> BigInt;
+
+        #[wasm_bindgen(method, getter)]
+        pub fn mode(this: &Stats) -> BigInt;
     }
 
     #[wasm_bindgen(module = "fs/promises")]
