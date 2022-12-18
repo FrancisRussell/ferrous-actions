@@ -1,3 +1,4 @@
+#![warn(clippy::pedantic)]
 #![allow(
     clippy::missing_errors_doc,
     clippy::must_use_candidate,
@@ -8,12 +9,10 @@
 mod access_times;
 mod action_paths;
 mod actions;
-mod annotation_hook;
 mod cache_cargo_home;
 mod cache_key_builder;
 mod cargo;
-mod cargo_hook;
-mod cargo_install_hook;
+mod cargo_hooks;
 mod cargo_lock_hashing;
 mod cross;
 mod dir_tree;

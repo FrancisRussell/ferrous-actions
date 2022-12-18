@@ -1,9 +1,10 @@
 use crate::action_paths::get_action_cache_dir;
 use crate::actions::exec::Command;
 use crate::actions::io;
-use crate::annotation_hook::AnnotationHook;
-use crate::cargo_hook::{CargoHook, Composite as CompositeHook, Null as NullHook};
-use crate::cargo_install_hook::CargoInstallHook;
+use crate::cargo_hooks::{
+    Annotation as AnnotationHook, Composite as CompositeHook, Hook as CargoHook, Install as CargoInstallHook,
+    Null as NullHook,
+};
 use crate::node::path::Path;
 use crate::node::process;
 use crate::{node, nonce, Error};
