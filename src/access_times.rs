@@ -1,8 +1,7 @@
 use crate::action_paths::get_action_cache_dir;
 use crate::dir_tree::{self, DirTreeVisitor};
 use crate::node::path::Path;
-use crate::nonce::build_nonce;
-use crate::{node, warning, Error};
+use crate::{node, nonce, warning, Error};
 use async_trait::async_trait;
 
 const WAIT_ATIME_UPDATED_MS: u64 = 5;
@@ -66,7 +65,7 @@ pub async fn supports_atime() -> Result<bool, Error> {
 
     let atime_check_dir = get_atime_check_dir().await?;
     let file_path = {
-        let nonce = build_nonce(8);
+        let nonce = nonce::build(8);
         atime_check_dir.join(nonce.to_string().as_str())
     };
     let data = [0u8; 1];

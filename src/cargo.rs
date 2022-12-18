@@ -11,7 +11,7 @@ use rust_toolchain_manifest::HashValue;
 use std::borrow::Cow;
 
 async fn create_empty_dir() -> Result<Path, Error> {
-    let nonce = nonce::build_nonce(8);
+    let nonce = nonce::build(8);
     let path = get_action_cache_dir()?
         .join("empty-directories")
         .join(nonce.to_string().as_str());
