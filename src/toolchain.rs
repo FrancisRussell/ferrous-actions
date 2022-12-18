@@ -148,7 +148,7 @@ async fn fetch_and_decompress_package(package: &ManifestPackage) -> Result<(), E
     Ok(())
 }
 
-pub async fn install_toolchain(toolchain_config: &ToolchainConfig) -> Result<(), Error> {
+pub async fn install(toolchain_config: &ToolchainConfig) -> Result<(), Error> {
     use actions::tool_cache;
     use futures::{StreamExt as _, TryStreamExt as _};
     use rust_toolchain_manifest::{InstallSpec, Manifest};

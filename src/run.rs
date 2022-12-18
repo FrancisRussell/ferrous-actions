@@ -2,8 +2,7 @@ use crate::actions::core::{self, Input};
 use crate::cache_cargo_home::{restore_cargo_cache, save_cargo_cache};
 use crate::cross::Cross;
 use crate::rustup::{install_rustup, ToolchainConfig};
-use crate::toolchain::install_toolchain;
-use crate::{info, node, warning, Cargo, Error};
+use crate::{info, node, toolchain, warning, Cargo, Error};
 
 fn get_toolchain_config() -> Result<ToolchainConfig, Error> {
     let mut toolchain_config = ToolchainConfig::default();
@@ -64,7 +63,7 @@ pub async fn main() -> Result<(), Error> {
         }
         ["install-toolchain"] => {
             let toolchain_config = get_toolchain_config()?;
-            install_toolchain(&toolchain_config).await?;
+            toolchain::install(&toolchain_config).await?;
         }
         ["cargo", cargo_subcommand] => {
             let use_cross = if let Some(use_cross) = Input::from("use-cross").get()? {
