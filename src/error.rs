@@ -1,4 +1,4 @@
-use crate::package_manifest::PackageManifestParseError;
+use crate::package_manifest;
 use thiserror::Error;
 use wasm_bindgen::JsValue;
 
@@ -29,7 +29,7 @@ pub enum Error {
     UnsupportedPlatform(String),
 
     #[error("Unable to parse package manifest: {0}")]
-    PackageManifest(#[from] PackageManifestParseError),
+    PackageManifest(#[from] package_manifest::ParseError),
 
     #[error("JSON serialization/deserialization error: {0}")]
     SerdeJson(#[from] serde_json::Error),
