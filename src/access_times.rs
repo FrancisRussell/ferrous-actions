@@ -38,7 +38,7 @@ impl DirTreeVisitor for RevertAccessTime {
     }
 }
 
-pub async fn revert_folder_access_times(path: &Path) -> Result<(), Error> {
+pub async fn revert_folder(path: &Path) -> Result<(), Error> {
     let mut visitor = RevertAccessTime {
         duration: default_access_time_offset(),
     };
