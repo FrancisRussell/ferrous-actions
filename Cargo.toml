@@ -39,7 +39,7 @@ wasm-bindgen-test = "0.3"
 
 [dependencies.rust-toolchain-manifest]
 git = "https://github.com/FrancisRussell/rust-toolchain-manifest.git"
-rev = "ae0c7dd5d3df8d5f919e0d9b565850e4c0cdfc6f"
+rev = "cb2ffbde10a21c0868b5d9c47d3e5e021734c269"
 
 [dependencies.simple-path-match]
 git = "https://github.com/FrancisRussell/simple-path-match.git"
