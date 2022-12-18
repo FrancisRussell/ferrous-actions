@@ -18,6 +18,17 @@ lazy_static! {
     };
 }
 
+lazy_static! {
+    static ref DELIMITER: String = {
+        use wasm_bindgen::JsCast as _;
+        ffi::DELIMITER
+            .clone()
+            .dyn_into::<JsString>()
+            .expect("delimiter wasn't a string")
+            .into()
+    };
+}
+
 impl std::fmt::Display for Path {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         let string = String::from(&self.inner);
@@ -108,13 +119,8 @@ impl From<&Path> for JsString {
     }
 }
 
-pub fn delimiter() -> String {
-    use wasm_bindgen::JsCast as _;
-    ffi::DELIMITER
-        .clone()
-        .dyn_into::<JsString>()
-        .expect("delimiter wasn't a string")
-        .into()
+pub fn delimiter() -> Cow<'static, str> {
+    DELIMITER.as_str().into()
 }
 
 pub fn separator() -> Cow<'static, str> {
