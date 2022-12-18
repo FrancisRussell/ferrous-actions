@@ -1,4 +1,4 @@
-use crate::dir_tree::{self, DirTreeVisitor, Ignores};
+use crate::dir_tree::{self, Ignores};
 use crate::node::path::Path;
 use crate::{node, Error};
 use async_trait::async_trait;
@@ -10,7 +10,7 @@ struct FindFilesVisitor {
 }
 
 #[async_trait(?Send)]
-impl DirTreeVisitor for FindFilesVisitor {
+impl dir_tree::Visitor for FindFilesVisitor {
     async fn enter_folder(&mut self, _: &Path) -> Result<(), Error> {
         Ok(())
     }

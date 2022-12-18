@@ -12,7 +12,7 @@ const ENTROPY_BITS_PER_F64: usize = 32;
 #[derive(Derivative)]
 #[derivative(Debug)]
 #[derive(Clone)]
-pub struct MathRandomRng {
+pub struct MathRandom {
     #[derivative(Debug = "ignore")]
     bytes: [u8; 32],
 
@@ -23,9 +23,9 @@ pub struct MathRandomRng {
     hasher: Hasher,
 }
 
-impl Default for MathRandomRng {
-    fn default() -> MathRandomRng {
-        MathRandomRng {
+impl Default for MathRandom {
+    fn default() -> MathRandom {
+        MathRandom {
             bytes: [0u8; 32],
             taken: usize::MAX,
             hasher: Hasher::new(),
@@ -33,7 +33,7 @@ impl Default for MathRandomRng {
     }
 }
 
-impl MathRandomRng {
+impl MathRandom {
     pub fn fill_bytes(&mut self, dest: &mut [u8]) {
         let mut written = 0;
         while written < dest.len() {

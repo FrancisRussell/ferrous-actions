@@ -1,5 +1,5 @@
 use crate::action_paths::get_action_cache_dir;
-use crate::actions::cache::CacheEntry;
+use crate::actions::cache::Entry as CacheEntry;
 use crate::actions::core;
 use crate::dir_tree::match_relative_paths;
 use crate::fingerprinting::{fingerprint_path_with_ignores, render_delta_items, Fingerprint, Ignores};
@@ -173,7 +173,7 @@ async fn build_cached_folder_info(cache_type: CacheType) -> Result<CachedFolderI
 
 fn build_cache_entry(cache_type: CacheType, key: &HashValue, path: &Path) -> CacheEntry {
     use crate::cache_key_builder::CacheKeyBuilder;
-    use crate::date;
+    use crate::system::date;
 
     let name = cache_type.friendly_name();
     let mut key_builder = CacheKeyBuilder::new(&name);
@@ -187,7 +187,7 @@ fn build_cache_entry(cache_type: CacheType, key: &HashValue, path: &Path) -> Cac
 }
 
 pub async fn restore_cargo_cache() -> Result<(), Error> {
-    use crate::access_times::{revert_folder_access_times, supports_atime};
+    use crate::access_times::{revert_folder, supports_atime};
     use crate::cargo_lock_hashing::hash_cargo_lock_files;
 
     info!("Checking to see if filesystem supports access times...");
@@ -248,7 +248,7 @@ pub async fn restore_cargo_cache() -> Result<(), Error> {
         }
         // Set all access times to be prior to modification times
         if atimes_supported {
-            revert_folder_access_times(&folder_path).await?;
+            revert_folder(&folder_path).await?;
         }
         let folder_info = build_cached_folder_info(cache_type).await?;
         let folder_info_serialized = serde_json::to_string(&folder_info)?;
@@ -261,7 +261,7 @@ pub async fn restore_cargo_cache() -> Result<(), Error> {
 }
 
 pub async fn save_cargo_cache() -> Result<(), Error> {
-    use crate::date;
+    use crate::system::date;
     use humantime::format_duration;
     use wasm_bindgen::JsError;
 

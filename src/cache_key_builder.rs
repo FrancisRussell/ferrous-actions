@@ -1,4 +1,4 @@
-use crate::actions::cache::CacheEntry;
+use crate::actions::cache::Entry as CacheEntry;
 use crate::safe_encoding;
 use std::collections::BTreeMap;
 
@@ -30,8 +30,8 @@ impl CacheKeyBuilder {
     }
 
     pub fn set_attribute_nonce(&mut self, name: &str) {
-        use crate::nonce::build_nonce;
-        let nonce = build_nonce(8);
+        use crate::nonce;
+        let nonce = nonce::build(8);
         let nonce = safe_encoding::encode(nonce);
         self.set_attribute(name, &nonce);
     }

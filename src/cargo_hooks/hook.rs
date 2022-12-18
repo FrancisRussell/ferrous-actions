@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use std::borrow::Cow;
 
 #[async_trait(?Send)]
-pub trait CargoHook {
+pub trait Hook {
     fn additional_cargo_options(&self) -> Vec<Cow<str>> {
         Vec::new()
     }
@@ -17,18 +17,18 @@ pub trait CargoHook {
 }
 
 #[derive(Default)]
-pub struct CompositeCargoHook<'a> {
-    hooks: Vec<Box<dyn CargoHook + Sync + 'a>>,
+pub struct Composite<'a> {
+    hooks: Vec<Box<dyn Hook + Sync + 'a>>,
 }
 
-impl<'a> CompositeCargoHook<'a> {
-    pub fn push<H: CargoHook + Sync + 'a>(&mut self, hook: H) {
+impl<'a> Composite<'a> {
+    pub fn push<H: Hook + Sync + 'a>(&mut self, hook: H) {
         self.hooks.push(Box::new(hook));
     }
 }
 
 #[async_trait(?Send)]
-impl<'a> CargoHook for CompositeCargoHook<'a> {
+impl<'a> Hook for Composite<'a> {
     fn additional_cargo_options(&self) -> Vec<Cow<str>> {
         let mut result = Vec::new();
         for hook in &self.hooks {
@@ -57,6 +57,6 @@ impl<'a> CargoHook for CompositeCargoHook<'a> {
 }
 
 #[derive(Clone, Default, Debug)]
-pub struct NullHook {}
+pub struct Null {}
 
-impl CargoHook for NullHook {}
+impl Hook for Null {}

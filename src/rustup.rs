@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 const NO_DEFAULT_TOOLCHAIN_NAME: &str = "none";
 
-pub async fn install_rustup(toolchain_config: &ToolchainConfig) -> Result<(), Error> {
+pub async fn install(toolchain_config: &ToolchainConfig) -> Result<(), Error> {
     let rustup = Rustup::get_or_install().await?;
     debug!("Rustup installed at: {}", rustup.get_path());
     rustup.update().await?;

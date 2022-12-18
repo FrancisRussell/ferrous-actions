@@ -1,9 +1,10 @@
 use crate::action_paths::get_action_cache_dir;
 use crate::actions::exec::Command;
 use crate::actions::io;
-use crate::annotation_hook::AnnotationHook;
-use crate::cargo_hook::{CargoHook, CompositeCargoHook, NullHook};
-use crate::cargo_install_hook::CargoInstallHook;
+use crate::cargo_hooks::{
+    Annotation as AnnotationHook, Composite as CompositeHook, Hook as CargoHook, Install as CargoInstallHook,
+    Null as NullHook,
+};
 use crate::node::path::Path;
 use crate::node::process;
 use crate::{node, nonce, Error};
@@ -11,7 +12,7 @@ use rust_toolchain_manifest::HashValue;
 use std::borrow::Cow;
 
 async fn create_empty_dir() -> Result<Path, Error> {
-    let nonce = nonce::build_nonce(8);
+    let nonce = nonce::build(8);
     let path = get_action_cache_dir()?
         .join("empty-directories")
         .join(nonce.to_string().as_str());
@@ -84,8 +85,8 @@ impl Cargo {
         toolchain: Option<&str>,
         subcommand: &str,
         args: &[String],
-    ) -> Result<CompositeCargoHook, Error> {
-        let mut hooks = CompositeCargoHook::default();
+    ) -> Result<CompositeHook, Error> {
+        let mut hooks = CompositeHook::default();
         match subcommand {
             "build" | "check" | "clippy" => {
                 hooks.push(AnnotationHook::new(subcommand)?);
@@ -154,7 +155,7 @@ impl Cargo {
         I: IntoIterator<Item = &'a str>,
         H: CargoHook + Sync + 'a,
     {
-        let mut opaque_hook = CompositeCargoHook::default();
+        let mut opaque_hook = CompositeHook::default();
         opaque_hook.push(hook);
         self.run_with_hook_impl(toolchain, subcommand, args, opaque_hook).await
     }

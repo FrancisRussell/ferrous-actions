@@ -1,5 +1,5 @@
 use crate::action_paths::{get_action_cache_dir, get_action_share_dir};
-use crate::actions::cache::CacheEntry;
+use crate::actions::cache::Entry as CacheEntry;
 use crate::node::path::Path;
 use crate::node::{self};
 use crate::rustup::ToolchainConfig;
@@ -148,7 +148,7 @@ async fn fetch_and_decompress_package(package: &ManifestPackage) -> Result<(), E
     Ok(())
 }
 
-pub async fn install_toolchain(toolchain_config: &ToolchainConfig) -> Result<(), Error> {
+pub async fn install(toolchain_config: &ToolchainConfig) -> Result<(), Error> {
     use actions::tool_cache;
     use futures::{StreamExt as _, TryStreamExt as _};
     use rust_toolchain_manifest::{InstallSpec, Manifest};

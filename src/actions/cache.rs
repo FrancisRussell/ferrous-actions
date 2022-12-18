@@ -4,31 +4,31 @@ use std::borrow::Borrow;
 use std::convert::Into;
 use wasm_bindgen::prelude::*;
 
-pub struct CacheEntry {
+pub struct Entry {
     key: JsString,
     paths: Vec<JsString>,
     restore_keys: Vec<JsString>,
 }
 
-impl CacheEntry {
-    pub fn new<K: Into<JsString>>(key: K) -> CacheEntry {
-        CacheEntry {
+impl Entry {
+    pub fn new<K: Into<JsString>>(key: K) -> Entry {
+        Entry {
             key: key.into(),
             paths: Vec::new(),
             restore_keys: Vec::new(),
         }
     }
 
-    pub fn paths<I: IntoIterator<Item = P>, P: Borrow<Path>>(&mut self, paths: I) -> &mut CacheEntry {
+    pub fn paths<I: IntoIterator<Item = P>, P: Borrow<Path>>(&mut self, paths: I) -> &mut Entry {
         self.paths.extend(paths.into_iter().map(|p| p.borrow().into()));
         self
     }
 
-    pub fn path<P: Borrow<Path>>(&mut self, path: P) -> &mut CacheEntry {
+    pub fn path<P: Borrow<Path>>(&mut self, path: P) -> &mut Entry {
         self.paths(std::iter::once(path.borrow()))
     }
 
-    pub fn restore_keys<I, K>(&mut self, restore_keys: I) -> &mut CacheEntry
+    pub fn restore_keys<I, K>(&mut self, restore_keys: I) -> &mut Entry
     where
         I: IntoIterator<Item = K>,
         K: Into<JsString>,
@@ -37,7 +37,7 @@ impl CacheEntry {
         self
     }
 
-    pub fn restore_key<K: Into<JsString>>(&mut self, restore_key: K) -> &mut CacheEntry {
+    pub fn restore_key<K: Into<JsString>>(&mut self, restore_key: K) -> &mut Entry {
         self.restore_keys(std::iter::once(restore_key.into()))
     }
 

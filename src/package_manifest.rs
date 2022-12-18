@@ -9,20 +9,20 @@ pub enum EntryType {
 }
 
 impl FromStr for EntryType {
-    type Err = PackageManifestParseError;
+    type Err = ParseError;
 
-    fn from_str(string: &str) -> Result<EntryType, PackageManifestParseError> {
+    fn from_str(string: &str) -> Result<EntryType, ParseError> {
         let result = match string {
             "file" => EntryType::File,
             "dir" => EntryType::Directory,
-            _ => return Err(PackageManifestParseError::UnknownEntryType(string.to_string())),
+            _ => return Err(ParseError::UnknownEntryType(string.to_string())),
         };
         Ok(result)
     }
 }
 
 #[derive(Debug, Clone, Error)]
-pub enum PackageManifestParseError {
+pub enum ParseError {
     #[error("Unknown entry type: {0}")]
     UnknownEntryType(String),
 
@@ -42,14 +42,14 @@ impl PackageManifest {
 }
 
 impl FromStr for PackageManifest {
-    type Err = PackageManifestParseError;
+    type Err = ParseError;
 
-    fn from_str(string: &str) -> Result<PackageManifest, PackageManifestParseError> {
+    fn from_str(string: &str) -> Result<PackageManifest, ParseError> {
         let mut entries = Vec::new();
         for line in string.lines() {
             let split: Vec<_> = line.splitn(2, ':').collect();
             if split.len() != 2 {
-                return Err(PackageManifestParseError::MalformedLine(line.to_string()));
+                return Err(ParseError::MalformedLine(line.to_string()));
             }
             let entry_type = EntryType::from_str(split[0])?;
             let path = Path::from(split[1]);

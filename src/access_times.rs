@@ -1,8 +1,6 @@
 use crate::action_paths::get_action_cache_dir;
-use crate::dir_tree::{self, DirTreeVisitor};
 use crate::node::path::Path;
-use crate::nonce::build_nonce;
-use crate::{node, warning, Error};
+use crate::{dir_tree, node, nonce, warning, Error};
 use async_trait::async_trait;
 
 const WAIT_ATIME_UPDATED_MS: u64 = 5;
@@ -19,7 +17,7 @@ pub struct RevertAccessTime {
 }
 
 #[async_trait(?Send)]
-impl DirTreeVisitor for RevertAccessTime {
+impl dir_tree::Visitor for RevertAccessTime {
     async fn enter_folder(&mut self, _: &Path) -> Result<(), Error> {
         Ok(())
     }
@@ -38,7 +36,7 @@ impl DirTreeVisitor for RevertAccessTime {
     }
 }
 
-pub async fn revert_folder_access_times(path: &Path) -> Result<(), Error> {
+pub async fn revert_folder(path: &Path) -> Result<(), Error> {
     let mut visitor = RevertAccessTime {
         duration: default_access_time_offset(),
     };
@@ -62,11 +60,11 @@ async fn set_atime_behind_mtime(path: &Path, duration: &chrono::Duration) -> Res
 }
 
 pub async fn supports_atime() -> Result<bool, Error> {
-    use crate::sleep;
+    use crate::system::sleep;
 
     let atime_check_dir = get_atime_check_dir().await?;
     let file_path = {
-        let nonce = build_nonce(8);
+        let nonce = nonce::build(8);
         atime_check_dir.join(nonce.to_string().as_str())
     };
     let data = [0u8; 1];

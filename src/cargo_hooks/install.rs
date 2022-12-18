@@ -1,6 +1,6 @@
+use super::Hook;
 use crate::action_paths::get_action_cache_dir;
-use crate::actions::cache::CacheEntry;
-use crate::cargo_hook::CargoHook;
+use crate::actions::cache::Entry as CacheEntry;
 use crate::fingerprinting::{render_delta_items, Fingerprint};
 use crate::node::path::Path;
 use crate::{actions, error, info, node, warning, Error};
@@ -19,15 +19,15 @@ fn get_package_build_dir(hash: &HashValue) -> Result<Path, Error> {
     Ok(dir)
 }
 
-pub struct CargoInstallHook {
+pub struct Install {
     hash: HashValue,
     build_dir: String,
     fingerprint: Option<Fingerprint>,
     arg_string: String,
 }
 
-impl CargoInstallHook {
-    pub async fn new<I, A>(toolchain_hash: &HashValue, args: I) -> Result<CargoInstallHook, Error>
+impl Install {
+    pub async fn new<I, A>(toolchain_hash: &HashValue, args: I) -> Result<Install, Error>
     where
         I: IntoIterator<Item = A>,
         A: AsRef<str>,
@@ -52,7 +52,7 @@ impl CargoInstallHook {
         let hash = hasher.finalize();
         let hash = HashValue::from_bytes(hash.as_bytes());
         let build_dir = get_package_build_dir(&hash)?;
-        let mut result = CargoInstallHook {
+        let mut result = Install {
             hash,
             build_dir: build_dir.to_string(),
             fingerprint: None,
@@ -113,7 +113,7 @@ impl CargoInstallHook {
 }
 
 #[async_trait(?Send)]
-impl CargoHook for CargoInstallHook {
+impl Hook for Install {
     fn additional_cargo_options(&self) -> Vec<Cow<str>> {
         vec!["--target-dir".into(), self.build_dir.as_str().into()]
     }
