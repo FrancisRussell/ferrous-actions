@@ -2,7 +2,7 @@ use crate::action_paths::get_action_cache_dir;
 use crate::actions::exec::Command;
 use crate::actions::io;
 use crate::annotation_hook::AnnotationHook;
-use crate::cargo_hook::{CargoHook, CompositeCargoHook, NullHook};
+use crate::cargo_hook::{CargoHook, Composite as CompositeHook, Null as NullHook};
 use crate::cargo_install_hook::CargoInstallHook;
 use crate::node::path::Path;
 use crate::node::process;
@@ -84,8 +84,8 @@ impl Cargo {
         toolchain: Option<&str>,
         subcommand: &str,
         args: &[String],
-    ) -> Result<CompositeCargoHook, Error> {
-        let mut hooks = CompositeCargoHook::default();
+    ) -> Result<CompositeHook, Error> {
+        let mut hooks = CompositeHook::default();
         match subcommand {
             "build" | "check" | "clippy" => {
                 hooks.push(AnnotationHook::new(subcommand)?);
@@ -154,7 +154,7 @@ impl Cargo {
         I: IntoIterator<Item = &'a str>,
         H: CargoHook + Sync + 'a,
     {
-        let mut opaque_hook = CompositeCargoHook::default();
+        let mut opaque_hook = CompositeHook::default();
         opaque_hook.push(hook);
         self.run_with_hook_impl(toolchain, subcommand, args, opaque_hook).await
     }
