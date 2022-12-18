@@ -62,7 +62,7 @@ async fn set_atime_behind_mtime(path: &Path, duration: &chrono::Duration) -> Res
 }
 
 pub async fn supports_atime() -> Result<bool, Error> {
-    use crate::sleep;
+    use crate::system::sleep;
 
     let atime_check_dir = get_atime_check_dir().await?;
     let file_path = {

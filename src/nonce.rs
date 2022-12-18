@@ -1,4 +1,4 @@
-use crate::rng::MathRandomRng;
+use crate::system::rng::MathRandomRng;
 use rust_toolchain_manifest::HashValue;
 
 pub fn build_nonce(num_bytes: usize) -> HashValue {
