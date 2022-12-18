@@ -25,7 +25,7 @@ impl Ignores {
 }
 
 #[async_trait(?Send)]
-pub trait DirTreeVisitor {
+pub trait Visitor {
     async fn should_enter(&self, _path: &Path) -> Result<bool, Error> {
         Ok(true)
     }
@@ -36,7 +36,7 @@ pub trait DirTreeVisitor {
 
 pub async fn apply_visitor<V>(folder_path: &Path, ignores: &Ignores, visitor: &mut V) -> Result<(), Error>
 where
-    V: DirTreeVisitor,
+    V: Visitor,
 {
     apply_visitor_impl(0, folder_path, ignores, visitor).await
 }
@@ -44,7 +44,7 @@ where
 #[async_recursion(?Send)]
 async fn apply_visitor_impl<V>(depth: usize, path: &Path, ignores: &Ignores, visitor: &mut V) -> Result<(), Error>
 where
-    V: DirTreeVisitor,
+    V: Visitor,
 {
     let file_name: Cow<str> = if depth == 0 {
         ROOT_NAME.into()
@@ -96,7 +96,7 @@ impl<'a> PathMatchVisitor<'a> {
 }
 
 #[async_trait(?Send)]
-impl<'a> DirTreeVisitor for PathMatchVisitor<'a> {
+impl<'a> Visitor for PathMatchVisitor<'a> {
     async fn should_enter(&self, full: &Path) -> Result<bool, Error> {
         let result = if self.path_stack.len() >= self.matcher.max_depth() {
             false

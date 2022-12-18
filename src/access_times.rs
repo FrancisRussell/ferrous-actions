@@ -1,7 +1,6 @@
 use crate::action_paths::get_action_cache_dir;
-use crate::dir_tree::{self, DirTreeVisitor};
 use crate::node::path::Path;
-use crate::{node, nonce, warning, Error};
+use crate::{dir_tree, node, nonce, warning, Error};
 use async_trait::async_trait;
 
 const WAIT_ATIME_UPDATED_MS: u64 = 5;
@@ -18,7 +17,7 @@ pub struct RevertAccessTime {
 }
 
 #[async_trait(?Send)]
-impl DirTreeVisitor for RevertAccessTime {
+impl dir_tree::Visitor for RevertAccessTime {
     async fn enter_folder(&mut self, _: &Path) -> Result<(), Error> {
         Ok(())
     }

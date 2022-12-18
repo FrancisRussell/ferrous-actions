@@ -1,8 +1,7 @@
 pub use crate::dir_tree::Ignores;
-use crate::dir_tree::{apply_visitor, DirTreeVisitor};
 use crate::node::fs;
 use crate::node::path::{self, Path};
-use crate::Error;
+use crate::{dir_tree, Error};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use itertools::{Either, EitherOrBoth};
@@ -257,7 +256,7 @@ impl BuildFingerprintVisitor {
 }
 
 #[async_trait(?Send)]
-impl DirTreeVisitor for BuildFingerprintVisitor {
+impl dir_tree::Visitor for BuildFingerprintVisitor {
     async fn enter_folder(&mut self, _path: &Path) -> Result<(), Error> {
         self.stack.push_back(Entry::Dir(BTreeMap::new()));
         Ok(())
@@ -300,7 +299,7 @@ pub async fn fingerprint_path_with_ignores(path: &Path, ignores: &Ignores) -> Re
         stack: VecDeque::new(),
         modified: None,
     };
-    apply_visitor(path, ignores, &mut visitor).await?;
+    dir_tree::apply_visitor(path, ignores, &mut visitor).await?;
     assert_eq!(visitor.stack.len(), 1, "Tree data stack should only have single entry");
     let root = visitor
         .stack
