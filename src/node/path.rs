@@ -1,8 +1,21 @@
 use js_sys::JsString;
+use lazy_static::lazy_static;
+use std::borrow::Cow;
 
 #[derive(Clone)]
 pub struct Path {
     inner: JsString,
+}
+
+lazy_static! {
+    static ref SEPARATOR: String = {
+        use wasm_bindgen::JsCast as _;
+        ffi::SEPARATOR
+            .clone()
+            .dyn_into::<JsString>()
+            .expect("separator wasn't a string")
+            .into()
+    };
 }
 
 impl std::fmt::Display for Path {
@@ -104,13 +117,8 @@ pub fn delimiter() -> String {
         .into()
 }
 
-pub fn separator() -> String {
-    use wasm_bindgen::JsCast as _;
-    ffi::SEPARATOR
-        .clone()
-        .dyn_into::<JsString>()
-        .expect("separator wasn't a string")
-        .into()
+pub fn separator() -> Cow<'static, str> {
+    SEPARATOR.as_str().into()
 }
 
 pub mod ffi {
