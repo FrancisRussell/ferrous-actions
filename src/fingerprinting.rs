@@ -158,7 +158,7 @@ impl Fingerprint {
         };
         FlatteningIterator {
             stack: VecDeque::from([(None, root_content)]),
-            separator: path::separator(),
+            separator: path::separator().into(),
         }
     }
 
