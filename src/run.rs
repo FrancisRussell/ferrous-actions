@@ -56,7 +56,8 @@ pub async fn main() -> Result<(), Error> {
     // Greet the workflow actor.
     info!("Hello, {}!", actor);
 
-    let _input_manager = InputManager::build();
+    let input_manager = InputManager::build();
+    info!("Input manager: {:?}", input_manager);
 
     let command: String = Input::from("command").get_required()?;
     let split: Vec<&str> = command.split_whitespace().collect();

@@ -1,7 +1,9 @@
+use crate::actions::core;
+use crate::Error;
 use std::collections::HashMap;
 use strum::{EnumIter, IntoEnumIterator as _, IntoStaticStr};
 
-#[derive(IntoStaticStr, Clone, Copy, Debug, EnumIter)]
+#[derive(IntoStaticStr, Clone, Copy, Debug, EnumIter, Eq, Hash, PartialEq)]
 pub enum Input {
     #[strum(serialize = "annotation")]
     Annotations,
@@ -46,14 +48,16 @@ pub struct Manager {
 }
 
 impl Manager {
-    pub fn build() -> Manager {
+    pub fn build() -> Result<Manager, Error> {
         let mut inputs = HashMap::new();
 
         for input in Input::iter() {
-            let input: &'static str = input.into();
-            crate::info!("Input name: {}", input);
+            let input_name: &str = input.into();
+            if let Some(value) = core::Input::from(input_name).get()? {
+                inputs.insert(input, value);
+            }
         }
 
-        Manager { inputs }
+        Ok(Manager { inputs })
     }
 }
