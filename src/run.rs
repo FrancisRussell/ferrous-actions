@@ -48,11 +48,15 @@ pub async fn run() -> Result<(), Error> {
 }
 
 pub async fn main() -> Result<(), Error> {
+    use crate::input_manager::Manager as InputManager;
+
     // Get the action input.
     let actor = core::get_input("actor")?.unwrap_or_else(|| String::from("world"));
 
     // Greet the workflow actor.
     info!("Hello, {}!", actor);
+
+    let _input_manager = InputManager::build();
 
     let command: String = Input::from("command").get_required()?;
     let split: Vec<&str> = command.split_whitespace().collect();

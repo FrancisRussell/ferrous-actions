@@ -17,6 +17,7 @@ mod cross;
 mod dir_tree;
 mod error;
 mod fingerprinting;
+mod input_manager;
 mod node;
 mod nonce;
 mod noop_stream;
