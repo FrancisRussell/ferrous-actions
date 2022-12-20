@@ -1,11 +1,11 @@
 use crate::actions::core;
 use crate::Error;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use strum::{EnumIter, IntoEnumIterator as _, IntoStaticStr};
 
 #[derive(IntoStaticStr, Clone, Copy, Debug, EnumIter, Eq, Hash, PartialEq)]
 pub enum Input {
-    #[strum(serialize = "annotation")]
+    #[strum(serialize = "annotations")]
     Annotations,
 
     #[strum(serialize = "args")]
@@ -16,6 +16,9 @@ pub enum Input {
 
     #[strum(serialize = "command")]
     Command,
+
+    #[strum(serialize = "components")]
+    Components,
 
     #[strum(serialize = "default")]
     Default,
@@ -45,19 +48,38 @@ pub enum Input {
 #[derive(Debug)]
 pub struct Manager {
     inputs: HashMap<Input, String>,
+    accessed: HashSet<Input>,
 }
 
 impl Manager {
     pub fn build() -> Result<Manager, Error> {
         let mut inputs = HashMap::new();
-
         for input in Input::iter() {
             let input_name: &str = input.into();
             if let Some(value) = core::Input::from(input_name).get()? {
                 inputs.insert(input, value);
             }
         }
+        Ok(Manager {
+            inputs,
+            accessed: HashSet::new(),
+        })
+    }
 
-        Ok(Manager { inputs })
+    pub fn get(&mut self, input: Input) -> Option<&str> {
+        self.accessed.insert(input);
+        self.inputs.get(&input).map(String::as_str)
+    }
+
+    pub fn get_required(&mut self, input: Input) -> Result<&str, Error> {
+        self.get(input).ok_or_else(|| {
+            let input_name: &str = input.into();
+            Error::MissingInput(input_name.into())
+        })
+    }
+
+    pub fn unused(&self) -> HashSet<Input> {
+        let available: HashSet<_> = self.inputs.keys().copied().collect();
+        &available - &self.accessed
     }
 }
