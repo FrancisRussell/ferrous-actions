@@ -56,8 +56,6 @@ pub async fn main() -> Result<(), Error> {
     info!("Hello, {}!", actor);
 
     let input_manager = InputManager::build()?;
-    info!("Input manager: {:#?}", input_manager);
-
     let command = input_manager.get_required(Input::Command)?;
     let split: Vec<&str> = command.split_whitespace().collect();
     match split[..] {
