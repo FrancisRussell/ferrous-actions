@@ -3,7 +3,6 @@ use crate::actions::exec::Command;
 use crate::actions::io;
 use crate::cargo_hooks::{
     Annotation as AnnotationHook, Composite as CompositeHook, Hook as CargoHook, Install as CargoInstallHook,
-    Null as NullHook,
 };
 use crate::input_manager::{self, Input};
 use crate::node::path::Path;
@@ -157,40 +156,6 @@ impl Cargo {
     where
         I: IntoIterator<Item = &'a str>,
     {
-        self.run_with_hook_impl(toolchain, subcommand, args, NullHook::default(), input_manager)
-            .await
-    }
-
-    pub async fn run_with_hook<'a, I, H>(
-        &'a mut self,
-        toolchain: Option<&str>,
-        subcommand: &'a str,
-        args: I,
-        hook: H,
-        input_manager: &input_manager::Manager,
-    ) -> Result<(), Error>
-    where
-        I: IntoIterator<Item = &'a str>,
-        H: CargoHook + Sync + 'a,
-    {
-        let mut opaque_hook = CompositeHook::default();
-        opaque_hook.push(hook);
-        self.run_with_hook_impl(toolchain, subcommand, args, opaque_hook, input_manager)
-            .await
-    }
-
-    async fn run_with_hook_impl<'a, I, H>(
-        &'a mut self,
-        toolchain: Option<&str>,
-        subcommand: &'a str,
-        args: I,
-        hook: H,
-        input_manager: &input_manager::Manager,
-    ) -> Result<(), Error>
-    where
-        I: IntoIterator<Item = &'a str>,
-        H: CargoHook + Sync + 'a,
-    {
         let args: Vec<String> = args.into_iter().map(Into::into).collect();
         let mut final_args = Vec::new();
         if let Some(toolchain) = toolchain {
@@ -199,7 +164,6 @@ impl Cargo {
         let mut hooks = self
             .get_hooks_for_subcommand(toolchain, subcommand, &args[..], input_manager)
             .await?;
-        hooks.push(hook);
         final_args.push(subcommand.into());
         final_args.extend(hooks.additional_cargo_options().into_iter().map(Cow::into_owned));
         final_args.extend(args);
