@@ -4,7 +4,7 @@ use parking_lot::Mutex;
 use std::collections::{HashMap, HashSet};
 use strum::{EnumIter, IntoEnumIterator as _, IntoStaticStr};
 
-#[derive(IntoStaticStr, Clone, Copy, Debug, EnumIter, Eq, Hash, PartialEq)]
+#[derive(IntoStaticStr, Clone, Copy, Debug, EnumIter, Eq, Hash, PartialEq, strum::Display)]
 pub enum Input {
     #[strum(serialize = "annotations")]
     Annotations,
