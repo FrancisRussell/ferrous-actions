@@ -5,7 +5,7 @@ use crate::input_manager::{Input, Manager as InputManager};
 use crate::rustup::{self, ToolchainConfig};
 use crate::{info, node, toolchain, warning, Cargo, Error};
 
-fn get_toolchain_config(input_manager: &mut InputManager) -> Result<ToolchainConfig, Error> {
+fn get_toolchain_config(input_manager: &InputManager) -> Result<ToolchainConfig, Error> {
     let mut toolchain_config = ToolchainConfig::default();
     if let Some(toolchain) = input_manager.get(Input::Toolchain) {
         toolchain_config.name = toolchain.into();
@@ -55,18 +55,18 @@ pub async fn main() -> Result<(), Error> {
     // Greet the workflow actor.
     info!("Hello, {}!", actor);
 
-    let mut input_manager = InputManager::build()?;
+    let input_manager = InputManager::build()?;
     info!("Input manager: {:#?}", input_manager);
 
-    let command = input_manager.get_required(Input::Command)?.to_string();
+    let command = input_manager.get_required(Input::Command)?;
     let split: Vec<&str> = command.split_whitespace().collect();
     match split[..] {
         ["install-rustup"] => {
-            let toolchain_config = get_toolchain_config(&mut input_manager)?;
+            let toolchain_config = get_toolchain_config(&input_manager)?;
             rustup::install(&toolchain_config).await?;
         }
         ["install-toolchain"] => {
-            let toolchain_config = get_toolchain_config(&mut input_manager)?;
+            let toolchain_config = get_toolchain_config(&input_manager)?;
             toolchain::install(&toolchain_config).await?;
         }
         ["cargo", cargo_subcommand] => {
@@ -78,7 +78,7 @@ pub async fn main() -> Result<(), Error> {
                 false
             };
             let mut cargo = if use_cross {
-                let cross = Cross::get_or_install().await?;
+                let cross = Cross::get_or_install(&input_manager).await?;
                 Cargo::from_path(&cross.get_path()).await?
             } else {
                 Cargo::from_environment().await?
@@ -86,17 +86,18 @@ pub async fn main() -> Result<(), Error> {
             let cargo_args = input_manager.get(Input::Args).unwrap_or_default();
             let cargo_args =
                 shlex::split(cargo_args).ok_or_else(|| Error::ArgumentsParseError(cargo_args.to_string()))?;
-            let toolchain = core::get_input("toolchain")?;
+            let toolchain = input_manager.get(Input::Toolchain);
             cargo
                 .run(
                     toolchain.as_deref(),
                     cargo_subcommand,
                     cargo_args.iter().map(String::as_str),
+                    &input_manager,
                 )
                 .await?;
         }
-        ["cache"] => restore_cargo_cache().await?,
-        _ => return Err(Error::UnknownCommand(command)),
+        ["cache"] => restore_cargo_cache(&input_manager).await?,
+        _ => return Err(Error::UnknownCommand(command.to_string())),
     }
 
     // Set the action output.
@@ -106,11 +107,12 @@ pub async fn main() -> Result<(), Error> {
 }
 
 pub async fn post() -> Result<(), Error> {
-    let command: String = core::Input::from("command").get_required()?;
+    let input_manager = InputManager::build()?;
+    let command = input_manager.get_required(Input::Command)?;
     let split: Vec<&str> = command.split_whitespace().collect();
     #[allow(clippy::single_match)]
     match split[..] {
-        ["cache"] => save_cargo_cache().await?,
+        ["cache"] => save_cargo_cache(&input_manager).await?,
         _ => {}
     }
     Ok(())

@@ -1,5 +1,6 @@
 use crate::actions::core;
 use crate::Error;
+use parking_lot::Mutex;
 use std::collections::{HashMap, HashSet};
 use strum::{EnumIter, IntoEnumIterator as _, IntoStaticStr};
 
@@ -48,7 +49,7 @@ pub enum Input {
 #[derive(Debug)]
 pub struct Manager {
     inputs: HashMap<Input, String>,
-    accessed: HashSet<Input>,
+    accessed: Mutex<HashSet<Input>>,
 }
 
 impl Manager {
@@ -62,16 +63,16 @@ impl Manager {
         }
         Ok(Manager {
             inputs,
-            accessed: HashSet::new(),
+            accessed: Mutex::default(),
         })
     }
 
-    pub fn get(&mut self, input: Input) -> Option<&str> {
-        self.accessed.insert(input);
+    pub fn get(&self, input: Input) -> Option<&str> {
+        self.accessed.lock().insert(input);
         self.inputs.get(&input).map(String::as_str)
     }
 
-    pub fn get_required(&mut self, input: Input) -> Result<&str, Error> {
+    pub fn get_required(&self, input: Input) -> Result<&str, Error> {
         self.get(input).ok_or_else(|| {
             let input_name: &str = input.into();
             Error::MissingInput(input_name.into())
@@ -80,6 +81,6 @@ impl Manager {
 
     pub fn unused(&self) -> HashSet<Input> {
         let available: HashSet<_> = self.inputs.keys().copied().collect();
-        &available - &self.accessed
+        &available - &self.accessed.lock()
     }
 }
