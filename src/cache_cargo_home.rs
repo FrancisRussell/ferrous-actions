@@ -237,7 +237,7 @@ pub async fn restore_cargo_cache(input_manager: &input_manager::Manager) -> Resu
 
     for cache_type in get_types_to_cache(input_manager)? {
         // Mark as used to avoid spurious warnings
-        drop(get_min_recache_interval(input_manager, cache_type)?);
+        let _ = get_min_recache_interval(input_manager, cache_type)?;
 
         let folder_path = find_path(cache_type);
         if folder_path.exists().await {

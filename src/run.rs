@@ -87,7 +87,7 @@ pub async fn main() -> Result<(), Error> {
             let toolchain = input_manager.get(Input::Toolchain);
             cargo
                 .run(
-                    toolchain.as_deref(),
+                    toolchain,
                     cargo_subcommand,
                     cargo_args.iter().map(String::as_str),
                     &input_manager,
