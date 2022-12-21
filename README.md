@@ -19,7 +19,7 @@ platforms and more easily maintainable by developers who only know Rust.
 - [ ] `cross` support (implemented but untested)
 - [x] Invoking `cargo` commands
 - [x] Annotation generation from `cargo` commands
-- [ ] Validate that all known supplied parameters are used
+- [x] Validate that all known supplied parameters are used
 - [ ] Handle conflicts between `cargo` and `rustup` installs of the same component.
 - [x] Cache intermediate artifacts for `cargo install` invocations.
 - [x] Include binary name in name of cached build artifacts.

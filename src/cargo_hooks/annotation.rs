@@ -1,28 +1,19 @@
 use super::Hook;
 use crate::actions::exec::Command;
 use crate::core::AnnotationLevel;
-use crate::{core, warning, Error};
+use crate::{warning, Error};
 use async_trait::async_trait;
 use cargo_metadata::diagnostic::{DiagnosticLevel, DiagnosticSpan};
 use std::borrow::Cow;
 
 #[derive(Default)]
 pub struct Annotation {
-    enabled: bool,
     subcommand: String,
 }
 
 impl Annotation {
     pub fn new(subcommand: &str) -> Result<Annotation, Error> {
-        let enabled = if let Some(enabled) = core::get_input("annotations")? {
-            enabled
-                .parse::<bool>()
-                .map_err(|_| Error::OptionParseError("annotations".into(), enabled.clone()))?
-        } else {
-            true
-        };
         let result = Annotation {
-            enabled,
             subcommand: subcommand.to_string(),
         };
         Ok(result)
@@ -83,11 +74,7 @@ impl Annotation {
 #[async_trait(?Send)]
 impl Hook for Annotation {
     fn additional_cargo_options(&self) -> Vec<Cow<str>> {
-        if self.enabled {
-            vec!["--message-format=json".into()]
-        } else {
-            Vec::new()
-        }
+        vec!["--message-format=json".into()]
     }
 
     fn modify_command(&self, command: &mut Command) {

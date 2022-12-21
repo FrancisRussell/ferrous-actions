@@ -3,6 +3,7 @@ use crate::actions::cache::Entry as CacheEntry;
 use crate::actions::core;
 use crate::dir_tree::match_relative_paths;
 use crate::fingerprinting::{fingerprint_path_with_ignores, render_delta_items, Fingerprint, Ignores};
+use crate::input_manager::{self, Input};
 use crate::node::os::homedir;
 use crate::node::path::Path;
 use crate::{actions, error, info, node, notice, safe_encoding, warning, Error};
@@ -15,6 +16,7 @@ use std::str::FromStr;
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator, IntoStaticStr};
 
 const ID_HASH_KEY: &str = "ID_HASH";
+const CACHED_TYPES_KEY: &str = "CACHED_TYPES";
 
 fn find_cargo_home() -> Path {
     homedir().join(".cargo")
@@ -44,7 +46,9 @@ fn cached_folder_info_path(cache_type: CacheType) -> Result<Path, Error> {
         .join(file_name.as_str()))
 }
 
-#[derive(Debug, Clone, Copy, EnumIter, EnumString, Eq, Hash, PartialEq, IntoStaticStr, Display)]
+#[derive(
+    Debug, Clone, Copy, EnumIter, EnumString, Eq, Hash, PartialEq, IntoStaticStr, Display, Serialize, Deserialize,
+)]
 enum CacheType {
     #[strum(serialize = "indices")]
     Indices,
@@ -126,11 +130,19 @@ impl CacheType {
             _ => chrono::Duration::zero(),
         }
     }
+
+    fn min_recache_input(self) -> input_manager::Input {
+        match self {
+            CacheType::Indices => input_manager::Input::MinRecacheIndices,
+            CacheType::GitRepos => input_manager::Input::MinRecacheGitRepos,
+            CacheType::Crates => input_manager::Input::MinRecacheCrates,
+        }
+    }
 }
 
-fn get_types_to_cache() -> Result<Vec<CacheType>, Error> {
+fn get_types_to_cache(input_manager: &input_manager::Manager) -> Result<Vec<CacheType>, Error> {
     let mut result = HashSet::new();
-    if let Some(types) = actions::core::get_input("cache-only")? {
+    if let Some(types) = input_manager.get(Input::CacheOnly) {
         let types = types.split_whitespace();
         for cache_type in types {
             let cache_type =
@@ -143,10 +155,12 @@ fn get_types_to_cache() -> Result<Vec<CacheType>, Error> {
     Ok(result.into_iter().collect())
 }
 
-fn get_min_recache_interval(cache_type: CacheType) -> Result<chrono::Duration, Error> {
-    let option_name = format!("min-recache-{}", cache_type);
-    let result = if let Some(duration) = actions::core::get_input(option_name.as_str())? {
-        let duration = humantime::parse_duration(duration.as_str())?;
+fn get_min_recache_interval(
+    input_manager: &input_manager::Manager,
+    cache_type: CacheType,
+) -> Result<chrono::Duration, Error> {
+    let result = if let Some(duration) = input_manager.get(cache_type.min_recache_input()) {
+        let duration = humantime::parse_duration(duration)?;
         chrono::Duration::from_std(duration)?
     } else {
         cache_type.default_min_recache_interval()
@@ -185,7 +199,7 @@ fn build_cache_entry(cache_type: CacheType, key: &HashValue, path: &Path) -> Cac
     cache_entry
 }
 
-pub async fn restore_cargo_cache() -> Result<(), Error> {
+pub async fn restore_cargo_cache(input_manager: &input_manager::Manager) -> Result<(), Error> {
     use crate::access_times::{revert_folder, supports_atime};
     use crate::cargo_lock_hashing::hash_cargo_lock_files;
 
@@ -215,9 +229,16 @@ pub async fn restore_cargo_cache() -> Result<(), Error> {
         HashValue::from_bytes(&lock_hash.bytes)
     };
 
-    core::save_state(ID_HASH_KEY, safe_encoding::encode(&id_hash));
+    let types_to_cache = get_types_to_cache(input_manager)?;
+    let types_to_cache_json = serde_json::to_string(&types_to_cache)?;
 
-    for cache_type in get_types_to_cache()? {
+    core::save_state(ID_HASH_KEY, safe_encoding::encode(&id_hash));
+    core::save_state(CACHED_TYPES_KEY, safe_encoding::encode(&types_to_cache_json));
+
+    for cache_type in get_types_to_cache(input_manager)? {
+        // Mark as used to avoid spurious warnings
+        let _ = get_min_recache_interval(input_manager, cache_type)?;
+
         let folder_path = find_path(cache_type);
         if folder_path.exists().await {
             warning!(
@@ -259,7 +280,7 @@ pub async fn restore_cargo_cache() -> Result<(), Error> {
     Ok(())
 }
 
-pub async fn save_cargo_cache() -> Result<(), Error> {
+pub async fn save_cargo_cache(input_manager: &input_manager::Manager) -> Result<(), Error> {
     use humantime::format_duration;
     use wasm_bindgen::JsError;
 
@@ -267,7 +288,12 @@ pub async fn save_cargo_cache() -> Result<(), Error> {
     let id_hash = safe_encoding::decode(&id_hash).expect("Failed to decode artifact ID hash");
     let id_hash = HashValue::from_bytes(&id_hash);
 
-    for cache_type in get_types_to_cache()? {
+    let cached_types = core::get_state(CACHED_TYPES_KEY).expect("Failed to find cached types");
+    let cached_types = safe_encoding::decode(&cached_types).expect("Failed to decode cached types");
+    let cached_types: Vec<CacheType> =
+        serde_json::de::from_slice(&cached_types).expect("Failed to deserialize cached types");
+
+    for cache_type in cached_types {
         let folder_path = find_path(cache_type);
         let mut folder_info_new = build_cached_folder_info(cache_type).await?;
         let folder_info_old: CachedFolderInfo = {
@@ -344,7 +370,7 @@ pub async fn save_cargo_cache() -> Result<(), Error> {
             let modification_delta = new_fingerprint - old_fingerprint;
             let modification_delta = std::cmp::max(chrono::Duration::zero(), modification_delta);
 
-            let min_recache_interval = get_min_recache_interval(cache_type)?;
+            let min_recache_interval = get_min_recache_interval(input_manager, cache_type)?;
             let interval_is_sufficient = modification_delta > min_recache_interval;
             if interval_is_sufficient {
                 let delta = folder_info_new.fingerprint.changes_from(&folder_info_old.fingerprint);

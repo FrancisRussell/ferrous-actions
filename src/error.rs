@@ -48,6 +48,9 @@ pub enum Error {
 
     #[error("Error during path match construction: {0}")]
     PathMatchPatternError(#[from] simple_path_match::PatternError),
+
+    #[error("Required input was not supplied: {0}")]
+    MissingInput(String),
 }
 
 impl From<JsValue> for Error {

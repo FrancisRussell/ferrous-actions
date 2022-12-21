@@ -1,27 +1,28 @@
-use crate::actions::core::{self, Input};
+use crate::actions::core;
 use crate::cache_cargo_home::{restore_cargo_cache, save_cargo_cache};
 use crate::cross::Cross;
+use crate::input_manager::{Input, Manager as InputManager};
 use crate::rustup::{self, ToolchainConfig};
 use crate::{info, node, toolchain, warning, Cargo, Error};
 
-fn get_toolchain_config() -> Result<ToolchainConfig, Error> {
+fn get_toolchain_config(input_manager: &InputManager) -> Result<ToolchainConfig, Error> {
     let mut toolchain_config = ToolchainConfig::default();
-    if let Some(toolchain) = core::get_input("toolchain")? {
-        toolchain_config.name = toolchain;
+    if let Some(toolchain) = input_manager.get(Input::Toolchain) {
+        toolchain_config.name = toolchain.into();
     }
-    if let Some(profile) = core::get_input("profile")? {
-        toolchain_config.profile = profile;
+    if let Some(profile) = input_manager.get(Input::Profile) {
+        toolchain_config.profile = profile.into();
     }
-    if let Some(components) = core::get_input("components")? {
+    if let Some(components) = input_manager.get(Input::Components) {
         toolchain_config.components = components.split_whitespace().map(String::from).collect();
     }
-    if let Some(targets) = core::get_input("targets")? {
+    if let Some(targets) = input_manager.get(Input::Targets) {
         toolchain_config.targets = targets.split_whitespace().map(String::from).collect();
     }
-    if let Some(set_default) = core::get_input("default")? {
+    if let Some(set_default) = input_manager.get(Input::Default) {
         let set_default = set_default
             .parse::<bool>()
-            .map_err(|_| Error::OptionParseError("default".into(), set_default.clone()))?;
+            .map_err(|_| Error::OptionParseError("default".into(), set_default.to_string()))?;
         toolchain_config.default = set_default;
     }
     Ok(toolchain_config)
@@ -54,44 +55,51 @@ pub async fn main() -> Result<(), Error> {
     // Greet the workflow actor.
     info!("Hello, {}!", actor);
 
-    let command: String = Input::from("command").get_required()?;
+    let input_manager = InputManager::build()?;
+    let command = input_manager.get_required(Input::Command)?;
     let split: Vec<&str> = command.split_whitespace().collect();
     match split[..] {
         ["install-rustup"] => {
-            let toolchain_config = get_toolchain_config()?;
+            let toolchain_config = get_toolchain_config(&input_manager)?;
             rustup::install(&toolchain_config).await?;
         }
         ["install-toolchain"] => {
-            let toolchain_config = get_toolchain_config()?;
+            let toolchain_config = get_toolchain_config(&input_manager)?;
             toolchain::install(&toolchain_config).await?;
         }
         ["cargo", cargo_subcommand] => {
-            let use_cross = if let Some(use_cross) = Input::from("use-cross").get()? {
+            let use_cross = if let Some(use_cross) = input_manager.get(Input::UseCross) {
                 use_cross
                     .parse::<bool>()
-                    .map_err(|_| Error::OptionParseError("use-cross".into(), use_cross))?
+                    .map_err(|_| Error::OptionParseError("use-cross".into(), use_cross.to_string()))?
             } else {
                 false
             };
             let mut cargo = if use_cross {
-                let cross = Cross::get_or_install().await?;
+                let cross = Cross::get_or_install(&input_manager).await?;
                 Cargo::from_path(&cross.get_path()).await?
             } else {
                 Cargo::from_environment().await?
             };
-            let cargo_args = Input::from("args").get()?.unwrap_or_default();
-            let cargo_args = shlex::split(&cargo_args).ok_or_else(|| Error::ArgumentsParseError(cargo_args.clone()))?;
-            let toolchain = core::get_input("toolchain")?;
+            let cargo_args = input_manager.get(Input::Args).unwrap_or_default();
+            let cargo_args =
+                shlex::split(cargo_args).ok_or_else(|| Error::ArgumentsParseError(cargo_args.to_string()))?;
+            let toolchain = input_manager.get(Input::Toolchain);
             cargo
                 .run(
-                    toolchain.as_deref(),
+                    toolchain,
                     cargo_subcommand,
                     cargo_args.iter().map(String::as_str),
+                    &input_manager,
                 )
                 .await?;
         }
-        ["cache"] => restore_cargo_cache().await?,
-        _ => return Err(Error::UnknownCommand(command)),
+        ["cache"] => restore_cargo_cache(&input_manager).await?,
+        _ => return Err(Error::UnknownCommand(command.to_string())),
+    }
+
+    for input in input_manager.unused() {
+        warning!("Recognised but unused input {} was passed to action", input);
     }
 
     // Set the action output.
@@ -101,11 +109,12 @@ pub async fn main() -> Result<(), Error> {
 }
 
 pub async fn post() -> Result<(), Error> {
-    let command: String = Input::from("command").get_required()?;
+    let input_manager = InputManager::build()?;
+    let command = input_manager.get_required(Input::Command)?;
     let split: Vec<&str> = command.split_whitespace().collect();
     #[allow(clippy::single_match)]
     match split[..] {
-        ["cache"] => save_cargo_cache().await?,
+        ["cache"] => save_cargo_cache(&input_manager).await?,
         _ => {}
     }
     Ok(())

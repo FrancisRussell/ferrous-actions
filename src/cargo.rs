@@ -5,6 +5,7 @@ use crate::cargo_hooks::{
     Annotation as AnnotationHook, Composite as CompositeHook, Hook as CargoHook, Install as CargoInstallHook,
     Null as NullHook,
 };
+use crate::input_manager::{self, Input};
 use crate::node::path::Path;
 use crate::node::process;
 use crate::{node, nonce, Error};
@@ -85,11 +86,21 @@ impl Cargo {
         toolchain: Option<&str>,
         subcommand: &str,
         args: &[String],
+        input_manager: &input_manager::Manager,
     ) -> Result<CompositeHook, Error> {
         let mut hooks = CompositeHook::default();
         match subcommand {
             "build" | "check" | "clippy" => {
-                hooks.push(AnnotationHook::new(subcommand)?);
+                let enabled = if let Some(enabled) = input_manager.get(Input::Annotations) {
+                    enabled
+                        .parse::<bool>()
+                        .map_err(|_| Error::OptionParseError("annotations".into(), enabled.to_string()))?
+                } else {
+                    true
+                };
+                if enabled {
+                    hooks.push(AnnotationHook::new(subcommand)?);
+                }
             }
             "install" => {
                 // Due to the presence of rust toolchain files, actions-rs decides to change
@@ -136,11 +147,17 @@ impl Cargo {
         Ok(HashValue::from_bytes(output.as_bytes()))
     }
 
-    pub async fn run<'a, I>(&'a mut self, toolchain: Option<&str>, subcommand: &'a str, args: I) -> Result<(), Error>
+    pub async fn run<'a, I>(
+        &'a mut self,
+        toolchain: Option<&str>,
+        subcommand: &'a str,
+        args: I,
+        input_manager: &input_manager::Manager,
+    ) -> Result<(), Error>
     where
         I: IntoIterator<Item = &'a str>,
     {
-        self.run_with_hook_impl(toolchain, subcommand, args, NullHook::default())
+        self.run_with_hook_impl(toolchain, subcommand, args, NullHook::default(), input_manager)
             .await
     }
 
@@ -150,6 +167,7 @@ impl Cargo {
         subcommand: &'a str,
         args: I,
         hook: H,
+        input_manager: &input_manager::Manager,
     ) -> Result<(), Error>
     where
         I: IntoIterator<Item = &'a str>,
@@ -157,7 +175,8 @@ impl Cargo {
     {
         let mut opaque_hook = CompositeHook::default();
         opaque_hook.push(hook);
-        self.run_with_hook_impl(toolchain, subcommand, args, opaque_hook).await
+        self.run_with_hook_impl(toolchain, subcommand, args, opaque_hook, input_manager)
+            .await
     }
 
     async fn run_with_hook_impl<'a, I, H>(
@@ -166,6 +185,7 @@ impl Cargo {
         subcommand: &'a str,
         args: I,
         hook: H,
+        input_manager: &input_manager::Manager,
     ) -> Result<(), Error>
     where
         I: IntoIterator<Item = &'a str>,
@@ -176,7 +196,9 @@ impl Cargo {
         if let Some(toolchain) = toolchain {
             final_args.push(format!("+{}", toolchain));
         }
-        let mut hooks = self.get_hooks_for_subcommand(toolchain, subcommand, &args[..]).await?;
+        let mut hooks = self
+            .get_hooks_for_subcommand(toolchain, subcommand, &args[..], input_manager)
+            .await?;
         hooks.push(hook);
         final_args.push(subcommand.into());
         final_args.extend(hooks.additional_cargo_options().into_iter().map(Cow::into_owned));

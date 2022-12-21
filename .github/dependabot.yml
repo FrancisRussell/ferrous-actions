@@ -6,7 +6,6 @@ updates:
       interval: "weekly"
     labels:
       - "dependencies"
-      - "github-actions"
 
   - package-ecosystem: "npm"
     directory: "/"
@@ -14,7 +13,6 @@ updates:
       interval: "weekly"
     labels:
       - "dependencies"
-      - "npm"
 
   - package-ecosystem: "cargo"
     directory: "/"
@@ -22,4 +20,3 @@ updates:
       interval: "weekly"
     labels:
       - "dependencies"
-      - "cargo"
