@@ -1,0 +1,31 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  create-release:
+    name: Create release
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 16.x
+      - run: find -L ~/.cargo
+      - run: npm ci
+      - run: npm run build
+      - run: git add -f dist
+      - run: git config --global user.name "$GITHUB_ACTOR"
+      - run: git config --global user.email "$GITHUB_ACTOR@users.noreply.github.com"
+      - run: git config --unset "http.https://github.com/.extraheader"
+      - run: git commit -m "Release $GITHUB_REF_NAME"
+      - run: git tag -f "$GITHUB_REF_NAME"
+      - run: git remote add release https://FrancisRussell:${{ secrets.PERSONAL_ACCESS_TOKEN }}@github.com/FrancisRussell/actions-test.git
+      - run: git push -f release "HEAD:refs/heads/release/$GITHUB_REF_NAME"
+      - run: git push -f release "refs/tags/$GITHUB_REF_NAME"
