@@ -1,5 +1,5 @@
 [package]
-name = "github-rust-actions"
+name = "ferrous-actions"
 description = "GitHub actions for Rust written in Rust and compiled to WebAssembly"
 version = "0.1.0"
 repository = "https://github.com/FrancisRussell/github-rust-actions"

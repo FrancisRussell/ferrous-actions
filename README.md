@@ -1,5 +1,5 @@
-# GitHub actions for Rust written in Rust
-[![CI](https://github.com/FrancisRussell/github-rust-actions/workflows/CI/badge.svg)](https://github.com/FrancisRussell/github-rust-actions/actions?query=workflow%3ACI)
+# Ferrous Actions
+[![CI](https://github.com/FrancisRussell/ferrous-actions/workflows/CI/badge.svg)](https://github.com/FrancisRussell/ferrous-actions/actions?query=workflow%3ACI)
 
 GitHub action for Rust, written in Rust and compiled to WebAssembly.
 
