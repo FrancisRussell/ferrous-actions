@@ -20,7 +20,10 @@ jobs:
       - run: find -L ~/.cargo
       - run: npm ci
       - run: npm run build
-      - run: git add -f dist
+      - run: npm run generate-licenses
+      - run: cargo install cargo-about
+      - run: ./tools/generate-rust-licenses
+      - run: git add -f dist LICENSE-3RD-PARTY-JAVASCRIPT LICENSE-3RD-PARTY-RUST
       - run: git config --global user.name "$GITHUB_ACTOR"
       - run: git config --global user.email "$GITHUB_ACTOR@users.noreply.github.com"
       - run: git config --unset "http.https://github.com/.extraheader"
