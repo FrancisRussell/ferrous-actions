@@ -1,0 +1,10 @@
+{{#each licenses}}
+The following packages are licensed under {{id}}:
+{{#each used_by}}
+{{crate.name}} {{crate.version}}
+{{/each}}
+
+The full license text follows:
+{{text}}
+
+{{/each}}

@@ -8,7 +8,8 @@
     "format": "cargo fmt",
     "format-check": "cargo fmt -- --check",
     "lint": "cargo clippy",
-    "test": "wasm-pack test --node"
+    "test": "wasm-pack test --node",
+    "generate-licenses": "npm-license-text . LICENSE-3RD-PARTY-JAVASCRIPT"
   },
   "repository": {
     "type": "git",
@@ -35,6 +36,7 @@
   },
   "devDependencies": {
     "@vercel/ncc": "^0.36.0",
-    "wasm-pack": "^0.10.1"
+    "wasm-pack": "^0.10.1",
+    "npm-license-text": "^1.0.3"
   }
 }

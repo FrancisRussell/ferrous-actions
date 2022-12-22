@@ -1,7 +1,9 @@
-node_modules/
-target/
-pkg/
-dist/
+/dist/
+/LICENSE-3RD-PARTY-JAVASCRIPT
+/LICENSE-3RD-PARTY-RUST
+/node_modules/
+/pkg/
+/target/
+/wasm-pack.log
 
-wasm-pack.log
 .*.swp
