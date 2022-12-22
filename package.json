@@ -9,7 +9,7 @@
     "format-check": "cargo fmt -- --check",
     "lint": "cargo clippy",
     "test": "wasm-pack test --node",
-    "generate-licenses": "npm-license-text . LICENSE-3RD-PARTY-JAVASCRIPT"
+    "generate-licenses": "npm-license-text . LICENSE-3RD-PARTY-JAVASCRIPT || echo 'Ignoring error from npm-license-text'"
   },
   "repository": {
     "type": "git",
