@@ -1,7 +1,8 @@
-node_modules/
-target/
-pkg/
-dist/
+/dist/
+/LICENSES-RUST
+/node_modules/
+/pkg/
+/target/
+/wasm-pack.log
 
-wasm-pack.log
 .*.swp
