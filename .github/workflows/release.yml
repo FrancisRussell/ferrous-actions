@@ -30,6 +30,6 @@ jobs:
       - run: git config --unset "http.https://github.com/.extraheader"
       - run: git commit -m "Release $GITHUB_REF_NAME"
       - run: git tag -f "$GITHUB_REF_NAME"
-      - run: git remote add release https://FrancisRussell:${{ secrets.PERSONAL_ACCESS_TOKEN }}@github.com/FrancisRussell/actions-test.git
+      - run: git remote add release https://FrancisRussell:${{ secrets.PERSONAL_ACCESS_TOKEN }}@github.com/FrancisRussell/ferrous-actions.git
       - run: git push -f release "HEAD:refs/heads/release/$GITHUB_REF_NAME"
       - run: git push -f release "refs/tags/$GITHUB_REF_NAME"
