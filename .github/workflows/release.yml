@@ -24,6 +24,7 @@ jobs:
       - run: cargo install cargo-about
       - run: ./tools/generate-rust-licenses
       - run: git add -f dist LICENSE-3RD-PARTY-JAVASCRIPT LICENSE-3RD-PARTY-RUST
+      - run: git rm -rf .github/workflows
       - run: git config --global user.name "$GITHUB_ACTOR"
       - run: git config --global user.email "$GITHUB_ACTOR@users.noreply.github.com"
       - run: git config --unset "http.https://github.com/.extraheader"
