@@ -1,5 +1,6 @@
 /dist/
-/LICENSES-RUST
+/LICENSE-3RD-PARTY-JAVASCRIPT
+/LICENSE-3RD-PARTY-RUST
 /node_modules/
 /pkg/
 /target/

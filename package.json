@@ -4,11 +4,12 @@
   "private": true,
   "description": "GitHub actions for Rust written in Rust and compiled to WebAssembly",
   "scripts": {
-    "build": "wasm-pack build -t nodejs --out-name lib && ncc build --license LICENSE pkg/lib.js -o dist && cp phase-wrappers/* dist",
+    "build": "wasm-pack build -t nodejs --out-name lib && ncc build pkg/lib.js -o dist && cp phase-wrappers/* dist",
     "format": "cargo fmt",
     "format-check": "cargo fmt -- --check",
     "lint": "cargo clippy",
-    "test": "wasm-pack test --node"
+    "test": "wasm-pack test --node",
+    "generate-licenses": "npm-license-text . LICENSE-3RD-PARTY-JAVASCRIPT"
   },
   "repository": {
     "type": "git",
@@ -35,6 +36,7 @@
   },
   "devDependencies": {
     "@vercel/ncc": "^0.36.0",
-    "wasm-pack": "^0.10.1"
+    "wasm-pack": "^0.10.1",
+    "npm-license-text": "^1.0.3"
   }
 }

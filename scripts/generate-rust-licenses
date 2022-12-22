@@ -2,4 +2,4 @@
 set -eux
 
 cargo install --locked cargo-about
-cargo about generate -c ./.about/config.toml -o LICENSES-RUST ./.about/template.hbs
+cargo about generate -c ./.about/config.toml -o LICENSE-3RD-PARTY-RUST ./.about/template.hbs
