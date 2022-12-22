@@ -324,6 +324,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "ferrous-actions"
+version = "0.1.0"
+dependencies = [
+ "async-recursion",
+ "async-trait",
+ "base64",
+ "blake3",
+ "cargo_metadata",
+ "chrono",
+ "console_error_panic_hook",
+ "derivative",
+ "futures",
+ "humantime",
+ "itertools",
+ "js-sys",
+ "lazy_static",
+ "parking_lot",
+ "regex",
+ "rust-toolchain-manifest",
+ "serde",
+ "serde_json",
+ "shlex",
+ "simple-path-match",
+ "strum",
+ "target-lexicon",
+ "thiserror",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "wasm-bindgen-test",
+]
+
+[[package]]
 name = "futures"
 version = "0.3.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -396,38 +428,6 @@ checksum = "bff49e947297f3312447abdca79f45f4738097cc82b06e72054d2223f601f1b9"
 dependencies = [
  "typenum",
  "version_check",
-]
-
-[[package]]
-name = "github-rust-actions"
-version = "0.1.0"
-dependencies = [
- "async-recursion",
- "async-trait",
- "base64",
- "blake3",
- "cargo_metadata",
- "chrono",
- "console_error_panic_hook",
- "derivative",
- "futures",
- "humantime",
- "itertools",
- "js-sys",
- "lazy_static",
- "parking_lot",
- "regex",
- "rust-toolchain-manifest",
- "serde",
- "serde_json",
- "shlex",
- "simple-path-match",
- "strum",
- "target-lexicon",
- "thiserror",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "wasm-bindgen-test",
 ]
 
 [[package]]

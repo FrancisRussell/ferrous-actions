@@ -40,7 +40,7 @@ impl CacheKeyBuilder {
         let id: [u8; 32] = self.hasher.finalize().into();
         let id = &id[..8];
         let id = safe_encoding::encode(id);
-        let restore_key = format!("GitHub Rust Actions: {} - id={}", self.name, id);
+        let restore_key = format!("Ferrous Actions: {} - id={}", self.name, id);
         let restore_key = restore_key.replace(',', ";");
         let mut save_key = restore_key.clone();
         if !self.attributes.is_empty() {

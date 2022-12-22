@@ -1,5 +1,5 @@
-name: 'Hello World'
-description: 'Hello World from Rust-generated WebAssembly!'
+name: 'Ferrous Actions'
+description: 'GitHub Rust actions written in Rust'
 inputs:
   actor:
     description: 'The user that triggered the workflow'
