@@ -184,9 +184,14 @@ pub async fn install(toolchain_config: &ToolchainConfig) -> Result<(), Error> {
         .buffer_unordered(MAX_CONCURRENT_PACKAGE_INSTALLS);
     process_packages.try_collect().await?;
 
-    if toolchain_config.default {
+    if toolchain_config.set_default {
         let cargo_bin = get_cargo_home(&toolchain)?.join("bin");
         actions::core::add_path(&cargo_bin);
+    } else {
+        return Err(Error::ToolchainInstallFunctionality("default=false".into()));
+    }
+    if toolchain_config.set_override {
+        return Err(Error::ToolchainInstallFunctionality("override".into()));
     }
     Ok(())
 }

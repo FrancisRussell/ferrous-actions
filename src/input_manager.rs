@@ -33,6 +33,9 @@ pub enum Input {
     #[strum(serialize = "min-recache-indices")]
     MinRecacheIndices,
 
+    #[strum(serialize = "override")]
+    Override,
+
     #[strum(serialize = "profile")]
     Profile,
 

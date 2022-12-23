@@ -51,6 +51,9 @@ pub enum Error {
 
     #[error("Required input was not supplied: {0}")]
     MissingInput(String),
+
+    #[error("Toolchain install backend does not support {0} functionality")]
+    ToolchainInstallFunctionality(String),
 }
 
 impl From<JsValue> for Error {
