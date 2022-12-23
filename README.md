@@ -13,10 +13,10 @@ platforms and more easily maintainable by developers who only know Rust.
 
 ## Status
 
-- [ ] CI builds can produce commits in a release repository so that action can be used
+- [x] CI builds can produce commits in a release repository so that action can be used
 - [x] `rustup` installation
 - [x] `rustup` installation of specified toolchains
-- [ ] `cross` support (implemented but untested)
+- [x] `cross` support
 - [x] Invoking `cargo` commands
 - [x] Annotation generation from `cargo` commands
 - [x] Validate that all known supplied parameters are used
@@ -32,6 +32,7 @@ platforms and more easily maintainable by developers who only know Rust.
 - [x] Drop unused Git repos from cache (keyed on Cargo.lock files)
 - [ ] Drop unused `cargo install` build artifacts from cache
 - [x] Ignore Rustup toolchain files for all package installs
+- [ ] Aggregate uses of cached cargo home items
 
 ## Acknowledgements
 
