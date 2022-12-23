@@ -22,8 +22,14 @@ fn get_toolchain_config(input_manager: &InputManager) -> Result<ToolchainConfig,
     if let Some(set_default) = input_manager.get(Input::Default) {
         let set_default = set_default
             .parse::<bool>()
-            .map_err(|_| Error::OptionParseError("default".into(), set_default.to_string()))?;
-        toolchain_config.default = set_default;
+            .map_err(|_| Error::OptionParseError(Input::Default.to_string(), set_default.to_string()))?;
+        toolchain_config.set_default = set_default;
+    }
+    if let Some(set_override) = input_manager.get(Input::Override) {
+        let set_override = set_override
+            .parse::<bool>()
+            .map_err(|_| Error::OptionParseError(Input::Override.to_string(), set_override.to_string()))?;
+        toolchain_config.set_override = set_override;
     }
     Ok(toolchain_config)
 }

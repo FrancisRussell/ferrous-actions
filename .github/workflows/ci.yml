@@ -40,7 +40,7 @@ jobs:
           command: install-rustup
           toolchain: nightly
           profile: minimal
-          targets: wasm32-unknown-unknown
+          target: wasm32-unknown-unknown
           components: clippy
           default: true
       - id: install-grcov

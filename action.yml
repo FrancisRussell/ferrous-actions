@@ -16,7 +16,7 @@ inputs:
   profile:
     description: 'A profile that selects components (minimal, default, complete)'
     required: false
-  targets:
+  target:
     description: 'Targets to install e.g. x86_64-unknown-linux-gnu'
     required: false
   default:

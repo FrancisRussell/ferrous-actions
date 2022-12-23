@@ -21,7 +21,8 @@ pub struct ToolchainConfig {
     pub profile: String,
     pub components: Vec<String>,
     pub targets: Vec<String>,
-    pub default: bool,
+    pub set_default: bool,
+    pub set_override: bool,
 }
 
 impl Default for ToolchainConfig {
@@ -31,7 +32,8 @@ impl Default for ToolchainConfig {
             profile: "default".into(),
             components: Vec::new(),
             targets: Vec::new(),
-            default: false,
+            set_default: true,
+            set_override: false,
         }
     }
 }
@@ -117,13 +119,15 @@ impl Rustup {
             args.extend(["-c".into(), component.clone()]);
         }
         Command::from(&self.path).args(args).exec().await.map_err(Error::Js)?;
-        if config.default {
-            Command::from(&self.path)
-                .arg("default")
-                .arg(config.name.clone())
-                .exec()
-                .await
-                .map_err(Error::Js)?;
+        for (flag, option_name) in [(config.set_default, "default"), (config.set_override, "override")] {
+            if flag {
+                Command::from(&self.path)
+                    .arg(option_name)
+                    .arg(config.name.clone())
+                    .exec()
+                    .await
+                    .map_err(Error::Js)?;
+            }
         }
         Ok(())
     }

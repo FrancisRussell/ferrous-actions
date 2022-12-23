@@ -33,10 +33,14 @@ pub enum Input {
     #[strum(serialize = "min-recache-indices")]
     MinRecacheIndices,
 
+    #[strum(serialize = "override")]
+    Override,
+
     #[strum(serialize = "profile")]
     Profile,
 
-    #[strum(serialize = "targets")]
+    // We name this target instead of targets since actions-rs only has target
+    #[strum(serialize = "target")]
     Targets,
 
     #[strum(serialize = "toolchain")]
