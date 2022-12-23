@@ -12,7 +12,7 @@ use target_lexicon::Triple;
 
 const MAX_CONCURRENT_PACKAGE_INSTALLS: usize = 4;
 
-fn get_cargo_home(toolchain: &Toolchain) -> Result<Path, Error> {
+fn get_toolchain_home(toolchain: &Toolchain) -> Result<Path, Error> {
     let dir = get_action_share_dir()?
         .join("toolchains")
         .join(toolchain.to_string().as_str());
@@ -76,7 +76,7 @@ async fn overlay_and_move_dir(from: &Path, to: &Path) -> Result<(), Error> {
 async fn install_components(toolchain: &Toolchain, package: &ManifestPackage) -> Result<(), Error> {
     use crate::package_manifest::{EntryType, PackageManifest};
 
-    let cargo_home = get_cargo_home(toolchain)?;
+    let cargo_home = get_toolchain_home(toolchain)?;
     node::fs::create_dir_all(&cargo_home).await?;
 
     let extract_path = get_package_decompress_path(package)?;
@@ -153,7 +153,14 @@ pub async fn install(toolchain_config: &ToolchainConfig) -> Result<(), Error> {
     use futures::{StreamExt as _, TryStreamExt as _};
     use rust_toolchain_manifest::{InstallSpec, Manifest};
 
-    let toolchain = Toolchain::from_str(&toolchain_config.name)?;
+    let toolchain = {
+        let mut toolchain = Toolchain::from_str(&toolchain_config.name)?;
+        toolchain.host = Some(match toolchain.host {
+            Some(host) => host,
+            None => default_target_for_platform()?,
+        });
+        toolchain
+    };
     let manifest_url = toolchain.manifest_url();
     info!(
         "Will download manifest for toolchain {} from {}",
@@ -166,7 +173,7 @@ pub async fn install(toolchain_config: &ToolchainConfig) -> Result<(), Error> {
     let manifest = node::fs::read_file(&manifest_path).await?;
     let manifest = String::from_utf8(manifest).map_err(|_| Error::ManifestNotUtf8)?;
     let manifest = Manifest::try_from(manifest.as_str())?;
-    let target = toolchain.host.clone().unwrap_or(default_target_for_platform()?);
+    let target = toolchain.host.clone().expect("Toolchain target unexpectedly missing");
     info!("Attempting to find toolchain for target {}", target);
     let install_spec = InstallSpec {
         profile: toolchain_config.profile.clone(),
@@ -185,7 +192,7 @@ pub async fn install(toolchain_config: &ToolchainConfig) -> Result<(), Error> {
     process_packages.try_collect().await?;
 
     if toolchain_config.set_default {
-        let cargo_bin = get_cargo_home(&toolchain)?.join("bin");
+        let cargo_bin = get_toolchain_home(&toolchain)?.join("bin");
         actions::core::add_path(&cargo_bin);
     } else {
         return Err(Error::ToolchainInstallFunctionality("default=false".into()));
