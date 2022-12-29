@@ -200,6 +200,7 @@ fn build_cache_entry(cache_type: CacheType, key: &HashValue, path: &Path) -> Cac
 }
 
 pub async fn restore_cargo_cache(input_manager: &input_manager::Manager) -> Result<(), Error> {
+    /*
     use crate::access_times::{revert_folder, supports_atime};
     use crate::cargo_lock_hashing::hash_cargo_lock_files;
 
@@ -277,10 +278,12 @@ pub async fn restore_cargo_cache(input_manager: &input_manager::Manager) -> Resu
         node::fs::create_dir_all(&parent).await?;
         node::fs::write_file(&folder_info_path, folder_info_serialized.as_bytes()).await?;
     }
+    */
     Ok(())
 }
 
 pub async fn save_cargo_cache(input_manager: &input_manager::Manager) -> Result<(), Error> {
+    /*
     use humantime::format_duration;
     use wasm_bindgen::JsError;
 
@@ -392,5 +395,6 @@ pub async fn save_cargo_cache(input_manager: &input_manager::Manager) -> Result<
             }
         }
     }
+    */
     Ok(())
 }
