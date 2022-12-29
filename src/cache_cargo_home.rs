@@ -9,7 +9,7 @@ use crate::node::path::Path;
 use crate::{actions, error, info, node, notice, safe_encoding, warning, Error};
 use rust_toolchain_manifest::HashValue;
 use serde::{Deserialize, Serialize};
-use simple_path_match::PathMatchBuilder;
+use simple_path_match::{PathMatch, PathMatchBuilder};
 use std::borrow::Cow;
 use std::collections::HashSet;
 use std::str::FromStr;
@@ -24,6 +24,17 @@ fn find_cargo_home() -> Path {
 
 fn find_path(cache_type: CacheType) -> Path {
     find_cargo_home().join(cache_type.relative_path())
+}
+
+fn depth_to_match(depth: usize) -> Result<PathMatch, Error> {
+    use itertools::Itertools as _;
+
+    let pattern = if depth == 0 {
+        ".".into()
+    } else {
+        std::iter::repeat("*").take(depth).join("/")
+    };
+    Ok(PathMatch::from_pattern(&pattern, &node::path::separator())?)
 }
 
 async fn find_additional_delete_paths(cache_type: CacheType) -> Result<Vec<Path>, Error> {
@@ -85,10 +96,10 @@ impl CacheType {
 
     fn add_additional_delete_paths(self, match_builder: &mut PathMatchBuilder) -> Result<(), Error> {
         // These are paths we should delete at the same time as restoring the cache and
-        // also before saving.  This is mainly because we want to see what in
+        // also before saving. This is primarily because we want to see what in
         // the cache is accessed, and leaving derived information about can
         // cause cached items to never have their content read, leading to items
-        // being evicted from and then restored back to the cache.
+        // repeatedly being evicted then restored.
         match self {
             CacheType::Indices => {
                 match_builder.add_pattern("registry/index/*/.cache")?;
@@ -114,7 +125,7 @@ impl CacheType {
         ignores
     }
 
-    fn prunable_entries_depth(self) -> usize {
+    fn entries_depth(self) -> usize {
         match self {
             CacheType::Indices | CacheType::GitRepos => 1,
             CacheType::Crates => {
@@ -200,6 +211,15 @@ fn build_cache_entry(cache_type: CacheType, key: &HashValue, path: &Path) -> Cac
 }
 
 pub async fn restore_cargo_cache(input_manager: &input_manager::Manager) -> Result<(), Error> {
+    let cached_types = get_types_to_cache(input_manager)?;
+    for cache_type in cached_types {
+        let folder_path = find_path(cache_type);
+        let entries_depth = cache_type.entries_depth();
+        let entry_matcher = depth_to_match(entries_depth)?;
+        let entry_paths = match_relative_paths(&folder_path, &entry_matcher).await?;
+        info!("Cache entries for {}: {:#?}", cache_type, entry_paths);
+    }
+
     /*
     use crate::access_times::{revert_folder, supports_atime};
     use crate::cargo_lock_hashing::hash_cargo_lock_files;
@@ -327,7 +347,7 @@ pub async fn save_cargo_cache(input_manager: &input_manager::Manager) -> Result<
         // Identify unaccessed items and prune them
         let unaccessed = folder_info_new
             .fingerprint
-            .get_unaccessed_since(&folder_info_old.fingerprint, cache_type.prunable_entries_depth());
+            .get_unaccessed_since(&folder_info_old.fingerprint, cache_type.entries_depth());
 
         let do_prune = !unaccessed.is_empty();
         if do_prune {
