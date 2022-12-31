@@ -17,6 +17,7 @@ mod cross;
 mod dir_tree;
 mod error;
 mod fingerprinting;
+mod hasher;
 mod input_manager;
 mod job;
 mod node;

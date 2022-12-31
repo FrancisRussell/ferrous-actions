@@ -3,7 +3,9 @@ use crate::actions::cache::Entry as CacheEntry;
 use crate::actions::core;
 use crate::dir_tree::match_relative_paths;
 use crate::fingerprinting::{fingerprint_path_with_ignores, render_delta_items, Fingerprint, Ignores};
+use crate::hasher::Blake3 as Blake3Hasher;
 use crate::input_manager::{self, Input};
+use crate::job::Job;
 use crate::node::os::homedir;
 use crate::node::path::Path;
 use crate::{actions, error, info, node, notice, safe_encoding, warning, Error};
@@ -12,10 +14,11 @@ use serde::{Deserialize, Serialize};
 use simple_path_match::{PathMatch, PathMatchBuilder};
 use std::borrow::Cow;
 use std::collections::HashSet;
+use std::hash::{Hash as _, Hasher as _};
 use std::str::FromStr;
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator, IntoStaticStr};
 
-const ID_HASH_KEY: &str = "ID_HASH";
+const SCOPE_HASH_KEY: &str = "SCOPE_HASH";
 const CACHED_TYPES_KEY: &str = "CACHED_TYPES";
 
 fn find_cargo_home() -> Path {
@@ -53,8 +56,12 @@ async fn find_additional_delete_paths(cache_type: CacheType) -> Result<Vec<Path>
 fn cached_folder_info_path(cache_type: CacheType) -> Result<Path, Error> {
     let file_name = format!("{}.json", cache_type.short_name());
     Ok(get_action_cache_dir()?
-        .join("cached_folder_info")
+        .join("cached-folder-info")
         .join(file_name.as_str()))
+}
+
+fn dependency_files_dir() -> Result<Path, Error> {
+    Ok(get_action_cache_dir()?.join("dependency-data"))
 }
 
 #[derive(
@@ -196,12 +203,43 @@ async fn build_cached_folder_info(cache_type: CacheType) -> Result<CachedFolderI
     Ok(folder_info)
 }
 
+fn dependency_file_path(cache_type: CacheType, scope: &HashValue, job: &Job) -> Result<Path, Error> {
+    let dependency_dir = dependency_files_dir()?;
+    let mut hasher = Blake3Hasher::default();
+    scope.hash(&mut hasher);
+    cache_type.hash(&mut hasher);
+    job.hash(&mut hasher);
+    let file_name = format!("{}.json", hasher.hash_value());
+    Ok(dependency_dir.join(file_name.as_str()))
+}
+
+fn build_cache_entry_dependencies(cache_type: CacheType, scope: &HashValue, job: &Job) -> Result<CacheEntry, Error> {
+    use crate::cache_key_builder::CacheKeyBuilder;
+    let name = format!("{} (dependencies)", cache_type.friendly_name());
+    let mut key_builder = CacheKeyBuilder::new(&name);
+    key_builder.add_key_data(scope);
+    key_builder.add_key_data(job);
+    let date = chrono::Local::now();
+    key_builder.set_attribute("date", &date.to_string());
+    key_builder.set_attribute_nonce("nonce");
+    key_builder.set_attribute("workflow", job.get_workflow());
+    key_builder.set_attribute("job", job.get_job_id());
+    if let Some(properties) = job.matrix_properties_as_string() {
+        key_builder.set_attribute("matrix", &properties);
+    }
+    let mut cache_entry = key_builder.into_entry();
+    let path = dependency_file_path(cache_type, scope, job)?;
+    info!("Dependency file path: {}", path);
+    cache_entry.path(path);
+    Ok(cache_entry)
+}
+
 fn build_cache_entry(cache_type: CacheType, key: &HashValue, path: &Path) -> CacheEntry {
     use crate::cache_key_builder::CacheKeyBuilder;
 
     let name = cache_type.friendly_name();
     let mut key_builder = CacheKeyBuilder::new(&name);
-    key_builder.add_id_bytes(key.as_ref());
+    key_builder.add_key_data(key);
     let date = chrono::Local::now();
     key_builder.set_attribute("date", &date.to_string());
     key_builder.set_attribute_nonce("nonce");
@@ -211,21 +249,7 @@ fn build_cache_entry(cache_type: CacheType, key: &HashValue, path: &Path) -> Cac
 }
 
 pub async fn restore_cargo_cache(input_manager: &input_manager::Manager) -> Result<(), Error> {
-    use crate::job::Job;
-
-    let cached_types = get_types_to_cache(input_manager)?;
-    for cache_type in cached_types {
-        let folder_path = find_path(cache_type);
-        let entries_depth = cache_type.entries_depth();
-        let entry_matcher = depth_to_match(entries_depth)?;
-        let entry_paths = match_relative_paths(&folder_path, &entry_matcher).await?;
-        info!("Cache entries for {}: {:#?}", cache_type, entry_paths);
-    }
-    let job = Job::from_env()?;
-    info!("Job: {:#?}", job);
-
-    /*
-    use crate::access_times::{revert_folder, supports_atime};
+    use crate::access_times::supports_atime;
     use crate::cargo_lock_hashing::hash_cargo_lock_files;
 
     info!("Checking to see if filesystem supports access times...");
@@ -245,19 +269,48 @@ pub async fn restore_cargo_cache(input_manager: &input_manager::Manager) -> Resu
         );
     }
 
-    let id_hash = if atimes_supported {
-        // We can't use the empty array because it will encode to an empty string
+    let scope_hash = if atimes_supported {
+        // We can't use the empty array because it will encode to an empty string, which
+        // doesn't play well with `save_state`.
         HashValue::from_bytes(&[42u8])
     } else {
         let cwd = node::process::cwd();
         let lock_hash = hash_cargo_lock_files(&cwd).await?;
         HashValue::from_bytes(&lock_hash.bytes)
     };
+    core::save_state(SCOPE_HASH_KEY, safe_encoding::encode(&scope_hash));
+
+    let job = Job::from_env()?;
+    let cached_types = get_types_to_cache(input_manager)?;
+    for cache_type in cached_types {
+        let dependencies_entry = build_cache_entry_dependencies(cache_type, &scope_hash, &job)?;
+        if let Some(restore_key) = dependencies_entry.restore().await.map_err(Error::Js)? {
+            info!(
+                "Located dependencies list for {} in cache using key {}.",
+                cache_type.friendly_name(),
+                restore_key
+            );
+            //TODO: We actually need to open the dependency list and try to
+            // restore entries now
+        } else {
+            info!("No existing dependency list for {} found.", cache_type.friendly_name());
+        }
+
+        /*
+        let folder_path = find_path(cache_type);
+        let entries_depth = cache_type.entries_depth();
+        let entry_matcher = depth_to_match(entries_depth)?;
+        let entry_paths = match_relative_paths(&folder_path, &entry_matcher).await?;
+        info!("Cache entries for {}: {:#?}", cache_type, entry_paths);
+        */
+    }
+
+    /*
+    use crate::access_times::{revert_folder, supports_atime};
 
     let types_to_cache = get_types_to_cache(input_manager)?;
     let types_to_cache_json = serde_json::to_string(&types_to_cache)?;
 
-    core::save_state(ID_HASH_KEY, safe_encoding::encode(&id_hash));
     core::save_state(CACHED_TYPES_KEY, safe_encoding::encode(&types_to_cache_json));
 
     for cache_type in get_types_to_cache(input_manager)? {

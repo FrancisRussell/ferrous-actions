@@ -33,7 +33,7 @@ fn compute_package_cache_key(package: &ManifestPackage) -> CacheEntry {
     use crate::cache_key_builder::CacheKeyBuilder;
 
     let mut builder = CacheKeyBuilder::new(&package.name);
-    builder.add_id_bytes(package.unique_identifier().as_ref());
+    builder.add_key_data(&package.unique_identifier());
     builder.set_attribute("target", &package.supported_target.to_string());
     builder.set_attribute("version", &package.version);
     builder.into_entry()

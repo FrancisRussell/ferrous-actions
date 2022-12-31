@@ -2,6 +2,7 @@ use super::Hook;
 use crate::action_paths::get_action_cache_dir;
 use crate::actions::cache::Entry as CacheEntry;
 use crate::fingerprinting::{render_delta_items, Fingerprint};
+use crate::hasher::Blake3 as Blake3Hasher;
 use crate::node::path::Path;
 use crate::{actions, error, info, node, warning, Error};
 use async_trait::async_trait;
@@ -32,14 +33,16 @@ impl Install {
         I: IntoIterator<Item = A>,
         A: AsRef<str>,
     {
-        let mut hasher = blake3::Hasher::new();
-        hasher.update(toolchain_hash.as_ref());
+        use std::hash::Hash as _;
+
+        let mut hasher = Blake3Hasher::default();
         let arg_string = {
+            toolchain_hash.hash(&mut hasher);
             let mut arg_string = String::new();
             let mut first = true;
             for arg in args {
                 let arg = arg.as_ref();
-                hasher.update(arg.as_bytes());
+                arg.hash(&mut hasher);
                 if first {
                     first = false;
                 } else {
@@ -49,7 +52,7 @@ impl Install {
             }
             arg_string
         };
-        let hash = hasher.finalize();
+        let hash = hasher.inner().finalize();
         let hash = HashValue::from_bytes(hash.as_bytes());
         let build_dir = get_package_build_dir(&hash)?;
         let mut result = Install {
@@ -88,7 +91,7 @@ impl Install {
         use crate::cache_key_builder::CacheKeyBuilder;
 
         let mut key_builder = CacheKeyBuilder::new("cargo install build artifacts");
-        key_builder.add_id_bytes(self.hash.as_ref());
+        key_builder.add_key_data(&self.hash);
         let arg_string = {
             let mut arg_string = self.arg_string.clone();
             if arg_string.len() > MAX_ARG_STRING_LENGTH {

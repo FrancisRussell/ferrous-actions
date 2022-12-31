@@ -1,19 +1,23 @@
 use crate::actions::cache::Entry as CacheEntry;
+use crate::hasher::Blake3 as Blake3Hasher;
 use crate::safe_encoding;
 use std::collections::BTreeMap;
+use std::hash::Hasher as _;
 
-const CACHE_ENTRY_VERSION: &str = "3";
+const CACHE_ENTRY_VERSION: &str = "5";
 
 pub struct CacheKeyBuilder {
     name: String,
-    hasher: blake3::Hasher,
+    hasher: Blake3Hasher,
     attributes: BTreeMap<String, String>,
 }
 
 impl CacheKeyBuilder {
     pub fn new(name: &str) -> CacheKeyBuilder {
-        let mut hasher = blake3::Hasher::new();
-        hasher.update(CACHE_ENTRY_VERSION.as_ref());
+        use std::hash::Hash as _;
+
+        let mut hasher = Blake3Hasher::default();
+        CACHE_ENTRY_VERSION.hash(&mut hasher);
         CacheKeyBuilder {
             name: name.into(),
             hasher,
@@ -21,8 +25,8 @@ impl CacheKeyBuilder {
         }
     }
 
-    pub fn add_id_bytes(&mut self, bytes: &[u8]) {
-        self.hasher.update(bytes);
+    pub fn add_key_data<T: std::hash::Hash>(&mut self, data: &T) {
+        data.hash(&mut self.hasher);
     }
 
     pub fn set_attribute(&mut self, name: &str, value: &str) {
@@ -37,7 +41,7 @@ impl CacheKeyBuilder {
     }
 
     pub fn into_entry(self) -> CacheEntry {
-        let id: [u8; 32] = self.hasher.finalize().into();
+        let id: [u8; 32] = self.hasher.inner().finalize().into();
         let id = &id[..8];
         let id = safe_encoding::encode(id);
         let restore_key = format!("Ferrous Actions: {} - id={}", self.name, id);
