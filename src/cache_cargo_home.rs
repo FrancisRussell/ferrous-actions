@@ -211,6 +211,8 @@ fn build_cache_entry(cache_type: CacheType, key: &HashValue, path: &Path) -> Cac
 }
 
 pub async fn restore_cargo_cache(input_manager: &input_manager::Manager) -> Result<(), Error> {
+    use crate::job::Job;
+
     let cached_types = get_types_to_cache(input_manager)?;
     for cache_type in cached_types {
         let folder_path = find_path(cache_type);
@@ -219,6 +221,8 @@ pub async fn restore_cargo_cache(input_manager: &input_manager::Manager) -> Resu
         let entry_paths = match_relative_paths(&folder_path, &entry_matcher).await?;
         info!("Cache entries for {}: {:#?}", cache_type, entry_paths);
     }
+    let job = Job::from_env()?;
+    info!("Job: {:#?}", job);
 
     /*
     use crate::access_times::{revert_folder, supports_atime};

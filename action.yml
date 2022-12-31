@@ -42,6 +42,15 @@ inputs:
   use-cross:
     description: 'Whether cross should be used in place of cargo'
     required: false
+  internal-use-github-workflow:
+    description: 'DO NOT SET THIS INPUT - used to detect the workflow name'
+    default: ${{ toJSON(github.workflow) }}
+  internal-use-github-job:
+    description: 'DO NOT SET THIS INPUT - used to detect the job ID'
+    default: ${{ toJSON(github.job) }}
+  internal-use-matrix:
+    description: 'DO NOT SET THIS INPUT - used to identify matrix properties'
+    default: ${{ toJSON(matrix) }}
 outputs:
   result:
     description: 'The result of the action execution'

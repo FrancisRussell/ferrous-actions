@@ -18,6 +18,7 @@ mod dir_tree;
 mod error;
 mod fingerprinting;
 mod input_manager;
+mod job;
 mod node;
 mod nonce;
 mod noop_stream;
