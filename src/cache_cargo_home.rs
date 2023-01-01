@@ -13,13 +13,82 @@ use rust_toolchain_manifest::HashValue;
 use serde::{Deserialize, Serialize};
 use simple_path_match::{PathMatch, PathMatchBuilder};
 use std::borrow::Cow;
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 use std::hash::{Hash as _, Hasher as _};
 use std::str::FromStr;
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator, IntoStaticStr};
 
 const SCOPE_HASH_KEY: &str = "SCOPE_HASH";
 const CACHED_TYPES_KEY: &str = "CACHED_TYPES";
+
+#[derive(Clone, Debug)]
+enum TreeNode<K, V> {
+    Leaf(V),
+    Branch(BTreeMap<K, V>),
+}
+
+#[derive(Clone, Debug)]
+struct Cache {
+    root: TreeNode<String, TreeNode<String, Fingerprint>>,
+}
+
+impl Cache {
+    pub async fn new(cache_type: CacheType, path: &Path) -> Result<Cache, Error> {
+        let grouping_depth = cache_type.grouping_depth();
+        let entry_depth = cache_type.entry_depth();
+        assert!(
+            grouping_depth <= entry_depth,
+            "Cannot group at a higher level than individual cache entries"
+        );
+        let top_depth_glob = depth_to_match(grouping_depth)?;
+        let top_depth_paths = match_relative_paths(path, &top_depth_glob, true).await?;
+        info!("Top level paths: {:#?}", top_depth_paths);
+        let entry_depth_relative = entry_depth - grouping_depth;
+        let root = if Self::is_singleton(&top_depth_paths) {
+            TreeNode::Leaf(Self::build_group(cache_type, path, entry_depth_relative).await?)
+        } else {
+            let mut map = BTreeMap::new();
+            for group in top_depth_paths {
+                let group_path = path.join(group.clone());
+                map.insert(
+                    group.to_string(),
+                    Self::build_group(cache_type, &group_path, entry_depth_relative).await?,
+                );
+            }
+            TreeNode::Branch(map)
+        };
+        Ok(Cache { root })
+    }
+
+    fn is_singleton(paths: &[Path]) -> bool {
+        paths.len() == 1 && paths.first() == Some(&Path::from("."))
+    }
+
+    async fn build_entry(cache_type: CacheType, entry_path: &Path) -> Result<Fingerprint, Error> {
+        let ignores = cache_type.ignores();
+        fingerprint_path_with_ignores(entry_path, &ignores).await
+    }
+
+    async fn build_group(
+        cache_type: CacheType,
+        group_path: &Path,
+        entry_level: usize,
+    ) -> Result<TreeNode<String, Fingerprint>, Error> {
+        let entry_level_glob = depth_to_match(entry_level)?;
+        let entry_level_paths = match_relative_paths(&group_path, &entry_level_glob, true).await?;
+        let value = if Self::is_singleton(&entry_level_paths) {
+            TreeNode::Leaf(Self::build_entry(cache_type, group_path).await?)
+        } else {
+            let mut map = BTreeMap::new();
+            for path in entry_level_paths {
+                let entry_path = group_path.join(path.clone());
+                map.insert(path.to_string(), Self::build_entry(cache_type, &entry_path).await?);
+            }
+            TreeNode::Branch(map)
+        };
+        Ok(value)
+    }
+}
 
 fn find_cargo_home() -> Path {
     homedir().join(".cargo")
@@ -46,7 +115,7 @@ async fn find_additional_delete_paths(cache_type: CacheType) -> Result<Vec<Path>
     let path_matcher = path_match_builder.build()?;
     let home_path = find_cargo_home();
     let result = if home_path.exists().await {
-        match_relative_paths(&home_path, &path_matcher).await?
+        match_relative_paths(&home_path, &path_matcher, false).await?
     } else {
         Vec::new()
     };
@@ -122,17 +191,22 @@ impl CacheType {
     }
 
     fn ignores(self) -> Ignores {
+        // Depths are relative to the entry
         let mut ignores = Ignores::default();
         match self {
             CacheType::Indices => {
-                ignores.add(2, ".last-updated");
+                ignores.add(1, ".last-updated");
             }
             CacheType::Crates | CacheType::GitRepos => {}
         }
         ignores
     }
 
-    fn entries_depth(self) -> usize {
+    fn grouping_depth(self) -> usize {
+        1
+    }
+
+    fn entry_depth(self) -> usize {
         match self {
             CacheType::Indices | CacheType::GitRepos => 1,
             CacheType::Crates => {
@@ -283,6 +357,35 @@ pub async fn restore_cargo_cache(input_manager: &input_manager::Manager) -> Resu
     let job = Job::from_env()?;
     let cached_types = get_types_to_cache(input_manager)?;
     for cache_type in cached_types {
+        // Mark as used to avoid spurious warnings (we only use this when we save the
+        // entries)
+        let _ = get_min_recache_interval(input_manager, cache_type)?;
+
+        // Delete existing content at the path we want to restore cached items to
+        // TODO: Re-enable this when we are certain fingerprinting of each cache entry
+        // works
+        /*
+        let folder_path = find_path(cache_type);
+        if folder_path.exists().await {
+            warning!(
+                concat!(
+                    "Cache action will delete existing contents of {} and derived information. ",
+                    "To avoid this warning, place this action earlier or delete this before running the action."
+                ),
+                folder_path
+            );
+            actions::io::rm_rf(&folder_path).await?;
+        }
+        */
+
+        // Delete derived content at any paths we want to restore cached items to
+        for delete_path in find_additional_delete_paths(cache_type).await? {
+            if delete_path.exists().await {
+                actions::io::rm_rf(&delete_path).await?;
+            }
+        }
+
+        // Attempt to locate the list of cache items we want to restore
         let dependencies_entry = build_cache_entry_dependencies(cache_type, &scope_hash, &job)?;
         if let Some(restore_key) = dependencies_entry.restore().await.map_err(Error::Js)? {
             info!(
@@ -296,10 +399,12 @@ pub async fn restore_cargo_cache(input_manager: &input_manager::Manager) -> Resu
             info!("No existing dependency list for {} found.", cache_type.friendly_name());
         }
 
-        /*
         let folder_path = find_path(cache_type);
-        let entries_depth = cache_type.entries_depth();
-        let entry_matcher = depth_to_match(entries_depth)?;
+        let cache = Cache::new(cache_type, &folder_path).await?;
+        info!("Cache: {:#?}", cache);
+
+        /*
+        let entry_matcher = depth_to_match(entry_depth)?;
         let entry_paths = match_relative_paths(&folder_path, &entry_matcher).await?;
         info!("Cache entries for {}: {:#?}", cache_type, entry_paths);
         */
@@ -314,25 +419,6 @@ pub async fn restore_cargo_cache(input_manager: &input_manager::Manager) -> Resu
     core::save_state(CACHED_TYPES_KEY, safe_encoding::encode(&types_to_cache_json));
 
     for cache_type in get_types_to_cache(input_manager)? {
-        // Mark as used to avoid spurious warnings
-        let _ = get_min_recache_interval(input_manager, cache_type)?;
-
-        let folder_path = find_path(cache_type);
-        if folder_path.exists().await {
-            warning!(
-                concat!(
-                    "Cache action will delete existing contents of {} and derived information. ",
-                    "To avoid this warning, place this action earlier or delete this before running the action."
-                ),
-                folder_path
-            );
-            actions::io::rm_rf(&folder_path).await?;
-        }
-        for delete_path in find_additional_delete_paths(cache_type).await? {
-            if delete_path.exists().await {
-                actions::io::rm_rf(&delete_path).await?;
-            }
-        }
         let cache_entry = build_cache_entry(cache_type, &id_hash, &folder_path);
         if let Some(restore_key) = cache_entry.restore().await.map_err(Error::Js)? {
             info!(
@@ -404,7 +490,7 @@ pub async fn save_cargo_cache(input_manager: &input_manager::Manager) -> Result<
         // Identify unaccessed items and prune them
         let unaccessed = folder_info_new
             .fingerprint
-            .get_unaccessed_since(&folder_info_old.fingerprint, cache_type.entries_depth());
+            .get_unaccessed_since(&folder_info_old.fingerprint, cache_type.entry_depth());
 
         let do_prune = !unaccessed.is_empty();
         if do_prune {
