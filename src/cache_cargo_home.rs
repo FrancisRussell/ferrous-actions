@@ -22,14 +22,15 @@ const SCOPE_HASH_KEY: &str = "SCOPE_HASH";
 const CACHED_TYPES_KEY: &str = "CACHED_TYPES";
 
 #[derive(Clone, Debug)]
-enum TreeNode<K, V> {
-    Leaf(V),
-    Branch(BTreeMap<K, V>),
+struct Cache {
+    cache_type: CacheType,
+    root: BTreeMap<String, BTreeMap<String, Fingerprint>>,
 }
 
 #[derive(Clone, Debug)]
-struct Cache {
-    root: TreeNode<String, TreeNode<String, Fingerprint>>,
+struct CacheGroupKey {
+    save: String,
+    restore: String,
 }
 
 impl Cache {
@@ -42,26 +43,16 @@ impl Cache {
         );
         let top_depth_glob = depth_to_match(grouping_depth)?;
         let top_depth_paths = match_relative_paths(path, &top_depth_glob, true).await?;
-        info!("Top level paths: {:#?}", top_depth_paths);
         let entry_depth_relative = entry_depth - grouping_depth;
-        let root = if Self::is_singleton(&top_depth_paths) {
-            TreeNode::Leaf(Self::build_group(cache_type, path, entry_depth_relative).await?)
-        } else {
-            let mut map = BTreeMap::new();
-            for group in top_depth_paths {
-                let group_path = path.join(group.clone());
-                map.insert(
-                    group.to_string(),
-                    Self::build_group(cache_type, &group_path, entry_depth_relative).await?,
-                );
-            }
-            TreeNode::Branch(map)
-        };
-        Ok(Cache { root })
-    }
-
-    fn is_singleton(paths: &[Path]) -> bool {
-        paths.len() == 1 && paths.first() == Some(&Path::from("."))
+        let mut map = BTreeMap::new();
+        for group in top_depth_paths {
+            let group_path = path.join(group.clone());
+            map.insert(
+                group.to_string(),
+                Self::build_group(cache_type, &group_path, entry_depth_relative).await?,
+            );
+        }
+        Ok(Cache { cache_type, root: map })
     }
 
     async fn build_entry(cache_type: CacheType, entry_path: &Path) -> Result<Fingerprint, Error> {
@@ -73,20 +64,40 @@ impl Cache {
         cache_type: CacheType,
         group_path: &Path,
         entry_level: usize,
-    ) -> Result<TreeNode<String, Fingerprint>, Error> {
+    ) -> Result<BTreeMap<String, Fingerprint>, Error> {
         let entry_level_glob = depth_to_match(entry_level)?;
         let entry_level_paths = match_relative_paths(&group_path, &entry_level_glob, true).await?;
-        let value = if Self::is_singleton(&entry_level_paths) {
-            TreeNode::Leaf(Self::build_entry(cache_type, group_path).await?)
-        } else {
-            let mut map = BTreeMap::new();
-            for path in entry_level_paths {
-                let entry_path = group_path.join(path.clone());
-                map.insert(path.to_string(), Self::build_entry(cache_type, &entry_path).await?);
+        let mut map = BTreeMap::new();
+        for path in entry_level_paths {
+            let entry_path = group_path.join(path.clone());
+            map.insert(path.to_string(), Self::build_entry(cache_type, &entry_path).await?);
+        }
+        Ok(map)
+    }
+
+    pub fn group_cache_keys(&self) -> Vec<CacheGroupKey> {
+        use crate::cache_key_builder::CacheKeyBuilder;
+
+        let date = chrono::Local::now();
+        let mut result = Vec::with_capacity(self.root.len());
+        for (group_path, group) in &self.root {
+            let name = format!("{} (content)", self.cache_type.friendly_name());
+            let mut builder = CacheKeyBuilder::new(&name);
+            builder.add_key_data(group_path);
+            builder.set_attribute("path", group_path);
+            builder.set_attribute("num_entries", &group.len().to_string());
+            builder.set_attribute("date", &date.to_string());
+            builder.set_attribute_nonce("nonce");
+            for entry_path in group.keys() {
+                builder.add_key_data(group_path);
             }
-            TreeNode::Branch(map)
-        };
-        Ok(value)
+            let group_key = CacheGroupKey {
+                save: builder.current_save_key(),
+                restore: builder.current_restore_key(),
+            };
+            result.push(group_key);
+        }
+        result
     }
 }
 
@@ -401,7 +412,7 @@ pub async fn restore_cargo_cache(input_manager: &input_manager::Manager) -> Resu
 
         let folder_path = find_path(cache_type);
         let cache = Cache::new(cache_type, &folder_path).await?;
-        info!("Cache: {:#?}", cache);
+        info!("Cache keys: {:#?}", cache.group_cache_keys());
 
         /*
         let entry_matcher = depth_to_match(entry_depth)?;

@@ -40,17 +40,12 @@ impl CacheKeyBuilder {
         self.set_attribute(name, &nonce);
     }
 
-    pub fn into_entry(self) -> CacheEntry {
-        let id: [u8; 32] = self.hasher.inner().finalize().into();
-        let id = &id[..8];
-        let id = safe_encoding::encode(id);
-        let restore_key = format!("Ferrous Actions: {} - id={}", self.name, id);
-        let restore_key = restore_key.replace(',', ";");
-        let mut save_key = restore_key.clone();
+    fn restore_key_to_save_key(&self, restore_key: &str) -> String {
+        let mut save_key = restore_key.to_string();
         if !self.attributes.is_empty() {
             save_key += " (";
             let mut first = true;
-            for (attribute, value) in self.attributes {
+            for (attribute, value) in &self.attributes {
                 if first {
                     first = false;
                 } else {
@@ -61,6 +56,25 @@ impl CacheKeyBuilder {
             save_key += ")";
         }
         let save_key = save_key.replace(',', ";");
+        save_key
+    }
+
+    pub fn current_save_key(&self) -> String {
+        self.restore_key_to_save_key(&self.current_restore_key())
+    }
+
+    pub fn current_restore_key(&self) -> String {
+        let id: [u8; 32] = self.hasher.inner().finalize().into();
+        let id = &id[..8];
+        let id = safe_encoding::encode(id);
+        let restore_key = format!("Ferrous Actions: {} - id={}", self.name, id);
+        let restore_key = restore_key.replace(',', ";");
+        restore_key
+    }
+
+    pub fn into_entry(self) -> CacheEntry {
+        let restore_key = self.current_restore_key();
+        let save_key = self.restore_key_to_save_key(&restore_key);
         let mut result = CacheEntry::new(save_key.as_str());
         result.restore_key(restore_key);
         result
