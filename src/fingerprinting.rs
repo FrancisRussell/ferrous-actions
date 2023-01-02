@@ -322,7 +322,7 @@ pub async fn fingerprint_path_with_ignores(path: &Path, ignores: &Ignores) -> Re
     let result = Fingerprint {
         content_hash,
         modified: visitor.modified,
-        accessed: visitor.modified,
+        accessed: visitor.accessed,
         root,
     };
     Ok(result)
