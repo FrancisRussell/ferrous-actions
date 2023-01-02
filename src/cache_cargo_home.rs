@@ -585,6 +585,8 @@ pub async fn save_cargo_cache(input_manager: &input_manager::Manager) -> Result<
             cache.prune_unused(&cache_old).await?;
         }
 
+        info!("New group cache keys: {:#?}", cache.group_cache_keys());
+
         /*
         let mut folder_info_new = build_cached_folder_info(cache_type).await?;
         let folder_info_old: CachedFolderInfo = {
