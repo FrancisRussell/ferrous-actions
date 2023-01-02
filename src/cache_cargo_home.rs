@@ -62,8 +62,6 @@ impl Cache {
     }
 
     async fn build_entry(cache_type: CacheType, entry_path: &Path) -> Result<Fingerprint, Error> {
-        use crate::access_times::revert_folder;
-        revert_folder(&entry_path).await?;
         let ignores = cache_type.ignores();
         fingerprint_path_with_ignores(entry_path, &ignores).await
     }
@@ -482,6 +480,12 @@ pub async fn restore_cargo_cache(input_manager: &input_manager::Manager) -> Resu
         // Ensure we at least have an empty folder
         let folder_path = find_path(cache_type);
         node::fs::create_dir_all(&folder_path).await?;
+
+        // Revert access times
+        if atimes_supported {
+            use crate::access_times::revert_folder;
+            revert_folder(&folder_path).await?;
+        }
 
         // Build the cache
         let cache = Cache::new(cache_type, &folder_path).await?;
