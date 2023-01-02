@@ -62,6 +62,8 @@ impl Cache {
     }
 
     async fn build_entry(cache_type: CacheType, entry_path: &Path) -> Result<Fingerprint, Error> {
+        use crate::access_times::revert_folder;
+        revert_folder(&entry_path).await?;
         let ignores = cache_type.ignores();
         fingerprint_path_with_ignores(entry_path, &ignores).await
     }
