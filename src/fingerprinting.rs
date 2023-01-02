@@ -83,6 +83,7 @@ enum Entry {
 pub struct Fingerprint {
     content_hash: u64,
     modified: Option<DateTime<Utc>>,
+    accessed: Option<DateTime<Utc>>,
     root: Entry,
 }
 
@@ -149,6 +150,10 @@ impl Fingerprint {
 
     pub fn modified(&self) -> Option<DateTime<Utc>> {
         self.modified
+    }
+
+    pub fn accessed(&self) -> Option<DateTime<Utc>> {
+        self.accessed
     }
 
     fn sorted_file_paths_and_metadata(&self) -> FlatteningIterator<'_> {
@@ -238,6 +243,7 @@ pub async fn fingerprint_path(path: &Path) -> Result<Fingerprint, Error> {
 struct BuildFingerprintVisitor {
     stack: VecDeque<Entry>,
     modified: Option<DateTime<Utc>>,
+    accessed: Option<DateTime<Utc>>,
 }
 
 impl BuildFingerprintVisitor {
@@ -287,6 +293,10 @@ impl dir_tree::Visitor for BuildFingerprintVisitor {
                 None => metadata.modified,
                 Some(latest) => std::cmp::max(latest, metadata.modified),
             });
+            self.accessed = Some(match self.accessed {
+                None => metadata.accessed,
+                Some(latest) => std::cmp::max(latest, metadata.accessed),
+            });
             let file_name = path.file_name();
             self.push_file(file_name, metadata);
         } else {
@@ -300,6 +310,7 @@ pub async fn fingerprint_path_with_ignores(path: &Path, ignores: &Ignores) -> Re
     let mut visitor = BuildFingerprintVisitor {
         stack: VecDeque::new(),
         modified: None,
+        accessed: None,
     };
     dir_tree::apply_visitor(path, ignores, &mut visitor).await?;
     assert_eq!(visitor.stack.len(), 1, "Tree data stack should only have single entry");
@@ -311,6 +322,7 @@ pub async fn fingerprint_path_with_ignores(path: &Path, ignores: &Ignores) -> Re
     let result = Fingerprint {
         content_hash,
         modified: visitor.modified,
+        accessed: visitor.modified,
         root,
     };
     Ok(result)

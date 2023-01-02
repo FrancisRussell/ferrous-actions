@@ -19,12 +19,14 @@ use std::str::FromStr;
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator, IntoStaticStr};
 
 const SCOPE_HASH_KEY: &str = "SCOPE_HASH";
+const ATIMES_SUPPORTED_KEY: &str = "ACCESS_TIMES_SUPPORTED";
 const CACHED_TYPES_KEY: &str = "CACHED_TYPES";
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 struct Cache {
     cache_type: CacheType,
     root: BTreeMap<String, BTreeMap<String, Fingerprint>>,
+    root_path: String,
 }
 
 #[derive(Clone, Debug)]
@@ -52,7 +54,11 @@ impl Cache {
                 Self::build_group(cache_type, &group_path, entry_depth_relative).await?,
             );
         }
-        Ok(Cache { cache_type, root: map })
+        Ok(Cache {
+            cache_type,
+            root: map,
+            root_path: path.to_string(),
+        })
     }
 
     async fn build_entry(cache_type: CacheType, entry_path: &Path) -> Result<Fingerprint, Error> {
@@ -98,6 +104,65 @@ impl Cache {
             result.push(group_key);
         }
         result
+    }
+
+    async fn prune_unused_group(
+        left: &BTreeMap<String, Fingerprint>,
+        right: &mut BTreeMap<String, Fingerprint>,
+        right_path: &Path,
+    ) -> Result<(), Error> {
+        use itertools::{EitherOrBoth, Itertools as _};
+        let mut to_prune = HashSet::new();
+        let from_iter = left.iter();
+        let to_iter = right.iter();
+        let merged = from_iter.merge_join_by(to_iter, |left, right| left.0.cmp(&right.0));
+        for element in merged {
+            match element {
+                EitherOrBoth::Left(_) | EitherOrBoth::Right(_) => {}
+                EitherOrBoth::Both(left, right) => {
+                    if left.1.accessed() == right.1.accessed() {
+                        to_prune.insert(right.0.to_string());
+                    }
+                }
+            }
+        }
+        for element_name in to_prune {
+            let path = right_path.join(element_name.as_str());
+            info!("Pruning unused cache element at {}", path);
+            actions::io::rm_rf(&path).await?;
+            right.remove(&element_name);
+        }
+        Ok(())
+    }
+
+    pub async fn prune_unused(&mut self, old: &Cache) -> Result<(), Error> {
+        use itertools::{EitherOrBoth, Itertools as _};
+        let root_path = Path::from(self.root_path.as_str());
+        let from_iter = old.root.iter();
+        let to_iter = self.root.iter_mut();
+        let merged = from_iter.merge_join_by(to_iter, |left, right| left.0.cmp(&right.0));
+        for element in merged {
+            match element {
+                EitherOrBoth::Left(_) => {}
+                EitherOrBoth::Right(_) => {}
+                EitherOrBoth::Both(left, mut right) => {
+                    let entry_path = root_path.join(right.0.as_str());
+                    Self::prune_unused_group(&left.1, &mut right.1, &entry_path).await?;
+                }
+            }
+        }
+        self.root.retain(|k, v| {
+            let keep = !v.is_empty();
+            if !keep {
+                info!("Removing empty cache group: {}", k);
+            }
+            keep
+        });
+        Ok(())
+    }
+
+    pub fn get_root_path(&self) -> Path {
+        Path::from(self.root_path.as_str())
     }
 }
 
@@ -353,6 +418,7 @@ pub async fn restore_cargo_cache(input_manager: &input_manager::Manager) -> Resu
             "Note that enabling file access times on Windows is generally a bad idea since Microsoft never implemented relatime semantics.")
         );
     }
+    core::save_state(ATIMES_SUPPORTED_KEY, serde_json::to_string(&atimes_supported)?);
 
     let scope_hash = if atimes_supported {
         // We can't use the empty array because it will encode to an empty string, which
@@ -410,8 +476,19 @@ pub async fn restore_cargo_cache(input_manager: &input_manager::Manager) -> Resu
             info!("No existing dependency list for {} found.", cache_type.friendly_name());
         }
 
+        // Ensure we at least have an empty folder
         let folder_path = find_path(cache_type);
+        node::fs::create_dir_all(&folder_path).await?;
+
+        // Build the cache
         let cache = Cache::new(cache_type, &folder_path).await?;
+        let serialized_cache = serde_json::to_string(&cache)?;
+        let cached_info_path = cached_folder_info_path(cache_type)?;
+        {
+            let parent = cached_info_path.parent();
+            node::fs::create_dir_all(&parent).await?;
+        }
+        node::fs::write_file(&cached_info_path, serialized_cache.as_bytes()).await?;
         info!("Cache keys: {:#?}", cache.group_cache_keys());
 
         /*
@@ -457,46 +534,65 @@ pub async fn restore_cargo_cache(input_manager: &input_manager::Manager) -> Resu
 }
 
 pub async fn save_cargo_cache(input_manager: &input_manager::Manager) -> Result<(), Error> {
+    let scope_hash = core::get_state(SCOPE_HASH_KEY).expect("Failed to find scope ID hash");
+    let scope_hash = safe_encoding::decode(&scope_hash).expect("Failed to decode scope ID hash");
+    let scope_hash = HashValue::from_bytes(&scope_hash);
+
+    let atimes_supported = core::get_state(ATIMES_SUPPORTED_KEY).expect("Failed to find access times support flag");
+    let atimes_supported: bool = serde_json::de::from_str(&atimes_supported)?;
+
+    let cached_types = get_types_to_cache(input_manager)?;
     /*
     use humantime::format_duration;
     use wasm_bindgen::JsError;
-
-    let id_hash = core::get_state(ID_HASH_KEY).expect("Failed to find artifact ID hash");
-    let id_hash = safe_encoding::decode(&id_hash).expect("Failed to decode artifact ID hash");
-    let id_hash = HashValue::from_bytes(&id_hash);
-
-    let cached_types = core::get_state(CACHED_TYPES_KEY).expect("Failed to find cached types");
-    let cached_types = safe_encoding::decode(&cached_types).expect("Failed to decode cached types");
-    let cached_types: Vec<CacheType> =
-        serde_json::de::from_slice(&cached_types).expect("Failed to deserialize cached types");
+    */
 
     for cache_type in cached_types {
+        // Delete items that should never make it into the cache
+        for delete_path in find_additional_delete_paths(cache_type).await? {
+            if delete_path.exists().await {
+                info!("Pruning redundant cache element: {}", delete_path);
+                actions::io::rm_rf(&delete_path).await?;
+            }
+        }
+
+        // Restore the old cache
+        let cache_old: Cache = {
+            let cached_info_path = cached_folder_info_path(cache_type)?;
+            let cache_serialized = node::fs::read_file(&cached_info_path).await?;
+            serde_json::de::from_slice(&cache_serialized)?
+        };
+
+        // Construct the new cache
         let folder_path = find_path(cache_type);
+        let mut cache = Cache::new(cache_type, &folder_path).await?;
+
+        // Check the path to the cached items hasn't changed
+        if cache.get_root_path() != cache_old.get_root_path() {
+            use wasm_bindgen::JsError;
+            let error = JsError::new(&format!(
+                "Path to cache changed from {} to {}. Perhaps CARGO_HOME changed?",
+                cache_old.get_root_path(),
+                cache.get_root_path()
+            ));
+            return Err(Error::Js(error.into()));
+        }
+
+        // Prune unused items (if we have access time suppport)
+        if atimes_supported {
+            cache.prune_unused(&cache_old).await?;
+        }
+
+        /*
         let mut folder_info_new = build_cached_folder_info(cache_type).await?;
         let folder_info_old: CachedFolderInfo = {
             let folder_info_path = cached_folder_info_path(cache_type)?;
             let folder_info_serialized = node::fs::read_file(&folder_info_path).await?;
             serde_json::de::from_slice(&folder_info_serialized)?
         };
-        if folder_info_old.path != folder_info_new.path {
-            let error = JsError::new(&format!(
-                "Path to cache changed from {} to {}. Perhaps CARGO_HOME changed?",
-                folder_info_old.path, folder_info_new.path
-            ));
-            return Err(Error::Js(error.into()));
-        }
 
         // If we prune redundant or unused files, we need to rebuild
         let mut rebuild_fingerprint = false;
-
-        // Delete items that should never make it into the cache
-        for delete_path in find_additional_delete_paths(cache_type).await? {
-            if delete_path.exists().await {
-                info!("Pruning redundant cache element: {}", delete_path);
-                actions::io::rm_rf(&delete_path).await?;
-                rebuild_fingerprint = true;
-            }
-        }
 
         // Identify unaccessed items and prune them
         let unaccessed = folder_info_new
@@ -568,7 +664,7 @@ pub async fn save_cargo_cache(input_manager: &input_manager::Manager) -> Result<
                 );
             }
         }
+        */
     }
-    */
     Ok(())
 }
