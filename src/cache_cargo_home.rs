@@ -29,7 +29,7 @@ struct Cache {
     root_path: String,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 struct CacheGroupKey {
     save: String,
     restore: String,
@@ -95,7 +95,7 @@ impl Cache {
             builder.set_attribute("date", &date.to_string());
             builder.set_attribute_nonce("nonce");
             for entry_path in group.keys() {
-                builder.add_key_data(group_path);
+                builder.add_key_data(entry_path);
             }
             let group_key = CacheGroupKey {
                 save: builder.current_save_key(),
@@ -432,6 +432,7 @@ pub async fn restore_cargo_cache(input_manager: &input_manager::Manager) -> Resu
     core::save_state(SCOPE_HASH_KEY, safe_encoding::encode(&scope_hash));
 
     let job = Job::from_env()?;
+    info!("Job: {:#?}", job);
     let cached_types = get_types_to_cache(input_manager)?;
     for cache_type in cached_types {
         // Mark as used to avoid spurious warnings (we only use this when we save the
@@ -548,11 +549,14 @@ pub async fn save_cargo_cache(input_manager: &input_manager::Manager) -> Result<
     let atimes_supported = core::get_state(ATIMES_SUPPORTED_KEY).expect("Failed to find access times support flag");
     let atimes_supported: bool = serde_json::de::from_str(&atimes_supported)?;
 
+    let job = Job::from_env()?;
     let cached_types = get_types_to_cache(input_manager)?;
     /*
     use humantime::format_duration;
     use wasm_bindgen::JsError;
     */
+
+    info!("Job: {:#?}", job);
 
     for cache_type in cached_types {
         // Delete items that should never make it into the cache
@@ -591,6 +595,28 @@ pub async fn save_cargo_cache(input_manager: &input_manager::Manager) -> Result<
         }
 
         info!("New group cache keys: {:#?}", cache.group_cache_keys());
+
+        // Save groups to cache if they have changed
+        {
+            let old_groups = cache_old.group_cache_keys();
+            let new_groups = cache_old.group_cache_keys();
+            if old_groups != new_groups {
+                info!(
+                    "Job dependencies have changed for cache of type {}",
+                    cache_type.friendly_name()
+                );
+                let dep_file_path = dependency_file_path(cache_type, &scope_hash, &job)?;
+                info!("Dep file path: {}", dep_file_path);
+                let serialized_groups = serde_json::to_string(&new_groups)?;
+                {
+                    let parent = dep_file_path.parent();
+                    node::fs::create_dir_all(&parent).await?;
+                }
+                node::fs::write_file(&dep_file_path, serialized_groups.as_bytes()).await?;
+                let dependencies_entry = build_cache_entry_dependencies(cache_type, &scope_hash, &job)?;
+                dependencies_entry.save().await?;
+            }
+        }
 
         /*
         let mut folder_info_new = build_cached_folder_info(cache_type).await?;
