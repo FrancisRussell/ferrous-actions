@@ -460,6 +460,7 @@ pub async fn restore_cargo_cache(input_manager: &input_manager::Manager) -> Resu
         // Delete derived content at any paths we want to restore cached items to
         for delete_path in find_additional_delete_paths(cache_type).await? {
             if delete_path.exists().await {
+                info!("Pruning redundant cache element: {}", delete_path);
                 actions::io::rm_rf(&delete_path).await?;
             }
         }
