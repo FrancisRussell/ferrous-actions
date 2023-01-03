@@ -35,8 +35,23 @@ struct CacheGroupKey {
     restore: String,
 }
 
+#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
+struct GroupIdentifier {
+    root: String,
+    path: String,
+    num_entries: usize,
+    entries_hash: HashValue,
+}
+
 impl Cache {
-    pub async fn new(cache_type: CacheType, path: &Path) -> Result<Cache, Error> {
+    pub async fn new(cache_type: CacheType) -> Result<Cache, Error> {
+        // Delete derived content at any paths we want to build the cache at
+        for delete_path in find_additional_delete_paths(cache_type).await? {
+            if delete_path.exists().await {
+                info!("Pruning redundant cache element: {}", delete_path);
+                actions::io::rm_rf(&delete_path).await?;
+            }
+        }
         let grouping_depth = cache_type.grouping_depth();
         let entry_depth = cache_type.entry_depth();
         assert!(
@@ -44,11 +59,12 @@ impl Cache {
             "Cannot group at a higher level than individual cache entries"
         );
         let top_depth_glob = depth_to_match(grouping_depth)?;
-        let top_depth_paths = match_relative_paths(path, &top_depth_glob, true).await?;
+        let folder_path = find_path(cache_type);
+        let top_depth_paths = match_relative_paths(&folder_path, &top_depth_glob, true).await?;
         let entry_depth_relative = entry_depth - grouping_depth;
         let mut map = BTreeMap::new();
         for group in top_depth_paths {
-            let group_path = path.join(group.clone());
+            let group_path = folder_path.join(group.clone());
             map.insert(
                 group.to_string(),
                 Self::build_group(cache_type, &group_path, entry_depth_relative).await?,
@@ -57,8 +73,83 @@ impl Cache {
         Ok(Cache {
             cache_type,
             root: map,
-            root_path: path.to_string(),
+            root_path: folder_path.to_string(),
         })
+    }
+
+    fn build_group_identifier(&self, group_path: &str) -> GroupIdentifier {
+        let group = &self
+            .root
+            .get(group_path)
+            .unwrap_or_else(|| panic!("Unknown group: {}", group_path));
+        let mut hasher = Blake3Hasher::default();
+        for entry_path in group.keys() {
+            entry_path.hash(&mut hasher);
+        }
+        GroupIdentifier {
+            root: self.root_path.clone(),
+            path: group_path.to_string(),
+            num_entries: group.len(),
+            entries_hash: hasher.hash_value(),
+        }
+    }
+
+    pub async fn restore_from_env(cache_type: CacheType, scope: &HashValue) -> Result<Cache, Error> {
+        use crate::access_times::revert_folder;
+        let job = Job::from_env()?;
+        let entry = build_cache_entry_dependencies(cache_type, scope, &job)?;
+        let restore_key = entry.restore().await.map_err(Error::Js)?;
+        if let Some(restore_key) = restore_key {
+            info!(
+                "Located dependencies list for {} in cache using key {}.",
+                cache_type.friendly_name(),
+                restore_key
+            );
+            //TODO: We actually need to open the dependency list and try to
+            // restore entries now
+        } else {
+            info!("No existing dependency list for {} found.", cache_type.friendly_name());
+        }
+        // Ensure we at least have an empty folder
+        let folder_path = find_path(cache_type);
+        node::fs::create_dir_all(&folder_path).await?;
+        // Revert access times
+        revert_folder(&folder_path).await?;
+        Self::new(cache_type).await
+    }
+
+    pub async fn save_changes(&self, old: &Cache, scope_hash: &HashValue) -> Result<(), Error> {
+        let job = Job::from_env()?;
+        let dep_file_path = dependency_file_path(self.cache_type, &scope_hash, &job)?;
+        let old_groups = if dep_file_path.exists().await {
+            let file_contents = node::fs::read_file(&dep_file_path).await?;
+            let old_groups: Vec<GroupIdentifier> = serde_json::de::from_slice(&file_contents)?;
+            Some(old_groups)
+        } else {
+            None
+        };
+        let new_groups = self.group_identifiers();
+        if old_groups.as_ref() != Some(&new_groups) {
+            info!(
+                "Saving dependency list changes for cache of type {}",
+                self.cache_type.friendly_name()
+            );
+            info!("Dep file path: {}", dep_file_path);
+            let serialized_groups = serde_json::to_string(&new_groups)?;
+            {
+                let parent = dep_file_path.parent();
+                node::fs::create_dir_all(&parent).await?;
+            }
+            node::fs::write_file(&dep_file_path, serialized_groups.as_bytes()).await?;
+            let dependencies_entry = build_cache_entry_dependencies(self.cache_type, &scope_hash, &job)?;
+            dependencies_entry.save().await?;
+        } else {
+            info!(
+                "No changes in depdendency list for cache of type {}",
+                self.cache_type.friendly_name()
+            );
+        }
+        Ok(())
     }
 
     async fn build_entry(cache_type: CacheType, entry_path: &Path) -> Result<Fingerprint, Error> {
@@ -81,6 +172,13 @@ impl Cache {
         Ok(map)
     }
 
+    pub fn group_identifiers(&self) -> Vec<GroupIdentifier> {
+        self.root
+            .keys()
+            .map(|group_path| self.build_group_identifier(group_path))
+            .collect()
+    }
+
     pub fn group_cache_keys(&self) -> Vec<CacheGroupKey> {
         use crate::cache_key_builder::CacheKeyBuilder;
 
@@ -89,6 +187,7 @@ impl Cache {
         for (group_path, group) in &self.root {
             let name = format!("{} (content)", self.cache_type.friendly_name());
             let mut builder = CacheKeyBuilder::new(&name);
+            builder.add_key_data(&self.root_path);
             builder.add_key_data(group_path);
             builder.set_attribute("path", group_path);
             builder.set_attribute("num_entries", &group.len().to_string());
@@ -456,40 +555,8 @@ pub async fn restore_cargo_cache(input_manager: &input_manager::Manager) -> Resu
         }
         */
 
-        // Delete derived content at any paths we want to restore cached items to
-        for delete_path in find_additional_delete_paths(cache_type).await? {
-            if delete_path.exists().await {
-                info!("Pruning redundant cache element: {}", delete_path);
-                actions::io::rm_rf(&delete_path).await?;
-            }
-        }
-
-        // Attempt to locate the list of cache items we want to restore
-        let dependencies_entry = build_cache_entry_dependencies(cache_type, &scope_hash, &job)?;
-        if let Some(restore_key) = dependencies_entry.restore().await.map_err(Error::Js)? {
-            info!(
-                "Located dependencies list for {} in cache using key {}.",
-                cache_type.friendly_name(),
-                restore_key
-            );
-            //TODO: We actually need to open the dependency list and try to
-            // restore entries now
-        } else {
-            info!("No existing dependency list for {} found.", cache_type.friendly_name());
-        }
-
-        // Ensure we at least have an empty folder
-        let folder_path = find_path(cache_type);
-        node::fs::create_dir_all(&folder_path).await?;
-
-        // Revert access times
-        if atimes_supported {
-            use crate::access_times::revert_folder;
-            revert_folder(&folder_path).await?;
-        }
-
         // Build the cache
-        let cache = Cache::new(cache_type, &folder_path).await?;
+        let cache = Cache::restore_from_env(cache_type, &scope_hash).await?;
         let serialized_cache = serde_json::to_string(&cache)?;
         let cached_info_path = cached_folder_info_path(cache_type)?;
         {
@@ -575,8 +642,7 @@ pub async fn save_cargo_cache(input_manager: &input_manager::Manager) -> Result<
         };
 
         // Construct the new cache
-        let folder_path = find_path(cache_type);
-        let mut cache = Cache::new(cache_type, &folder_path).await?;
+        let mut cache = Cache::new(cache_type).await?;
 
         // Check the path to the cached items hasn't changed
         if cache.get_root_path() != cache_old.get_root_path() {
@@ -597,26 +663,7 @@ pub async fn save_cargo_cache(input_manager: &input_manager::Manager) -> Result<
         info!("New group cache keys: {:#?}", cache.group_cache_keys());
 
         // Save groups to cache if they have changed
-        {
-            let old_groups = cache_old.group_cache_keys();
-            let new_groups = cache_old.group_cache_keys();
-            if old_groups != new_groups {
-                info!(
-                    "Job dependencies have changed for cache of type {}",
-                    cache_type.friendly_name()
-                );
-                let dep_file_path = dependency_file_path(cache_type, &scope_hash, &job)?;
-                info!("Dep file path: {}", dep_file_path);
-                let serialized_groups = serde_json::to_string(&new_groups)?;
-                {
-                    let parent = dep_file_path.parent();
-                    node::fs::create_dir_all(&parent).await?;
-                }
-                node::fs::write_file(&dep_file_path, serialized_groups.as_bytes()).await?;
-                let dependencies_entry = build_cache_entry_dependencies(cache_type, &scope_hash, &job)?;
-                dependencies_entry.save().await?;
-            }
-        }
+        cache.save_changes(&cache_old, &scope_hash).await?;
 
         /*
         let mut folder_info_new = build_cached_folder_info(cache_type).await?;

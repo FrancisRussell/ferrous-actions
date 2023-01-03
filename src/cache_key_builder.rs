@@ -4,7 +4,7 @@ use crate::safe_encoding;
 use std::collections::BTreeMap;
 use std::hash::Hasher as _;
 
-const CACHE_ENTRY_VERSION: &str = "5";
+const CACHE_ENTRY_VERSION: &str = "6";
 
 pub struct CacheKeyBuilder {
     name: String,
