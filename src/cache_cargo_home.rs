@@ -105,6 +105,12 @@ impl Cache {
                 cache_type.friendly_name(),
                 restore_key
             );
+            let dep_file_path = dependency_file_path(cache_type, scope, &job)?;
+            let groups: Vec<GroupIdentifier> = {
+                let file_contents = node::fs::read_file(&dep_file_path).await?;
+                serde_json::de::from_slice(&file_contents)?
+            };
+            info!("We need to restore the following groups: {:#?}", groups);
             //TODO: We actually need to open the dependency list and try to
             // restore entries now
         } else {
@@ -123,7 +129,7 @@ impl Cache {
         let dep_file_path = dependency_file_path(self.cache_type, &scope_hash, &job)?;
         let old_groups = if dep_file_path.exists().await {
             let file_contents = node::fs::read_file(&dep_file_path).await?;
-            let old_groups: Vec<GroupIdentifier> = serde_json::de::from_slice(&file_contents)?;
+            let old_groups = serde_json::de::from_slice(&file_contents)?;
             Some(old_groups)
         } else {
             None
