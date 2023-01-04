@@ -91,6 +91,20 @@ impl Cache {
     pub async fn restore_from_env(cache_type: CacheType, scope: &HashValue) -> Result<Cache, Error> {
         use crate::access_times::revert_folder;
         let job = Job::from_env()?;
+
+        // Delete existing cache
+        let folder_path = find_path(cache_type);
+        if folder_path.exists().await {
+            warning!(
+                concat!(
+                    "Cache action will delete existing contents of {} and derived information. ",
+                    "To avoid this warning, place this action earlier or delete this before running the action."
+                ),
+                folder_path
+            );
+            actions::io::rm_rf(&folder_path).await?;
+        }
+
         let entry = build_cache_entry_dependencies(cache_type, scope, &job)?;
         let restore_key = entry.restore().await.map_err(Error::Js)?;
         if let Some(restore_key) = restore_key {
@@ -117,7 +131,6 @@ impl Cache {
             info!("No existing dependency list for {} found.", cache_type.friendly_name());
         }
         // Ensure we at least have an empty folder
-        let folder_path = find_path(cache_type);
         node::fs::create_dir_all(&folder_path).await?;
         // Revert access times
         revert_folder(&folder_path).await?;
@@ -165,6 +178,11 @@ impl Cache {
             if modified_or_new {
                 let identifier = self.build_group_identifier(path);
                 let entry = Self::group_identifier_to_cache_entry(self.cache_type, &identifier);
+                info!(
+                    "Saving modified content for cache type {} for {}",
+                    self.cache_type.friendly_name(),
+                    path
+                );
                 entry.save().await?;
             }
         }
@@ -566,23 +584,6 @@ pub async fn restore_cargo_cache(input_manager: &input_manager::Manager) -> Resu
         // entries)
         let _ = get_min_recache_interval(input_manager, cache_type)?;
 
-        // Delete existing content at the path we want to restore cached items to
-        // TODO: Re-enable this when we are certain fingerprinting of each cache entry
-        // works
-        /*
-        let folder_path = find_path(cache_type);
-        if folder_path.exists().await {
-            warning!(
-                concat!(
-                    "Cache action will delete existing contents of {} and derived information. ",
-                    "To avoid this warning, place this action earlier or delete this before running the action."
-                ),
-                folder_path
-            );
-            actions::io::rm_rf(&folder_path).await?;
-        }
-        */
-
         // Build the cache
         let cache = Cache::restore_from_env(cache_type, &scope_hash).await?;
         let serialized_cache = serde_json::to_string(&cache)?;
@@ -652,45 +653,6 @@ pub async fn save_cargo_cache(input_manager: &input_manager::Manager) -> Result<
         cache.save_changes(&cache_old, &scope_hash).await?;
 
         /*
-        let mut folder_info_new = build_cached_folder_info(cache_type).await?;
-        let folder_info_old: CachedFolderInfo = {
-            let folder_info_path = cached_folder_info_path(cache_type)?;
-            let folder_info_serialized = node::fs::read_file(&folder_info_path).await?;
-            serde_json::de::from_slice(&folder_info_serialized)?
-        };
-
-        // If we prune redundant or unused files, we need to rebuild
-        let mut rebuild_fingerprint = false;
-
-        // Identify unaccessed items and prune them
-        let unaccessed = folder_info_new
-            .fingerprint
-            .get_unaccessed_since(&folder_info_old.fingerprint, cache_type.entry_depth());
-
-        let do_prune = !unaccessed.is_empty();
-        if do_prune {
-            for relative_path in unaccessed {
-                info!("Pruning unused cache element: {}", relative_path);
-                let full_path = folder_path.join(relative_path);
-                actions::io::rm_rf(&full_path).await?;
-                rebuild_fingerprint = true;
-            }
-        }
-
-        if rebuild_fingerprint {
-            folder_info_new = build_cached_folder_info(cache_type).await?;
-        }
-
-        if folder_info_old.fingerprint.content_hash() == folder_info_new.fingerprint.content_hash() {
-            info!("{} unchanged, no need to write to cache", folder_path);
-        } else {
-            info!(
-                "{} fingerprint changed from {} to {}",
-                folder_path,
-                folder_info_old.fingerprint.content_hash(),
-                folder_info_new.fingerprint.content_hash()
-            );
-
             // If we have no files in the old fingerprint, we assume it was updated at the
             // epoch. If we have no files in the new fingerprint, we assume it
             // was updated now. If we pruned items we also override the modification
