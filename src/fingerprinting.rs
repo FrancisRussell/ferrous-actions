@@ -183,55 +183,6 @@ impl Fingerprint {
             })
             .collect()
     }
-
-    fn get_unaccessed_since_process_either<S>(
-        path: &Path,
-        element: EitherOrBoth<(S, &Entry), (S, &Entry)>,
-        depth: usize,
-    ) -> Vec<Path>
-    where
-        S: AsRef<str>,
-    {
-        let predicated = |element, condition| if condition { vec![element] } else { vec![] };
-        match element {
-            EitherOrBoth::Left(_) | EitherOrBoth::Right(_) => vec![],
-            EitherOrBoth::Both(left, right) => {
-                let path = path.join(left.0.as_ref());
-                match (left.1, right.1) {
-                    (Entry::File(meta1), Entry::File(meta2)) => predicated(path, meta1 == meta2),
-                    (Entry::Dir(tree1), Entry::Dir(tree2)) => {
-                        if depth == 0 {
-                            predicated(path, tree1 == tree2)
-                        } else {
-                            Self::get_unaccessed_process_iterators(&path, tree1.iter(), tree2.iter(), depth - 1)
-                        }
-                    }
-                    (Entry::Dir(_), Entry::File(_)) | (Entry::File(_), Entry::Dir(_)) => vec![],
-                }
-            }
-        }
-    }
-
-    fn get_unaccessed_process_iterators<'a, I, S>(path: &Path, from_iter: I, to_iter: I, depth: usize) -> Vec<Path>
-    where
-        I: Iterator<Item = (S, &'a Entry)>,
-        S: AsRef<str>,
-    {
-        use itertools::Itertools as _;
-
-        from_iter
-            .merge_join_by(to_iter, |left, right| left.0.as_ref().cmp(right.0.as_ref()))
-            .flat_map(|element| Self::get_unaccessed_since_process_either(path, element, depth))
-            .collect()
-    }
-
-    pub fn get_unaccessed_since(&self, other: &Fingerprint, depth: usize) -> Vec<Path> {
-        let root_path = Path::from(ROOT_NAME);
-        let left = (ROOT_NAME, &other.root);
-        let right = (ROOT_NAME, &self.root);
-        let element = EitherOrBoth::Both(left, right);
-        Self::get_unaccessed_since_process_either(&root_path, element, depth)
-    }
 }
 
 #[allow(dead_code)]
