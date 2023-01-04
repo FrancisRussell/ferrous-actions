@@ -164,8 +164,7 @@ impl Cache {
         let dep_file_path = dependency_file_path(self.cache_type, scope_hash, &job)?;
         let old_groups = if dep_file_path.exists().await {
             let file_contents = node::fs::read_file(&dep_file_path).await?;
-            let old_groups = serde_json::de::from_slice(&file_contents)?;
-            old_groups
+            serde_json::de::from_slice(&file_contents)?
         } else {
             Vec::new()
         };
@@ -284,7 +283,9 @@ impl Cache {
             .flat_map(|element| match element {
                 EitherOrBoth::Left(left) => Some((DeltaAction::Removed, left.path.as_str())),
                 EitherOrBoth::Right(right) => Some((DeltaAction::Added, right.path.as_str())),
-                EitherOrBoth::Both(left, right) => (left != right).then(|| (DeltaAction::Changed, right.path.as_str())),
+                EitherOrBoth::Both(left, right) => {
+                    (left != right).then_some((DeltaAction::Changed, right.path.as_str()))
+                }
             })
             .collect()
     }
@@ -301,9 +302,8 @@ impl Cache {
             .flat_map(|element| match element {
                 EitherOrBoth::Left(left) => Some((DeltaAction::Removed, left.0.as_str())),
                 EitherOrBoth::Right(right) => Some((DeltaAction::Added, right.0.as_str())),
-                EitherOrBoth::Both(left, right) => {
-                    (left.1.content_hash() != right.1.content_hash()).then(|| (DeltaAction::Changed, right.0.as_str()))
-                }
+                EitherOrBoth::Both(left, right) => (left.1.content_hash() != right.1.content_hash())
+                    .then_some((DeltaAction::Changed, right.0.as_str())),
             })
             .collect()
     }
@@ -349,7 +349,7 @@ impl Cache {
         let to_prune: Vec<_> = merged
             .flat_map(|element| match element {
                 EitherOrBoth::Left(_) | EitherOrBoth::Right(_) => None,
-                EitherOrBoth::Both(left, right) => (left.1.accessed() == right.1.accessed()).then(|| left.0.as_str()),
+                EitherOrBoth::Both(left, right) => (left.1.accessed() == right.1.accessed()).then_some(left.0.as_str()),
             })
             .collect();
 
