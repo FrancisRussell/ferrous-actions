@@ -1,6 +1,7 @@
 use crate::action_paths::get_action_cache_dir;
 use crate::actions::cache::Entry as CacheEntry;
 use crate::actions::core;
+use crate::delta::{render_list as render_delta_list, Action as DeltaAction};
 use crate::dir_tree::match_relative_paths;
 use crate::fingerprinting::{fingerprint_path_with_ignores, Fingerprint, Ignores};
 use crate::hasher::Blake3 as Blake3Hasher;
@@ -27,13 +28,6 @@ struct Cache {
     cache_type: CacheType,
     root: BTreeMap<String, BTreeMap<String, Fingerprint>>,
     root_path: String,
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, strum::Display)]
-pub enum DeltaAction {
-    Added,
-    Removed,
-    Changed,
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
@@ -174,9 +168,7 @@ impl Cache {
             info!("{} dependency list is unchanged.", self.cache_type.friendly_name());
         } else {
             info!("{} dependency list changed:", self.cache_type.friendly_name());
-            for (action, path) in group_list_delta {
-                info!("{}: {}", action, path);
-            }
+            info!("{}", render_delta_list(&group_list_delta));
             let serialized_groups = serde_json::to_string(&new_groups)?;
             {
                 let parent = dep_file_path.parent();
@@ -207,9 +199,7 @@ impl Cache {
                     let interval_is_sufficient = modification_delta > *min_recache_interval;
                     if interval_is_sufficient {
                         info!("Cached {} group {} has changed:", self.cache_type.friendly_name(), path);
-                        for (action, path) in group_delta {
-                            info!("{}: {}", action, path);
-                        }
+                        info!("{}", render_delta_list(&group_delta));
                         true
                     } else {
                         use humantime::format_duration;
@@ -274,17 +264,17 @@ impl Cache {
             .collect()
     }
 
-    fn compare_group_lists<'a>(from: &'a [GroupIdentifier], to: &'a [GroupIdentifier]) -> Vec<(DeltaAction, &'a str)> {
+    fn compare_group_lists<'a>(from: &'a [GroupIdentifier], to: &'a [GroupIdentifier]) -> Vec<(&'a str, DeltaAction)> {
         use itertools::{EitherOrBoth, Itertools as _};
         let from_iter = from.iter();
         let to_iter = to.iter();
         let merged = from_iter.merge_join_by(to_iter, |left, right| left.path.cmp(&right.path));
         merged
             .flat_map(|element| match element {
-                EitherOrBoth::Left(left) => Some((DeltaAction::Removed, left.path.as_str())),
-                EitherOrBoth::Right(right) => Some((DeltaAction::Added, right.path.as_str())),
+                EitherOrBoth::Left(left) => Some((left.path.as_str(), DeltaAction::Removed)),
+                EitherOrBoth::Right(right) => Some((right.path.as_str(), DeltaAction::Added)),
                 EitherOrBoth::Both(left, right) => {
-                    (left != right).then_some((DeltaAction::Changed, right.path.as_str()))
+                    (left != right).then_some((right.path.as_str(), DeltaAction::Changed))
                 }
             })
             .collect()
@@ -293,17 +283,17 @@ impl Cache {
     fn compare_groups<'a>(
         from: &'a BTreeMap<String, Fingerprint>,
         to: &'a BTreeMap<String, Fingerprint>,
-    ) -> Vec<(DeltaAction, &'a str)> {
+    ) -> Vec<(&'a str, DeltaAction)> {
         use itertools::{EitherOrBoth, Itertools as _};
         let from_iter = from.iter();
         let to_iter = to.iter();
         let merged = from_iter.merge_join_by(to_iter, |left, right| left.0.cmp(right.0));
         merged
             .flat_map(|element| match element {
-                EitherOrBoth::Left(left) => Some((DeltaAction::Removed, left.0.as_str())),
-                EitherOrBoth::Right(right) => Some((DeltaAction::Added, right.0.as_str())),
+                EitherOrBoth::Left(left) => Some((left.0.as_str(), DeltaAction::Removed)),
+                EitherOrBoth::Right(right) => Some((right.0.as_str(), DeltaAction::Added)),
                 EitherOrBoth::Both(left, right) => (left.1.content_hash() != right.1.content_hash())
-                    .then_some((DeltaAction::Changed, right.0.as_str())),
+                    .then_some((right.0.as_str(), DeltaAction::Changed)),
             })
             .collect()
     }

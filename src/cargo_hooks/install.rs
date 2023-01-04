@@ -1,7 +1,8 @@
 use super::Hook;
 use crate::action_paths::get_action_cache_dir;
 use crate::actions::cache::Entry as CacheEntry;
-use crate::fingerprinting::{render_delta_items, Fingerprint};
+use crate::delta::render_list as render_delta_list;
+use crate::fingerprinting::Fingerprint;
 use crate::hasher::Blake3 as Blake3Hasher;
 use crate::node::path::Path;
 use crate::{actions, error, info, node, warning, Error};
@@ -134,7 +135,7 @@ impl Hook for Install {
                             new_fingerprint.content_hash()
                         );
                         let delta = new_fingerprint.changes_from(old_fingerprint);
-                        info!("{}", render_delta_items(&delta));
+                        info!("{}", render_delta_list(&delta));
                     }
                     changed
                 }

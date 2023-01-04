@@ -14,6 +14,7 @@ mod cargo;
 mod cargo_hooks;
 mod cargo_lock_hashing;
 mod cross;
+mod delta;
 mod dir_tree;
 mod error;
 mod fingerprinting;

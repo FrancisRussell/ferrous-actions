@@ -1,3 +1,4 @@
+use crate::delta::Action as DeltaAction;
 pub use crate::dir_tree::Ignores;
 use crate::node::fs;
 use crate::node::path::{self, Path};
@@ -21,24 +22,6 @@ struct Metadata {
     mode: u64,
     modified: DateTime<Utc>,
     accessed: DateTime<Utc>,
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, strum::Display)]
-pub enum DeltaAction {
-    Added,
-    Removed,
-    Changed,
-}
-
-pub type DeltaItem = (String, DeltaAction);
-
-pub fn render_delta_items(items: &[DeltaItem]) -> String {
-    use std::fmt::Write as _;
-    let mut result = String::new();
-    for (path, item) in items {
-        writeln!(&mut result, "{}: {}", item, path).expect("Unable to write to string");
-    }
-    result
 }
 
 impl From<&fs::Metadata> for Metadata {
@@ -167,7 +150,7 @@ impl Fingerprint {
         }
     }
 
-    pub fn changes_from(&self, other: &Fingerprint) -> Vec<DeltaItem> {
+    pub fn changes_from(&self, other: &Fingerprint) -> Vec<(String, DeltaAction)> {
         use itertools::Itertools as _;
 
         let from_iter = other.sorted_file_paths_and_metadata();
