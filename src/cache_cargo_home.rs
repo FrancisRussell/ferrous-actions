@@ -155,6 +155,19 @@ impl Cache {
                 self.cache_type.friendly_name()
             );
         }
+
+        for (path, group) in &self.root {
+            let modified_or_new = if let Some(old_group) = old.root.get(path) {
+                !Self::groups_identical(group, old_group)
+            } else {
+                true
+            };
+            if modified_or_new {
+                let identifier = self.build_group_identifier(path);
+                let entry = Self::group_identifier_to_cache_entry(self.cache_type, &identifier);
+                entry.save().await?;
+            }
+        }
         Ok(())
     }
 
@@ -200,6 +213,24 @@ impl Cache {
         let path = Path::from(group_id.root.as_str()).join(group_id.path.as_str());
         entry.path(path);
         entry
+    }
+
+    fn groups_identical(from: &BTreeMap<String, Fingerprint>, to: &BTreeMap<String, Fingerprint>) -> bool {
+        use itertools::{EitherOrBoth, Itertools as _};
+        let from_iter = from.iter();
+        let to_iter = to.iter();
+        let merged = from_iter.merge_join_by(to_iter, |left, right| left.0.cmp(&right.0));
+        for element in merged {
+            match element {
+                EitherOrBoth::Left(_) | EitherOrBoth::Right(_) => return false,
+                EitherOrBoth::Both(left, right) => {
+                    if left.1.content_hash() != right.1.content_hash() {
+                        return false;
+                    }
+                }
+            }
+        }
+        true
     }
 
     async fn prune_unused_group(
@@ -561,46 +592,7 @@ pub async fn restore_cargo_cache(input_manager: &input_manager::Manager) -> Resu
             node::fs::create_dir_all(&parent).await?;
         }
         node::fs::write_file(&cached_info_path, serialized_cache.as_bytes()).await?;
-
-        /*
-        let entry_matcher = depth_to_match(entry_depth)?;
-        let entry_paths = match_relative_paths(&folder_path, &entry_matcher).await?;
-        info!("Cache entries for {}: {:#?}", cache_type, entry_paths);
-        */
     }
-
-    /*
-    use crate::access_times::{revert_folder, supports_atime};
-
-    let types_to_cache = get_types_to_cache(input_manager)?;
-    let types_to_cache_json = serde_json::to_string(&types_to_cache)?;
-
-    core::save_state(CACHED_TYPES_KEY, safe_encoding::encode(&types_to_cache_json));
-
-    for cache_type in get_types_to_cache(input_manager)? {
-        let cache_entry = build_cache_entry(cache_type, &id_hash, &folder_path);
-        if let Some(restore_key) = cache_entry.restore().await.map_err(Error::Js)? {
-            info!(
-                "Restored {} from cache using key {}.",
-                cache_type.friendly_name(),
-                restore_key
-            );
-        } else {
-            info!("No existing cache entry for {} found.", cache_type.friendly_name());
-            node::fs::create_dir_all(&folder_path).await?;
-        }
-        // Set all access times to be prior to modification times
-        if atimes_supported {
-            revert_folder(&folder_path).await?;
-        }
-        let folder_info = build_cached_folder_info(cache_type).await?;
-        let folder_info_serialized = serde_json::to_string(&folder_info)?;
-        let folder_info_path = cached_folder_info_path(cache_type)?;
-        let parent = folder_info_path.parent();
-        node::fs::create_dir_all(&parent).await?;
-        node::fs::write_file(&folder_info_path, folder_info_serialized.as_bytes()).await?;
-    }
-    */
     Ok(())
 }
 
