@@ -2,26 +2,25 @@ use crate::action_paths::get_action_cache_dir;
 use crate::actions::cache::Entry as CacheEntry;
 use crate::actions::core;
 use crate::dir_tree::match_relative_paths;
-use crate::fingerprinting::{fingerprint_path_with_ignores, render_delta_items, Fingerprint, Ignores};
+use crate::fingerprinting::{fingerprint_path_with_ignores, Fingerprint, Ignores};
 use crate::hasher::Blake3 as Blake3Hasher;
 use crate::input_manager::{self, Input};
 use crate::job::Job;
 use crate::node::os::homedir;
 use crate::node::path::Path;
-use crate::{actions, error, info, node, notice, safe_encoding, warning, Error};
+use crate::{actions, info, node, notice, safe_encoding, warning, Error};
 use chrono::{DateTime, Utc};
 use rust_toolchain_manifest::HashValue;
 use serde::{Deserialize, Serialize};
 use simple_path_match::{PathMatch, PathMatchBuilder};
 use std::borrow::Cow;
 use std::collections::{BTreeMap, HashSet};
-use std::hash::{Hash as _, Hasher as _};
+use std::hash::Hash as _;
 use std::str::FromStr;
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator, IntoStaticStr};
 
 const SCOPE_HASH_KEY: &str = "SCOPE_HASH";
 const ATIMES_SUPPORTED_KEY: &str = "ACCESS_TIMES_SUPPORTED";
-const CACHED_TYPES_KEY: &str = "CACHED_TYPES";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct Cache {
@@ -155,7 +154,7 @@ impl Cache {
         min_recache_interval: &chrono::Duration,
     ) -> Result<(), Error> {
         let job = Job::from_env()?;
-        let dep_file_path = dependency_file_path(self.cache_type, &scope_hash, &job)?;
+        let dep_file_path = dependency_file_path(self.cache_type, scope_hash, &job)?;
         let old_groups = if dep_file_path.exists().await {
             let file_contents = node::fs::read_file(&dep_file_path).await?;
             let old_groups = serde_json::de::from_slice(&file_contents)?;
@@ -175,7 +174,7 @@ impl Cache {
                 node::fs::create_dir_all(&parent).await?;
             }
             node::fs::write_file(&dep_file_path, serialized_groups.as_bytes()).await?;
-            let dependencies_entry = build_cache_entry_dependencies(self.cache_type, &scope_hash, &job)?;
+            let dependencies_entry = build_cache_entry_dependencies(self.cache_type, scope_hash, &job)?;
             dependencies_entry.save().await?;
         } else {
             info!(
@@ -246,7 +245,7 @@ impl Cache {
         entry_level: usize,
     ) -> Result<BTreeMap<String, Fingerprint>, Error> {
         let entry_level_glob = depth_to_match(entry_level)?;
-        let entry_level_paths = match_relative_paths(&group_path, &entry_level_glob, true).await?;
+        let entry_level_paths = match_relative_paths(group_path, &entry_level_glob, true).await?;
         let mut map = BTreeMap::new();
         for path in entry_level_paths {
             let entry_path = group_path.join(path.clone());
@@ -295,7 +294,7 @@ impl Cache {
         use itertools::{EitherOrBoth, Itertools as _};
         let from_iter = from.iter();
         let to_iter = to.iter();
-        let merged = from_iter.merge_join_by(to_iter, |left, right| left.0.cmp(&right.0));
+        let merged = from_iter.merge_join_by(to_iter, |left, right| left.0.cmp(right.0));
         for element in merged {
             match element {
                 EitherOrBoth::Left(_) | EitherOrBoth::Right(_) => return false,
@@ -318,7 +317,7 @@ impl Cache {
         let mut to_prune = HashSet::new();
         let from_iter = left.iter();
         let to_iter = right.iter();
-        let merged = from_iter.merge_join_by(to_iter, |left, right| left.0.cmp(&right.0));
+        let merged = from_iter.merge_join_by(to_iter, |left, right| left.0.cmp(right.0));
         for element in merged {
             match element {
                 EitherOrBoth::Left(_) | EitherOrBoth::Right(_) => {}
@@ -343,14 +342,14 @@ impl Cache {
         let root_path = Path::from(self.root_path.as_str());
         let from_iter = old.root.iter();
         let to_iter = self.root.iter_mut();
-        let merged = from_iter.merge_join_by(to_iter, |left, right| left.0.cmp(&right.0));
+        let merged = from_iter.merge_join_by(to_iter, |left, right| left.0.cmp(right.0));
         for element in merged {
             match element {
                 EitherOrBoth::Left(_) => {}
                 EitherOrBoth::Right(_) => {}
-                EitherOrBoth::Both(left, mut right) => {
+                EitherOrBoth::Both(left, right) => {
                     let entry_path = root_path.join(right.0.as_str());
-                    Self::prune_unused_group(&left.1, &mut right.1, &entry_path).await?;
+                    Self::prune_unused_group(left.1, right.1, &entry_path).await?;
                 }
             }
         }
@@ -545,17 +544,6 @@ struct CachedFolderInfo {
     fingerprint: Fingerprint,
 }
 
-async fn build_cached_folder_info(cache_type: CacheType) -> Result<CachedFolderInfo, Error> {
-    let path = find_path(cache_type);
-    let ignores = cache_type.ignores();
-    let fingerprint = fingerprint_path_with_ignores(&path, &ignores).await?;
-    let folder_info = CachedFolderInfo {
-        path: path.to_string(),
-        fingerprint,
-    };
-    Ok(folder_info)
-}
-
 fn dependency_file_path(cache_type: CacheType, scope: &HashValue, job: &Job) -> Result<Path, Error> {
     let dependency_dir = dependency_files_dir()?;
     let mut hasher = Blake3Hasher::default();
@@ -584,20 +572,6 @@ fn build_cache_entry_dependencies(cache_type: CacheType, scope: &HashValue, job:
     let path = dependency_file_path(cache_type, scope, job)?;
     cache_entry.path(path);
     Ok(cache_entry)
-}
-
-fn build_cache_entry(cache_type: CacheType, key: &HashValue, path: &Path) -> CacheEntry {
-    use crate::cache_key_builder::CacheKeyBuilder;
-
-    let name = cache_type.friendly_name();
-    let mut key_builder = CacheKeyBuilder::new(&name);
-    key_builder.add_key_data(key);
-    let date = chrono::Local::now();
-    key_builder.set_attribute("date", &date.to_string());
-    key_builder.set_attribute_nonce("nonce");
-    let mut cache_entry = key_builder.into_entry();
-    cache_entry.path(path);
-    cache_entry
 }
 
 pub async fn restore_cargo_cache(input_manager: &input_manager::Manager) -> Result<(), Error> {

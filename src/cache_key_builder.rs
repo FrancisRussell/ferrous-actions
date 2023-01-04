@@ -2,7 +2,6 @@ use crate::actions::cache::Entry as CacheEntry;
 use crate::hasher::Blake3 as Blake3Hasher;
 use crate::safe_encoding;
 use std::collections::BTreeMap;
-use std::hash::Hasher as _;
 
 const CACHE_ENTRY_VERSION: &str = "6";
 
@@ -55,21 +54,15 @@ impl CacheKeyBuilder {
             }
             save_key += ")";
         }
-        let save_key = save_key.replace(',', ";");
-        save_key
+        save_key.replace(',', ";")
     }
 
-    pub fn current_save_key(&self) -> String {
-        self.restore_key_to_save_key(&self.current_restore_key())
-    }
-
-    pub fn current_restore_key(&self) -> String {
+    fn current_restore_key(&self) -> String {
         let id: [u8; 32] = self.hasher.inner().finalize().into();
         let id = &id[..8];
         let id = safe_encoding::encode(id);
         let restore_key = format!("Ferrous Actions: {} - id={}", self.name, id);
-        let restore_key = restore_key.replace(',', ";");
-        restore_key
+        restore_key.replace(',', ";")
     }
 
     pub fn into_entry(self) -> CacheEntry {
