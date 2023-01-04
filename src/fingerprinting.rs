@@ -1,3 +1,4 @@
+use crate::delta::Action as DeltaAction;
 pub use crate::dir_tree::Ignores;
 use crate::node::fs;
 use crate::node::path::{self, Path};
@@ -21,24 +22,6 @@ struct Metadata {
     mode: u64,
     modified: DateTime<Utc>,
     accessed: DateTime<Utc>,
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, strum::Display)]
-pub enum DeltaAction {
-    Added,
-    Removed,
-    Changed,
-}
-
-pub type DeltaItem = (String, DeltaAction);
-
-pub fn render_delta_items(items: &[DeltaItem]) -> String {
-    use std::fmt::Write as _;
-    let mut result = String::new();
-    for (path, item) in items {
-        writeln!(&mut result, "{}: {}", item, path).expect("Unable to write to string");
-    }
-    result
 }
 
 impl From<&fs::Metadata> for Metadata {
@@ -83,6 +66,7 @@ enum Entry {
 pub struct Fingerprint {
     content_hash: u64,
     modified: Option<DateTime<Utc>>,
+    accessed: Option<DateTime<Utc>>,
     root: Entry,
 }
 
@@ -151,6 +135,10 @@ impl Fingerprint {
         self.modified
     }
 
+    pub fn accessed(&self) -> Option<DateTime<Utc>> {
+        self.accessed
+    }
+
     fn sorted_file_paths_and_metadata(&self) -> FlatteningIterator<'_> {
         let root_content = match &self.root {
             Entry::File(metadata) => Either::Right(*metadata),
@@ -162,7 +150,7 @@ impl Fingerprint {
         }
     }
 
-    pub fn changes_from(&self, other: &Fingerprint) -> Vec<DeltaItem> {
+    pub fn changes_from(&self, other: &Fingerprint) -> Vec<(String, DeltaAction)> {
         use itertools::Itertools as _;
 
         let from_iter = other.sorted_file_paths_and_metadata();
@@ -178,55 +166,6 @@ impl Fingerprint {
             })
             .collect()
     }
-
-    fn get_unaccessed_since_process_either<S>(
-        path: &Path,
-        element: EitherOrBoth<(S, &Entry), (S, &Entry)>,
-        depth: usize,
-    ) -> Vec<Path>
-    where
-        S: AsRef<str>,
-    {
-        let predicated = |element, condition| if condition { vec![element] } else { vec![] };
-        match element {
-            EitherOrBoth::Left(_) | EitherOrBoth::Right(_) => vec![],
-            EitherOrBoth::Both(left, right) => {
-                let path = path.join(left.0.as_ref());
-                match (left.1, right.1) {
-                    (Entry::File(meta1), Entry::File(meta2)) => predicated(path, meta1 == meta2),
-                    (Entry::Dir(tree1), Entry::Dir(tree2)) => {
-                        if depth == 0 {
-                            predicated(path, tree1 == tree2)
-                        } else {
-                            Self::get_unaccessed_process_iterators(&path, tree1.iter(), tree2.iter(), depth - 1)
-                        }
-                    }
-                    (Entry::Dir(_), Entry::File(_)) | (Entry::File(_), Entry::Dir(_)) => vec![],
-                }
-            }
-        }
-    }
-
-    fn get_unaccessed_process_iterators<'a, I, S>(path: &Path, from_iter: I, to_iter: I, depth: usize) -> Vec<Path>
-    where
-        I: Iterator<Item = (S, &'a Entry)>,
-        S: AsRef<str>,
-    {
-        use itertools::Itertools as _;
-
-        from_iter
-            .merge_join_by(to_iter, |left, right| left.0.as_ref().cmp(right.0.as_ref()))
-            .flat_map(|element| Self::get_unaccessed_since_process_either(path, element, depth))
-            .collect()
-    }
-
-    pub fn get_unaccessed_since(&self, other: &Fingerprint, depth: usize) -> Vec<Path> {
-        let root_path = Path::from(ROOT_NAME);
-        let left = (ROOT_NAME, &other.root);
-        let right = (ROOT_NAME, &self.root);
-        let element = EitherOrBoth::Both(left, right);
-        Self::get_unaccessed_since_process_either(&root_path, element, depth)
-    }
 }
 
 #[allow(dead_code)]
@@ -238,6 +177,7 @@ pub async fn fingerprint_path(path: &Path) -> Result<Fingerprint, Error> {
 struct BuildFingerprintVisitor {
     stack: VecDeque<Entry>,
     modified: Option<DateTime<Utc>>,
+    accessed: Option<DateTime<Utc>>,
 }
 
 impl BuildFingerprintVisitor {
@@ -287,6 +227,10 @@ impl dir_tree::Visitor for BuildFingerprintVisitor {
                 None => metadata.modified,
                 Some(latest) => std::cmp::max(latest, metadata.modified),
             });
+            self.accessed = Some(match self.accessed {
+                None => metadata.accessed,
+                Some(latest) => std::cmp::max(latest, metadata.accessed),
+            });
             let file_name = path.file_name();
             self.push_file(file_name, metadata);
         } else {
@@ -300,6 +244,7 @@ pub async fn fingerprint_path_with_ignores(path: &Path, ignores: &Ignores) -> Re
     let mut visitor = BuildFingerprintVisitor {
         stack: VecDeque::new(),
         modified: None,
+        accessed: None,
     };
     dir_tree::apply_visitor(path, ignores, &mut visitor).await?;
     assert_eq!(visitor.stack.len(), 1, "Tree data stack should only have single entry");
@@ -311,6 +256,7 @@ pub async fn fingerprint_path_with_ignores(path: &Path, ignores: &Ignores) -> Re
     let result = Fingerprint {
         content_hash,
         modified: visitor.modified,
+        accessed: visitor.accessed,
         root,
     };
     Ok(result)

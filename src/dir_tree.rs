@@ -79,6 +79,7 @@ struct PathMatchVisitor<'a> {
     matching_paths: Vec<Path>,
     matcher: &'a PathMatch,
     path_stack: VecDeque<Path>,
+    output_relative: bool,
 }
 
 impl<'a> PathMatchVisitor<'a> {
@@ -90,7 +91,8 @@ impl<'a> PathMatchVisitor<'a> {
 
     fn visit_path(&mut self, absolute: &Path, relative: &Path) {
         if self.matcher.matches(relative.to_string()) {
-            self.matching_paths.push(absolute.clone());
+            let path = if self.output_relative { relative } else { absolute }.clone();
+            self.matching_paths.push(path);
         }
     }
 }
@@ -126,11 +128,12 @@ impl<'a> Visitor for PathMatchVisitor<'a> {
     }
 }
 
-pub async fn match_relative_paths(path: &Path, matcher: &PathMatch) -> Result<Vec<Path>, Error> {
+pub async fn match_relative_paths(path: &Path, matcher: &PathMatch, output_relative: bool) -> Result<Vec<Path>, Error> {
     let mut visitor = PathMatchVisitor {
         matching_paths: Vec::new(),
         matcher,
         path_stack: VecDeque::new(),
+        output_relative,
     };
     let ignores = Ignores::default();
     apply_visitor(path, &ignores, &mut visitor).await?;
