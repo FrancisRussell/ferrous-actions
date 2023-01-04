@@ -621,8 +621,6 @@ pub async fn restore_cargo_cache(input_manager: &input_manager::Manager) -> Resu
     };
     core::save_state(SCOPE_HASH_KEY, safe_encoding::encode(&scope_hash));
 
-    let job = Job::from_env()?;
-    info!("Job: {:#?}", job);
     let cached_types = get_types_to_cache(input_manager)?;
     for cache_type in cached_types {
         // Mark as used to avoid spurious warnings (we only use this when we save the
@@ -650,11 +648,7 @@ pub async fn save_cargo_cache(input_manager: &input_manager::Manager) -> Result<
     let atimes_supported = core::get_state(ATIMES_SUPPORTED_KEY).expect("Failed to find access times support flag");
     let atimes_supported: bool = serde_json::de::from_str(&atimes_supported)?;
 
-    let job = Job::from_env()?;
     let cached_types = get_types_to_cache(input_manager)?;
-
-    info!("Job: {:#?}", job);
-
     for cache_type in cached_types {
         // Delete items that should never make it into the cache
         for delete_path in find_additional_delete_paths(cache_type).await? {
