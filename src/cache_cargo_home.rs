@@ -29,6 +29,13 @@ struct Cache {
     root_path: String,
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, strum::Display)]
+pub enum DeltaAction {
+    Added,
+    Removed,
+    Changed,
+}
+
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 struct GroupIdentifier {
     root: String,
@@ -158,16 +165,19 @@ impl Cache {
         let old_groups = if dep_file_path.exists().await {
             let file_contents = node::fs::read_file(&dep_file_path).await?;
             let old_groups = serde_json::de::from_slice(&file_contents)?;
-            Some(old_groups)
+            old_groups
         } else {
-            None
+            Vec::new()
         };
         let new_groups = self.group_identifiers();
-        if old_groups.as_ref() != Some(&new_groups) {
-            info!(
-                "Saving dependency list changes for cache of type {}",
-                self.cache_type.friendly_name()
-            );
+        let group_list_delta = Self::compare_group_lists(&old_groups, &new_groups);
+        if group_list_delta.is_empty() {
+            info!("{} dependency list is unchanged.", self.cache_type.friendly_name());
+        } else {
+            info!("{} dependency list changed:", self.cache_type.friendly_name());
+            for (action, path) in group_list_delta {
+                info!("{}: {}", action, path);
+            }
             let serialized_groups = serde_json::to_string(&new_groups)?;
             {
                 let parent = dep_file_path.parent();
@@ -176,11 +186,7 @@ impl Cache {
             node::fs::write_file(&dep_file_path, serialized_groups.as_bytes()).await?;
             let dependencies_entry = build_cache_entry_dependencies(self.cache_type, scope_hash, &job)?;
             dependencies_entry.save().await?;
-        } else {
-            info!(
-                "No changes in depdendency list for cache of type {}",
-                self.cache_type.friendly_name()
-            );
+            info!("{} dependency list was successfully saved.", self.cache_type);
         }
 
         for (path, group) in &self.root {
@@ -258,6 +264,26 @@ impl Cache {
         self.root
             .keys()
             .map(|group_path| self.build_group_identifier(group_path))
+            .collect()
+    }
+
+    fn compare_group_lists(from: &[GroupIdentifier], to: &[GroupIdentifier]) -> Vec<(DeltaAction, String)> {
+        use itertools::{EitherOrBoth, Itertools as _};
+        let from_iter = from.iter();
+        let to_iter = to.iter();
+        let merged = from_iter.merge_join_by(to_iter, |left, right| left.path.cmp(&right.path));
+        merged
+            .flat_map(|element| match element {
+                EitherOrBoth::Left(left) => Some((DeltaAction::Removed, left.path.clone())),
+                EitherOrBoth::Right(right) => Some((DeltaAction::Added, right.path.clone())),
+                EitherOrBoth::Both(left, right) => {
+                    if left == right {
+                        None
+                    } else {
+                        Some((DeltaAction::Changed, right.path.clone()))
+                    }
+                }
+            })
             .collect()
     }
 
