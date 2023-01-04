@@ -191,7 +191,8 @@ impl Cache {
 
         for (path, group) in &self.root {
             let attempt_save = if let Some(old_group) = old.root.get(path) {
-                if Self::groups_identical(group, old_group) {
+                let group_delta = Self::compare_groups(old_group, group);
+                if group_delta.is_empty() {
                     // The group's content is unchanged
                     false
                 } else {
@@ -206,15 +207,17 @@ impl Cache {
 
                     let interval_is_sufficient = modification_delta > *min_recache_interval;
                     if interval_is_sufficient {
-                        //let delta =
-                        // folder_info_new.fingerprint.changes_from(&folder_info_old.fingerprint);
-                        // info!("{}", render_delta_items(&delta));
+                        info!("Cached {} group {} has changed:", self.cache_type.friendly_name(), path);
+                        for (action, path) in group_delta {
+                            info!("{}: {}", action, path);
+                        }
                         true
                     } else {
                         use humantime::format_duration;
                         info!(
-                            "Cached {} outdated by {}, but not updating cache since minimum recache interval is {}.",
+                            "Cached {} group {} outdated by {}, but not updating cache since minimum recache interval is {}.",
                             self.cache_type,
+                            path,
                             format_duration(modification_delta.to_std()?),
                             format_duration(min_recache_interval.to_std()?),
                         );
@@ -230,11 +233,16 @@ impl Cache {
                 let identifier = self.build_group_identifier(path);
                 let entry = Self::group_identifier_to_cache_entry(self.cache_type, &identifier);
                 info!(
-                    "Saving modified content for cache type {} for {}",
+                    "Saving modified {} cache group {}",
                     self.cache_type.friendly_name(),
                     path
                 );
                 entry.save().await?;
+                info!(
+                    "{} cache group {} saved successfully.",
+                    self.cache_type.friendly_name(),
+                    path
+                );
             }
         }
         Ok(())
@@ -267,21 +275,34 @@ impl Cache {
             .collect()
     }
 
-    fn compare_group_lists(from: &[GroupIdentifier], to: &[GroupIdentifier]) -> Vec<(DeltaAction, String)> {
+    fn compare_group_lists<'a>(from: &'a [GroupIdentifier], to: &'a [GroupIdentifier]) -> Vec<(DeltaAction, &'a str)> {
         use itertools::{EitherOrBoth, Itertools as _};
         let from_iter = from.iter();
         let to_iter = to.iter();
         let merged = from_iter.merge_join_by(to_iter, |left, right| left.path.cmp(&right.path));
         merged
             .flat_map(|element| match element {
-                EitherOrBoth::Left(left) => Some((DeltaAction::Removed, left.path.clone())),
-                EitherOrBoth::Right(right) => Some((DeltaAction::Added, right.path.clone())),
+                EitherOrBoth::Left(left) => Some((DeltaAction::Removed, left.path.as_str())),
+                EitherOrBoth::Right(right) => Some((DeltaAction::Added, right.path.as_str())),
+                EitherOrBoth::Both(left, right) => (left != right).then(|| (DeltaAction::Changed, right.path.as_str())),
+            })
+            .collect()
+    }
+
+    fn compare_groups<'a>(
+        from: &'a BTreeMap<String, Fingerprint>,
+        to: &'a BTreeMap<String, Fingerprint>,
+    ) -> Vec<(DeltaAction, &'a str)> {
+        use itertools::{EitherOrBoth, Itertools as _};
+        let from_iter = from.iter();
+        let to_iter = to.iter();
+        let merged = from_iter.merge_join_by(to_iter, |left, right| left.0.cmp(right.0));
+        merged
+            .flat_map(|element| match element {
+                EitherOrBoth::Left(left) => Some((DeltaAction::Removed, left.0.as_str())),
+                EitherOrBoth::Right(right) => Some((DeltaAction::Added, right.0.as_str())),
                 EitherOrBoth::Both(left, right) => {
-                    if left == right {
-                        None
-                    } else {
-                        Some((DeltaAction::Changed, right.path.clone()))
-                    }
+                    (left.1.content_hash() != right.1.content_hash()).then(|| (DeltaAction::Changed, right.0.as_str()))
                 }
             })
             .collect()
@@ -316,49 +337,27 @@ impl Cache {
         result
     }
 
-    fn groups_identical(from: &BTreeMap<String, Fingerprint>, to: &BTreeMap<String, Fingerprint>) -> bool {
-        use itertools::{EitherOrBoth, Itertools as _};
-        let from_iter = from.iter();
-        let to_iter = to.iter();
-        let merged = from_iter.merge_join_by(to_iter, |left, right| left.0.cmp(right.0));
-        for element in merged {
-            match element {
-                EitherOrBoth::Left(_) | EitherOrBoth::Right(_) => return false,
-                EitherOrBoth::Both(left, right) => {
-                    if left.1.content_hash() != right.1.content_hash() {
-                        return false;
-                    }
-                }
-            }
-        }
-        true
-    }
-
-    async fn prune_unused_group(
+    async fn prune_unused_entries(
         left: &BTreeMap<String, Fingerprint>,
         right: &mut BTreeMap<String, Fingerprint>,
         right_path: &Path,
     ) -> Result<(), Error> {
         use itertools::{EitherOrBoth, Itertools as _};
-        let mut to_prune = HashSet::new();
         let from_iter = left.iter();
         let to_iter = right.iter();
         let merged = from_iter.merge_join_by(to_iter, |left, right| left.0.cmp(right.0));
-        for element in merged {
-            match element {
-                EitherOrBoth::Left(_) | EitherOrBoth::Right(_) => {}
-                EitherOrBoth::Both(left, right) => {
-                    if left.1.accessed() == right.1.accessed() {
-                        to_prune.insert(right.0.to_string());
-                    }
-                }
-            }
-        }
+        let to_prune: Vec<_> = merged
+            .flat_map(|element| match element {
+                EitherOrBoth::Left(_) | EitherOrBoth::Right(_) => None,
+                EitherOrBoth::Both(left, right) => (left.1.accessed() == right.1.accessed()).then(|| left.0.as_str()),
+            })
+            .collect();
+
         for element_name in to_prune {
-            let path = right_path.join(element_name.as_str());
+            let path = right_path.join(element_name);
             info!("Pruning unused cache element at {}", path);
             actions::io::rm_rf(&path).await?;
-            right.remove(&element_name);
+            right.remove(element_name);
         }
         Ok(())
     }
@@ -371,11 +370,10 @@ impl Cache {
         let merged = from_iter.merge_join_by(to_iter, |left, right| left.0.cmp(right.0));
         for element in merged {
             match element {
-                EitherOrBoth::Left(_) => {}
-                EitherOrBoth::Right(_) => {}
+                EitherOrBoth::Left(_) | EitherOrBoth::Right(_) => {}
                 EitherOrBoth::Both(left, right) => {
                     let entry_path = root_path.join(right.0.as_str());
-                    Self::prune_unused_group(left.1, right.1, &entry_path).await?;
+                    Self::prune_unused_entries(left.1, right.1, &entry_path).await?;
                 }
             }
         }
