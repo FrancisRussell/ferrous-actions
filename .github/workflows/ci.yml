@@ -6,9 +6,6 @@ env:
 
 jobs:
   build:
-    strategy:
-      matrix:
-        key: [singleton]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
