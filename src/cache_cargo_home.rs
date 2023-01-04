@@ -9,6 +9,7 @@ use crate::job::Job;
 use crate::node::os::homedir;
 use crate::node::path::Path;
 use crate::{actions, error, info, node, notice, safe_encoding, warning, Error};
+use chrono::{DateTime, Utc};
 use rust_toolchain_manifest::HashValue;
 use serde::{Deserialize, Serialize};
 use simple_path_match::{PathMatch, PathMatchBuilder};
@@ -147,7 +148,12 @@ impl Cache {
         Self::new(cache_type).await
     }
 
-    pub async fn save_changes(&self, old: &Cache, scope_hash: &HashValue) -> Result<(), Error> {
+    pub async fn save_changes(
+        &self,
+        old: &Cache,
+        scope_hash: &HashValue,
+        min_recache_interval: &chrono::Duration,
+    ) -> Result<(), Error> {
         let job = Job::from_env()?;
         let dep_file_path = dependency_file_path(self.cache_type, &scope_hash, &job)?;
         let old_groups = if dep_file_path.exists().await {
@@ -179,12 +185,43 @@ impl Cache {
         }
 
         for (path, group) in &self.root {
-            let modified_or_new = if let Some(old_group) = old.root.get(path) {
-                !Self::groups_identical(group, old_group)
+            let attempt_save = if let Some(old_group) = old.root.get(path) {
+                if Self::groups_identical(group, old_group) {
+                    // The group's content is unchanged
+                    false
+                } else {
+                    // The modification time is dubious because we cannot track when file deletions
+                    // occur and modifications times could be preserved from some sort of archive.
+                    // It should work fine for changes to Git repos however, which are our main
+                    // concern.
+                    let old_modification = Self::group_last_modified(old_group).unwrap_or_default();
+                    // Be robust against our delta being negative.
+                    let modification_delta = chrono::Utc::now() - old_modification;
+                    let modification_delta = std::cmp::max(chrono::Duration::zero(), modification_delta);
+
+                    let interval_is_sufficient = modification_delta > *min_recache_interval;
+                    if interval_is_sufficient {
+                        //let delta =
+                        // folder_info_new.fingerprint.changes_from(&folder_info_old.fingerprint);
+                        // info!("{}", render_delta_items(&delta));
+                        true
+                    } else {
+                        use humantime::format_duration;
+                        info!(
+                            "Cached {} outdated by {}, but not updating cache since minimum recache interval is {}.",
+                            self.cache_type,
+                            format_duration(modification_delta.to_std()?),
+                            format_duration(min_recache_interval.to_std()?),
+                        );
+                        false
+                    }
+                }
             } else {
+                // The group did not previously exist in the cache
                 true
             };
-            if modified_or_new {
+
+            if attempt_save {
                 let identifier = self.build_group_identifier(path);
                 let entry = Self::group_identifier_to_cache_entry(self.cache_type, &identifier);
                 info!(
@@ -240,6 +277,18 @@ impl Cache {
         let path = Path::from(group_id.root.as_str()).join(group_id.path.as_str());
         entry.path(path);
         entry
+    }
+
+    fn group_last_modified(group: &BTreeMap<String, Fingerprint>) -> Option<DateTime<Utc>> {
+        let mut result = None;
+        for fingerprint in group.values() {
+            result = match (result, fingerprint.modified()) {
+                (None, modified) => modified,
+                (modified, None) => modified,
+                (Some(a), Some(b)) => Some(std::cmp::max(a, b)),
+            };
+        }
+        result
     }
 
     fn groups_identical(from: &BTreeMap<String, Fingerprint>, to: &BTreeMap<String, Fingerprint>) -> bool {
@@ -615,10 +664,6 @@ pub async fn save_cargo_cache(input_manager: &input_manager::Manager) -> Result<
 
     let job = Job::from_env()?;
     let cached_types = get_types_to_cache(input_manager)?;
-    /*
-    use humantime::format_duration;
-    use wasm_bindgen::JsError;
-    */
 
     info!("Job: {:#?}", job);
 
@@ -658,51 +703,10 @@ pub async fn save_cargo_cache(input_manager: &input_manager::Manager) -> Result<
         }
 
         // Save groups to cache if they have changed
-        cache.save_changes(&cache_old, &scope_hash).await?;
-
-        /*
-            // If we have no files in the old fingerprint, we assume it was updated at the
-            // epoch. If we have no files in the new fingerprint, we assume it
-            // was updated now. If we pruned items we also override the modification
-            // timestamp with the current time.
-            //
-            // Basically, when we do not have a modification
-            // time, we will return a delta that indicates the folder is
-            // significantly out of date. Otherwise, we might end up not storing a
-            // new cache entry when we create or fully empty a folder.
-            let old_fingerprint = folder_info_old.fingerprint.modified().unwrap_or_default();
-            let new_fingerprint = folder_info_new
-                .fingerprint
-                .modified()
-                .filter(|_| !do_prune)
-                .unwrap_or_else(chrono::Utc::now);
-
-            // Be more robust against our file modification time moving backwards.
-            let modification_delta = new_fingerprint - old_fingerprint;
-            let modification_delta = std::cmp::max(chrono::Duration::zero(), modification_delta);
-
-            let min_recache_interval = get_min_recache_interval(input_manager, cache_type)?;
-            let interval_is_sufficient = modification_delta > min_recache_interval;
-            if interval_is_sufficient {
-                let delta = folder_info_new.fingerprint.changes_from(&folder_info_old.fingerprint);
-                info!("{}", render_delta_items(&delta));
-
-                let cache_entry = build_cache_entry(cache_type, &id_hash, &folder_path);
-                if let Err(e) = cache_entry.save().await.map_err(Error::Js) {
-                    error!("Failed to save {} to cache: {}", cache_type.friendly_name(), e);
-                } else {
-                    info!("Saved {} to cache.", cache_type.friendly_name());
-                }
-            } else {
-                info!(
-                    "Cached {} outdated by {}, but not updating cache since minimum recache interval is {}.",
-                    cache_type,
-                    format_duration(modification_delta.to_std()?),
-                    format_duration(min_recache_interval.to_std()?),
-                );
-            }
-        }
-        */
+        let min_recache_interval = get_min_recache_interval(input_manager, cache_type)?;
+        cache
+            .save_changes(&cache_old, &scope_hash, &min_recache_interval)
+            .await?;
     }
     Ok(())
 }
