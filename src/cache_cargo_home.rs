@@ -29,12 +29,6 @@ struct Cache {
     root_path: String,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-struct CacheGroupKey {
-    save: String,
-    restore: String,
-}
-
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 struct GroupIdentifier {
     root: String,
@@ -111,8 +105,14 @@ impl Cache {
                 serde_json::de::from_slice(&file_contents)?
             };
             info!("We need to restore the following groups: {:#?}", groups);
-            //TODO: We actually need to open the dependency list and try to
-            // restore entries now
+            for group in &groups {
+                let entry = Self::group_identifier_to_cache_entry(cache_type, group);
+                if let Some(name) = entry.restore().await? {
+                    info!("Restored cache key: {}", name);
+                } else {
+                    info!("Failed to find {} cache entry for {}", cache_type, group.path);
+                }
+            }
         } else {
             info!("No existing dependency list for {} found.", cache_type.friendly_name());
         }
@@ -178,37 +178,28 @@ impl Cache {
         Ok(map)
     }
 
-    pub fn group_identifiers(&self) -> Vec<GroupIdentifier> {
+    fn group_identifiers(&self) -> Vec<GroupIdentifier> {
         self.root
             .keys()
             .map(|group_path| self.build_group_identifier(group_path))
             .collect()
     }
 
-    pub fn group_cache_keys(&self) -> Vec<CacheGroupKey> {
+    fn group_identifier_to_cache_entry(cache_type: CacheType, group_id: &GroupIdentifier) -> CacheEntry {
         use crate::cache_key_builder::CacheKeyBuilder;
 
+        let name = format!("{} (content)", cache_type.friendly_name());
         let date = chrono::Local::now();
-        let mut result = Vec::with_capacity(self.root.len());
-        for (group_path, group) in &self.root {
-            let name = format!("{} (content)", self.cache_type.friendly_name());
-            let mut builder = CacheKeyBuilder::new(&name);
-            builder.add_key_data(&self.root_path);
-            builder.add_key_data(group_path);
-            builder.set_attribute("path", group_path);
-            builder.set_attribute("num_entries", &group.len().to_string());
-            builder.set_attribute("date", &date.to_string());
-            builder.set_attribute_nonce("nonce");
-            for entry_path in group.keys() {
-                builder.add_key_data(entry_path);
-            }
-            let group_key = CacheGroupKey {
-                save: builder.current_save_key(),
-                restore: builder.current_restore_key(),
-            };
-            result.push(group_key);
-        }
-        result
+        let mut builder = CacheKeyBuilder::new(&name);
+        builder.add_key_data(group_id);
+        builder.set_attribute("path", group_id.path.as_str());
+        builder.set_attribute("num_entries", &group_id.num_entries.to_string());
+        builder.set_attribute("date", &date.to_string());
+        builder.set_attribute_nonce("nonce");
+        let mut entry = builder.into_entry();
+        let path = Path::from(group_id.root.as_str()).join(group_id.path.as_str());
+        entry.path(path);
+        entry
     }
 
     async fn prune_unused_group(
@@ -570,7 +561,6 @@ pub async fn restore_cargo_cache(input_manager: &input_manager::Manager) -> Resu
             node::fs::create_dir_all(&parent).await?;
         }
         node::fs::write_file(&cached_info_path, serialized_cache.as_bytes()).await?;
-        info!("Cache keys: {:#?}", cache.group_cache_keys());
 
         /*
         let entry_matcher = depth_to_match(entry_depth)?;
@@ -665,8 +655,6 @@ pub async fn save_cargo_cache(input_manager: &input_manager::Manager) -> Result<
         if atimes_supported {
             cache.prune_unused(&cache_old).await?;
         }
-
-        info!("New group cache keys: {:#?}", cache.group_cache_keys());
 
         // Save groups to cache if they have changed
         cache.save_changes(&cache_old, &scope_hash).await?;
