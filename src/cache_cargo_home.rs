@@ -50,7 +50,7 @@ impl Cache {
         let entry_depth = cache_type.entry_depth();
         assert!(
             grouping_depth <= entry_depth,
-            "Cannot group at a higher level than individual cache entries"
+            "Cannot group at a higher depth than individual cache entries"
         );
         let top_depth_glob = depth_to_match(grouping_depth)?;
         let folder_path = find_path(cache_type);
@@ -77,9 +77,8 @@ impl Cache {
             .get(group_path)
             .unwrap_or_else(|| panic!("Unknown group: {}", group_path));
         let mut hasher = Blake3Hasher::default();
-        for entry_path in group.keys() {
-            entry_path.hash(&mut hasher);
-        }
+        group.len().hash(&mut hasher);
+        group.keys().for_each(|k| k.hash(&mut hasher));
         GroupIdentifier {
             root: self.root_path.clone(),
             path: group_path.to_string(),
@@ -90,6 +89,8 @@ impl Cache {
 
     pub async fn restore_from_env(cache_type: CacheType, scope: &HashValue) -> Result<Cache, Error> {
         use crate::access_times::revert_folder;
+        use itertools::Itertools as _;
+
         let job = Job::from_env()?;
 
         // Delete existing cache
@@ -118,13 +119,22 @@ impl Cache {
                 let file_contents = node::fs::read_file(&dep_file_path).await?;
                 serde_json::de::from_slice(&file_contents)?
             };
-            info!("We need to restore the following groups: {:#?}", groups);
+            let group_list_string = groups.iter().map(|g| &g.path).join(", ");
+            info!(
+                "The following groups will be restored for cache type {}: {}",
+                cache_type.friendly_name(),
+                group_list_string
+            );
             for group in &groups {
                 let entry = Self::group_identifier_to_cache_entry(cache_type, group);
                 if let Some(name) = entry.restore().await? {
                     info!("Restored cache key: {}", name);
                 } else {
-                    info!("Failed to find {} cache entry for {}", cache_type, group.path);
+                    info!(
+                        "Failed to find {} cache entry for {}",
+                        cache_type.friendly_name(),
+                        group.path
+                    );
                 }
             }
         } else {
@@ -153,7 +163,6 @@ impl Cache {
                 "Saving dependency list changes for cache of type {}",
                 self.cache_type.friendly_name()
             );
-            info!("Dep file path: {}", dep_file_path);
             let serialized_groups = serde_json::to_string(&new_groups)?;
             {
                 let parent = dep_file_path.parent();
@@ -524,7 +533,6 @@ fn build_cache_entry_dependencies(cache_type: CacheType, scope: &HashValue, job:
     }
     let mut cache_entry = key_builder.into_entry();
     let path = dependency_file_path(cache_type, scope, job)?;
-    info!("Dependency file path: {}", path);
     cache_entry.path(path);
     Ok(cache_entry)
 }
