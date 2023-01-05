@@ -107,10 +107,6 @@ pub async fn main() -> Result<(), Error> {
     for input in input_manager.unused() {
         warning!("Recognised but unused input {} was passed to action", input);
     }
-
-    // Set the action output.
-    core::set_output("result", "success");
-
     Ok(())
 }
 

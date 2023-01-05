@@ -51,9 +51,6 @@ inputs:
   internal-use-matrix:
     description: 'DO NOT SET THIS INPUT - used to identify matrix properties'
     default: ${{ toJSON(matrix) }}
-outputs:
-  result:
-    description: 'The result of the action execution'
 runs:
   using: 'node16'
   main: 'dist/main.js'
