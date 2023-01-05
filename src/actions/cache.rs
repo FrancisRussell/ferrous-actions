@@ -1,6 +1,7 @@
 use crate::node::path::Path;
 use js_sys::JsString;
 use std::borrow::Borrow;
+use std::collections::HashMap;
 use std::convert::Into;
 use wasm_bindgen::prelude::*;
 
@@ -8,6 +9,7 @@ pub struct Entry {
     key: JsString,
     paths: Vec<JsString>,
     restore_keys: Vec<JsString>,
+    cross_os_archive: bool,
 }
 
 impl Entry {
@@ -16,6 +18,7 @@ impl Entry {
             key: key.into(),
             paths: Vec::new(),
             restore_keys: Vec::new(),
+            cross_os_archive: false,
         }
     }
 
@@ -43,7 +46,7 @@ impl Entry {
 
     pub async fn save(&self) -> Result<i64, JsValue> {
         use wasm_bindgen::JsCast;
-        let result = ffi::save_cache(self.paths.clone(), &self.key).await?;
+        let result = ffi::save_cache(self.paths.clone(), &self.key, None, self.cross_os_archive).await?;
         let result = result
             .dyn_ref::<js_sys::Number>()
             .ok_or_else(|| JsError::new("saveCache didn't return a number"))
@@ -56,7 +59,15 @@ impl Entry {
     }
 
     pub async fn restore(&self) -> Result<Option<String>, JsValue> {
-        let result = ffi::restore_cache(self.paths.clone(), &self.key, self.restore_keys.clone()).await?;
+        crate::info!("Peek restore key: {:?}", self.peek_restore().await?);
+        let result = ffi::restore_cache(
+            self.paths.clone(),
+            &self.key,
+            self.restore_keys.clone(),
+            None,
+            self.cross_os_archive,
+        )
+        .await?;
         if result == JsValue::UNDEFINED {
             Ok(None)
         } else {
@@ -64,22 +75,80 @@ impl Entry {
             Ok(Some(result.into()))
         }
     }
+
+    pub async fn peek_restore(&self) -> Result<Option<String>, JsValue> {
+        use js_sys::Object;
+
+        let compression_method: JsString = ffi::get_compression_method().await?.into();
+        let keys: Vec<JsString> = std::iter::once(&self.key)
+            .chain(self.restore_keys.iter())
+            .cloned()
+            .collect();
+        let paths = self.paths.clone();
+        let options = {
+            let options = js_sys::Map::new();
+            options.set(&"compressionMethod".into(), &compression_method.into());
+            options.set(&"enableCrossOsArchive".into(), &self.cross_os_archive.into());
+            Object::from_entries(&options).expect("Failed to convert options map to object")
+        };
+        let result = ffi::get_cache_entry(keys, paths, Some(options)).await?;
+        if result == JsValue::UNDEFINED {
+            Ok(None)
+        } else {
+            let result: Object = result.into();
+            let entries = Object::entries(&result);
+            let mut entries: HashMap<String, JsValue> = entries
+                .iter()
+                .map(Into::<js_sys::Array>::into)
+                .map(|e| (e.get(0), e.get(1)))
+                .map(|(k, v)| (Into::<JsString>::into(k), v))
+                .map(|(k, v)| (Into::<String>::into(k), v))
+                .collect();
+            Ok(entries
+                .remove("cacheKey")
+                .map(Into::<JsString>::into)
+                .map(Into::<String>::into))
+        }
+    }
 }
 
 pub mod ffi {
-    use js_sys::JsString;
+    use js_sys::{JsString, Object};
     use wasm_bindgen::prelude::*;
 
     #[wasm_bindgen(module = "@actions/cache")]
     extern "C" {
         #[wasm_bindgen(js_name = "saveCache", catch)]
-        pub async fn save_cache(paths: Vec<JsString>, key: &JsString) -> Result<JsValue, JsValue>;
+        pub async fn save_cache(
+            paths: Vec<JsString>,
+            key: &JsString,
+            upload_options: Option<Object>,
+            cross_os_archive: bool,
+        ) -> Result<JsValue, JsValue>;
 
         #[wasm_bindgen(js_name = "restoreCache", catch)]
         pub async fn restore_cache(
             paths: Vec<JsString>,
             primary_key: &JsString,
             restore_keys: Vec<JsString>,
+            download_options: Option<Object>,
+            cross_os_archive: bool,
+        ) -> Result<JsValue, JsValue>;
+    }
+
+    #[wasm_bindgen(module = "@actions/cache/lib/internal/cacheUtils")]
+    extern "C" {
+        #[wasm_bindgen(js_name = "getCompressionMethod", catch)]
+        pub(super) async fn get_compression_method() -> Result<JsValue, JsValue>;
+    }
+
+    #[wasm_bindgen(module = "@actions/cache/lib/internal/cacheHttpClient")]
+    extern "C" {
+        #[wasm_bindgen(js_name = "getCacheEntry", catch)]
+        pub(super) async fn get_cache_entry(
+            keys: Vec<JsString>,
+            paths: Vec<JsString>,
+            options: Option<Object>,
         ) -> Result<JsValue, JsValue>;
     }
 }
