@@ -9,13 +9,13 @@ use crate::input_manager::{self, Input};
 use crate::job::Job;
 use crate::node::os::homedir;
 use crate::node::path::Path;
-use crate::{actions, info, node, notice, safe_encoding, warning, Error};
+use crate::{actions, error, info, node, notice, safe_encoding, warning, Error};
 use chrono::{DateTime, Utc};
 use rust_toolchain_manifest::HashValue;
 use serde::{Deserialize, Serialize};
 use simple_path_match::{PathMatch, PathMatchBuilder};
 use std::borrow::Cow;
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::hash::Hash as _;
 use std::str::FromStr;
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator, IntoStaticStr};
@@ -25,6 +25,7 @@ const ATIMES_SUPPORTED_KEY: &str = "ACCESS_TIMES_SUPPORTED";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct Group {
+    restore_key: Option<String>,
     entries: BTreeMap<String, Fingerprint>,
 }
 
@@ -62,6 +63,11 @@ struct GroupIdentifier {
 
 impl Cache {
     pub async fn new(cache_type: CacheType) -> Result<Cache, Error> {
+        let sources = HashMap::new();
+        Self::new_with_sources(cache_type, sources).await
+    }
+
+    async fn new_with_sources(cache_type: CacheType, mut sources: HashMap<String, String>) -> Result<Cache, Error> {
         // Delete derived content at any paths we want to build the cache at
         for delete_path in find_additional_delete_paths(cache_type).await? {
             if delete_path.exists().await {
@@ -85,9 +91,13 @@ impl Cache {
             map.insert(
                 group.to_string(),
                 Group {
+                    restore_key: sources.remove(&group.to_string()),
                     entries: Self::build_group(cache_type, &group_path, entry_depth_relative).await?,
                 },
             );
+        }
+        if !sources.is_empty() {
+            error!("One or more restored cache keys did not map to a path: {:#?}", sources);
         }
         Ok(Cache {
             cache_type,
@@ -133,6 +143,7 @@ impl Cache {
 
         let entry = build_cache_entry_dependencies(cache_type, scope, &job)?;
         let restore_key = entry.restore().await.map_err(Error::Js)?;
+        let mut restore_keys = HashMap::new();
         if let Some(restore_key) = restore_key {
             info!(
                 "Located dependencies list for {} in cache using key {}.",
@@ -154,6 +165,7 @@ impl Cache {
                 let entry = Self::group_identifier_to_cache_entry(cache_type, group);
                 if let Some(name) = entry.restore().await? {
                     info!("Restored cache key: {}", name);
+                    restore_keys.insert(group, name);
                 } else {
                     info!(
                         "Failed to find {} cache entry for {}",
