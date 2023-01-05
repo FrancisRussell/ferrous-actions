@@ -141,6 +141,11 @@ The following options have additional constraints:
   that the command line is hashed to produce the cache key so changes will
   cause a tool to be rebuilt from scratch.
 
+When invoked via Ferrous actions, `cargo install` will execute in a different
+directory to the current one. The aim here is to avoid either a
+`rust-toolchain.toml` or a Rustup override changing the compiler used to
+compile the binary.
+
 ### Getting annotations from cargo build, check or clippy
 
 When the `build`, `check` or `clippy` Cargo subcommands are run via Ferrous actions,
