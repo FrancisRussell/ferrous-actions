@@ -1,9 +1,6 @@
 name: 'Ferrous Actions'
 description: 'GitHub Rust actions written in Rust'
 inputs:
-  actor:
-    description: 'The user that triggered the workflow'
-    default: ${{ github.actor }}
   command:
     description: 'The command to run'
     required: true
@@ -51,9 +48,6 @@ inputs:
   internal-use-matrix:
     description: 'DO NOT SET THIS INPUT - used to identify matrix properties'
     default: ${{ toJSON(matrix) }}
-outputs:
-  result:
-    description: 'The result of the action execution'
 runs:
   using: 'node16'
   main: 'dist/main.js'

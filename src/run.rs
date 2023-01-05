@@ -1,9 +1,8 @@
-use crate::actions::core;
 use crate::cache_cargo_home::{restore_cargo_cache, save_cargo_cache};
 use crate::cross::Cross;
 use crate::input_manager::{Input, Manager as InputManager};
 use crate::rustup::{self, ToolchainConfig};
-use crate::{info, node, toolchain, warning, Cargo, Error};
+use crate::{node, toolchain, warning, Cargo, Error};
 
 fn get_toolchain_config(input_manager: &InputManager) -> Result<ToolchainConfig, Error> {
     let mut toolchain_config = ToolchainConfig::default();
@@ -55,12 +54,6 @@ pub async fn run() -> Result<(), Error> {
 }
 
 pub async fn main() -> Result<(), Error> {
-    // Get the action input.
-    let actor = core::get_input("actor")?.unwrap_or_else(|| String::from("world"));
-
-    // Greet the workflow actor.
-    info!("Hello, {}!", actor);
-
     let input_manager = InputManager::build()?;
     let command = input_manager.get_required(Input::Command)?;
     let split: Vec<&str> = command.split_whitespace().collect();
@@ -107,10 +100,6 @@ pub async fn main() -> Result<(), Error> {
     for input in input_manager.unused() {
         warning!("Recognised but unused input {} was passed to action", input);
     }
-
-    // Set the action output.
-    core::set_output("result", "success");
-
     Ok(())
 }
 

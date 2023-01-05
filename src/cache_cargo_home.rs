@@ -258,8 +258,14 @@ impl Cache {
             if attempt_save {
                 let identifier = self.build_group_identifier(path);
                 let entry = Self::group_identifier_to_cache_entry(self.cache_type, &identifier);
-                let existing_key = entry.peek_restore().await?;
-                if existing_key.as_deref() == old_restore_key {
+                let new_restore_key = entry.peek_restore().await?;
+                // If the new restore key is None, the cache entry is new and we're fine to
+                // upload. If the cache restore key is found, but it's the entry
+                // we downloaded earlier, then we can be certain that what we
+                // have is an update. Otherwise, we avoid pushing. This partly
+                // protects against concurrent CI jobs racing to upload the (near) same
+                // updated item.
+                if new_restore_key.is_none() || new_restore_key.as_deref() == old_restore_key {
                     info!(
                         "Saving modified {} cache group {}",
                         self.cache_type.friendly_name(),
@@ -271,15 +277,12 @@ impl Cache {
                         self.cache_type.friendly_name(),
                         path
                     );
-                } else if existing_key.is_none() {
-                    info!(
-                        "It looks like the {} new cache group {} is already cached so not uploading.",
-                        self.cache_type.friendly_name(),
-                        path
-                    );
                 } else {
                     info!(
-                        "It looks like the {} cache group {} was updated by a concurrent CI job so not uploading.",
+                        concat!(
+                            "It looks like the changed {} cache group {} already exists. ",
+                            "Not saving our version this time around because we can't be certain it's a useful update. "
+                        ),
                         self.cache_type.friendly_name(),
                         path
                     );

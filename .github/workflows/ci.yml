@@ -61,5 +61,3 @@ jobs:
       - run: find ~/.cache
       - run: find ~/.local
       - run: rustc --version
-      - if: steps.cargo-build.outputs.result != 'success'
-        run: exit 1
