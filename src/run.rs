@@ -55,12 +55,6 @@ pub async fn run() -> Result<(), Error> {
 }
 
 pub async fn main() -> Result<(), Error> {
-    // Get the action input.
-    let actor = core::get_input("actor")?.unwrap_or_else(|| String::from("world"));
-
-    // Greet the workflow actor.
-    info!("Hello, {}!", actor);
-
     let input_manager = InputManager::build()?;
     let command = input_manager.get_required(Input::Command)?;
     let split: Vec<&str> = command.split_whitespace().collect();

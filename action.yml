@@ -1,9 +1,6 @@
 name: 'Ferrous Actions'
 description: 'GitHub Rust actions written in Rust'
 inputs:
-  actor:
-    description: 'The user that triggered the workflow'
-    default: ${{ github.actor }}
   command:
     description: 'The command to run'
     required: true
