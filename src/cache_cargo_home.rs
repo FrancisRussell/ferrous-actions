@@ -165,7 +165,7 @@ impl Cache {
                 let entry = Self::group_identifier_to_cache_entry(cache_type, group);
                 if let Some(name) = entry.restore().await? {
                     info!("Restored cache key: {}", name);
-                    restore_keys.insert(group, name);
+                    restore_keys.insert(group.path.clone(), name);
                 } else {
                     info!(
                         "Failed to find {} cache entry for {}",
@@ -181,7 +181,7 @@ impl Cache {
         node::fs::create_dir_all(&folder_path).await?;
         // Revert access times
         revert_folder(&folder_path).await?;
-        Self::new(cache_type).await
+        Self::new_with_sources(cache_type, restore_keys).await
     }
 
     pub async fn save_changes(
