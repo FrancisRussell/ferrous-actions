@@ -28,6 +28,9 @@ should be replaced by the version of the action that this README is for.
 Registry indices (e.g. the list of packages on `crates.io`), crate files and
 Git repositories downloaded by Cargo can all be cached between CI jobs.
 
+File modification timestamps are used to detect if no changes to the cached items
+have occured and avoid needlessly uploading them back to the cache.
+
 Example invocation:
 ```
 - uses: FrancisRussell/ferrous-actions@v0.1.0-alpha.2
