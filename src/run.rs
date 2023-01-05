@@ -1,9 +1,8 @@
-use crate::actions::core;
 use crate::cache_cargo_home::{restore_cargo_cache, save_cargo_cache};
 use crate::cross::Cross;
 use crate::input_manager::{Input, Manager as InputManager};
 use crate::rustup::{self, ToolchainConfig};
-use crate::{info, node, toolchain, warning, Cargo, Error};
+use crate::{node, toolchain, warning, Cargo, Error};
 
 fn get_toolchain_config(input_manager: &InputManager) -> Result<ToolchainConfig, Error> {
     let mut toolchain_config = ToolchainConfig::default();
