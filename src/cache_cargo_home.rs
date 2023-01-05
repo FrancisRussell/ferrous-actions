@@ -322,7 +322,7 @@ impl Cache {
         let to_iter = to.iter();
         let merged = from_iter.merge_join_by(to_iter, |left, right| left.path.cmp(&right.path));
         merged
-            .flat_map(|element| match element {
+            .filter_map(|element| match element {
                 EitherOrBoth::Left(left) => Some((left.path.as_str(), DeltaAction::Removed)),
                 EitherOrBoth::Right(right) => Some((right.path.as_str(), DeltaAction::Added)),
                 EitherOrBoth::Both(left, right) => {
@@ -341,7 +341,7 @@ impl Cache {
         let to_iter = to.iter();
         let merged = from_iter.merge_join_by(to_iter, |left, right| left.0.cmp(right.0));
         merged
-            .flat_map(|element| match element {
+            .filter_map(|element| match element {
                 EitherOrBoth::Left(left) => Some((left.0.as_str(), DeltaAction::Removed)),
                 EitherOrBoth::Right(right) => Some((right.0.as_str(), DeltaAction::Added)),
                 EitherOrBoth::Both(left, right) => (left.1.content_hash() != right.1.content_hash())
@@ -377,7 +377,7 @@ impl Cache {
         let to_iter = right.iter();
         let merged = from_iter.merge_join_by(to_iter, |left, right| left.0.cmp(right.0));
         let to_prune: Vec<_> = merged
-            .flat_map(|element| match element {
+            .filter_map(|element| match element {
                 EitherOrBoth::Left(_) | EitherOrBoth::Right(_) => None,
                 EitherOrBoth::Both(left, right) => (left.1.accessed() == right.1.accessed()).then_some(left.0.as_str()),
             })
@@ -534,6 +534,7 @@ impl CacheType {
         ignores
     }
 
+    #[allow(clippy::unused_self)]
     fn grouping_depth(self) -> usize {
         1
     }
