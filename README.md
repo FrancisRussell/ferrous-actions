@@ -146,6 +146,8 @@ The following options have additional constraints:
 When the `build`, `check` or `clippy` Cargo subcommands are run via Ferrous actions,
 annotations are output which can be viewed via the GitHub UI.
 
+![Example annotation](doc/images/annotation.webp)
+
 Example invocation:
 ```
 - uses: FrancisRussell/ferrous-actions@v0.1.0-alpha.2
@@ -157,7 +159,7 @@ Example invocation:
 The following options are also available:
 
 * `annotations` (optional): Can be set to `true` or `false` depending on
-  whether annotations are desired.
+  whether annotations are desired. Default is `true`.
 
 ### Cross support
 
