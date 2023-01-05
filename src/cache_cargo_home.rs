@@ -24,9 +24,31 @@ const SCOPE_HASH_KEY: &str = "SCOPE_HASH";
 const ATIMES_SUPPORTED_KEY: &str = "ACCESS_TIMES_SUPPORTED";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+struct Group {
+    entries: BTreeMap<String, Fingerprint>,
+}
+
+impl Group {
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    pub fn last_modified(&self) -> Option<DateTime<Utc>> {
+        let mut result = None;
+        for fingerprint in self.entries.values() {
+            result = match (result, fingerprint.modified()) {
+                (None, modified) | (modified, None) => modified,
+                (Some(a), Some(b)) => Some(std::cmp::max(a, b)),
+            };
+        }
+        result
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 struct Cache {
     cache_type: CacheType,
-    root: BTreeMap<String, BTreeMap<String, Fingerprint>>,
+    root: BTreeMap<String, Group>,
     root_path: String,
 }
 
@@ -62,7 +84,9 @@ impl Cache {
             let group_path = folder_path.join(group.clone());
             map.insert(
                 group.to_string(),
-                Self::build_group(cache_type, &group_path, entry_depth_relative).await?,
+                Group {
+                    entries: Self::build_group(cache_type, &group_path, entry_depth_relative).await?,
+                },
             );
         }
         Ok(Cache {
@@ -78,12 +102,12 @@ impl Cache {
             .get(group_path)
             .unwrap_or_else(|| panic!("Unknown group: {}", group_path));
         let mut hasher = Blake3Hasher::default();
-        group.len().hash(&mut hasher);
-        group.keys().for_each(|k| k.hash(&mut hasher));
+        group.entries.len().hash(&mut hasher);
+        group.entries.keys().for_each(|k| k.hash(&mut hasher));
         GroupIdentifier {
             root: self.root_path.clone(),
             path: group_path.to_string(),
-            num_entries: group.len(),
+            num_entries: group.entries.len(),
             entries_hash: hasher.hash_value(),
         }
     }
@@ -182,7 +206,7 @@ impl Cache {
 
         for (path, group) in &self.root {
             let attempt_save = if let Some(old_group) = old.root.get(path) {
-                let group_delta = Self::compare_groups(old_group, group);
+                let group_delta = Self::compare_groups(&old_group.entries, &group.entries);
                 if group_delta.is_empty() {
                     // The group's content is unchanged
                     false
@@ -191,7 +215,7 @@ impl Cache {
                     // occur and modifications times could be preserved from some sort of archive.
                     // It should work fine for changes to Git repos however, which are our main
                     // concern.
-                    let old_modification = Self::group_last_modified(old_group).unwrap_or_default();
+                    let old_modification = old_group.last_modified().unwrap_or_default();
                     // Be robust against our delta being negative.
                     let modification_delta = chrono::Utc::now() - old_modification;
                     let modification_delta = std::cmp::max(chrono::Duration::zero(), modification_delta);
@@ -315,18 +339,6 @@ impl Cache {
         entry
     }
 
-    fn group_last_modified(group: &BTreeMap<String, Fingerprint>) -> Option<DateTime<Utc>> {
-        let mut result = None;
-        for fingerprint in group.values() {
-            result = match (result, fingerprint.modified()) {
-                (None, modified) => modified,
-                (modified, None) => modified,
-                (Some(a), Some(b)) => Some(std::cmp::max(a, b)),
-            };
-        }
-        result
-    }
-
     async fn prune_unused_entries(
         left: &BTreeMap<String, Fingerprint>,
         right: &mut BTreeMap<String, Fingerprint>,
@@ -363,7 +375,7 @@ impl Cache {
                 EitherOrBoth::Left(_) | EitherOrBoth::Right(_) => {}
                 EitherOrBoth::Both(left, right) => {
                     let entry_path = root_path.join(right.0.as_str());
-                    Self::prune_unused_entries(left.1, right.1, &entry_path).await?;
+                    Self::prune_unused_entries(&left.1.entries, &mut right.1.entries, &entry_path).await?;
                 }
             }
         }
