@@ -217,9 +217,9 @@ impl Cache {
         }
 
         for (path, group) in &self.root {
-            let attempt_save = if let Some(old_group) = old.root.get(path) {
+            let (attempt_save, old_restore_key) = if let Some(old_group) = old.root.get(path) {
                 let group_delta = Self::compare_groups(&old_group.entries, &group.entries);
-                if group_delta.is_empty() {
+                let attempt_save = if group_delta.is_empty() {
                     // The group's content is unchanged
                     false
                 } else {
@@ -248,26 +248,44 @@ impl Cache {
                         );
                         false
                     }
-                }
+                };
+                (attempt_save, old_group.restore_key.as_deref())
             } else {
                 // The group did not previously exist in the cache
-                true
+                (true, None)
             };
 
             if attempt_save {
                 let identifier = self.build_group_identifier(path);
                 let entry = Self::group_identifier_to_cache_entry(self.cache_type, &identifier);
-                info!(
-                    "Saving modified {} cache group {}",
-                    self.cache_type.friendly_name(),
-                    path
-                );
-                entry.save().await?;
-                info!(
-                    "{} cache group {} saved successfully.",
-                    self.cache_type.friendly_name(),
-                    path
-                );
+                let existing_key = entry.peek_restore().await?;
+                if existing_key.as_deref() == old_restore_key {
+                    info!(
+                        "Saving modified {} cache group {}",
+                        self.cache_type.friendly_name(),
+                        path
+                    );
+                    entry.save().await?;
+                    info!(
+                        "{} cache group {} saved successfully.",
+                        self.cache_type.friendly_name(),
+                        path
+                    );
+                } else {
+                    if existing_key.is_none() {
+                        info!(
+                            "It looks like the {} new cache group {} is already cached so not uploading.",
+                            self.cache_type.friendly_name(),
+                            path
+                        );
+                    } else {
+                        info!(
+                            "It looks like the {} cache group {} was updated by a concurrent CI job so not uploading.",
+                            self.cache_type.friendly_name(),
+                            path
+                        );
+                    }
+                }
             }
         }
         Ok(())

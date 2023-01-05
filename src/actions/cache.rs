@@ -59,7 +59,6 @@ impl Entry {
     }
 
     pub async fn restore(&self) -> Result<Option<String>, JsValue> {
-        crate::info!("Peek restore key: {:?}", self.peek_restore().await?);
         let result = ffi::restore_cache(
             self.paths.clone(),
             &self.key,
@@ -68,7 +67,7 @@ impl Entry {
             self.cross_os_archive,
         )
         .await?;
-        if result == JsValue::UNDEFINED {
+        if result == JsValue::NULL || result == JsValue::UNDEFINED {
             Ok(None)
         } else {
             let result: JsString = result.into();
@@ -92,7 +91,7 @@ impl Entry {
             Object::from_entries(&options).expect("Failed to convert options map to object")
         };
         let result = ffi::get_cache_entry(keys, paths, Some(options)).await?;
-        if result == JsValue::UNDEFINED {
+        if result == JsValue::NULL || result == JsValue::UNDEFINED {
             Ok(None)
         } else {
             let result: Object = result.into();
