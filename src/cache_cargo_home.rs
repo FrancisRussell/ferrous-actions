@@ -554,7 +554,7 @@ impl CacheType {
 
     fn default_min_recache_interval(self) -> chrono::Duration {
         match self {
-            CacheType::Indices => chrono::Duration::days(1),
+            CacheType::Indices => chrono::Duration::days(2),
             _ => chrono::Duration::zero(),
         }
     }
