@@ -271,20 +271,18 @@ impl Cache {
                         self.cache_type.friendly_name(),
                         path
                     );
+                } else if existing_key.is_none() {
+                    info!(
+                        "It looks like the {} new cache group {} is already cached so not uploading.",
+                        self.cache_type.friendly_name(),
+                        path
+                    );
                 } else {
-                    if existing_key.is_none() {
-                        info!(
-                            "It looks like the {} new cache group {} is already cached so not uploading.",
-                            self.cache_type.friendly_name(),
-                            path
-                        );
-                    } else {
-                        info!(
-                            "It looks like the {} cache group {} was updated by a concurrent CI job so not uploading.",
-                            self.cache_type.friendly_name(),
-                            path
-                        );
-                    }
+                    info!(
+                        "It looks like the {} cache group {} was updated by a concurrent CI job so not uploading.",
+                        self.cache_type.friendly_name(),
+                        path
+                    );
                 }
             }
         }
