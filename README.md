@@ -175,9 +175,10 @@ Example invocation:
     use-cross: true
 ```
 
-If `use-cross` is specified as `false` or not at all, then Cargo will be used
-as normal. If an existing `cross` binary is not available, then one will be
-build and installed.
+If `use-cross` is specified as `true` then `cross` will be used for
+compilation. If is supplied as `false` or not at all then `cargo` will be
+invoked as normal. If an existing `cross` binary is not available, then one
+will be built and installed.
 
 ## Implementation Notes
 
