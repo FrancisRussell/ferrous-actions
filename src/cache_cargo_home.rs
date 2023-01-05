@@ -9,13 +9,13 @@ use crate::input_manager::{self, Input};
 use crate::job::Job;
 use crate::node::os::homedir;
 use crate::node::path::Path;
-use crate::{actions, info, node, notice, safe_encoding, warning, Error};
+use crate::{actions, error, info, node, notice, safe_encoding, warning, Error};
 use chrono::{DateTime, Utc};
 use rust_toolchain_manifest::HashValue;
 use serde::{Deserialize, Serialize};
 use simple_path_match::{PathMatch, PathMatchBuilder};
 use std::borrow::Cow;
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::hash::Hash as _;
 use std::str::FromStr;
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator, IntoStaticStr};
@@ -24,9 +24,32 @@ const SCOPE_HASH_KEY: &str = "SCOPE_HASH";
 const ATIMES_SUPPORTED_KEY: &str = "ACCESS_TIMES_SUPPORTED";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+struct Group {
+    restore_key: Option<String>,
+    entries: BTreeMap<String, Fingerprint>,
+}
+
+impl Group {
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    pub fn last_modified(&self) -> Option<DateTime<Utc>> {
+        let mut result = None;
+        for fingerprint in self.entries.values() {
+            result = match (result, fingerprint.modified()) {
+                (None, modified) | (modified, None) => modified,
+                (Some(a), Some(b)) => Some(std::cmp::max(a, b)),
+            };
+        }
+        result
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 struct Cache {
     cache_type: CacheType,
-    root: BTreeMap<String, BTreeMap<String, Fingerprint>>,
+    root: BTreeMap<String, Group>,
     root_path: String,
 }
 
@@ -40,6 +63,11 @@ struct GroupIdentifier {
 
 impl Cache {
     pub async fn new(cache_type: CacheType) -> Result<Cache, Error> {
+        let sources = HashMap::new();
+        Self::new_with_sources(cache_type, sources).await
+    }
+
+    async fn new_with_sources(cache_type: CacheType, mut sources: HashMap<String, String>) -> Result<Cache, Error> {
         // Delete derived content at any paths we want to build the cache at
         for delete_path in find_additional_delete_paths(cache_type).await? {
             if delete_path.exists().await {
@@ -62,8 +90,14 @@ impl Cache {
             let group_path = folder_path.join(group.clone());
             map.insert(
                 group.to_string(),
-                Self::build_group(cache_type, &group_path, entry_depth_relative).await?,
+                Group {
+                    restore_key: sources.remove(&group.to_string()),
+                    entries: Self::build_group(cache_type, &group_path, entry_depth_relative).await?,
+                },
             );
+        }
+        if !sources.is_empty() {
+            error!("One or more restored cache keys did not map to a path: {:#?}", sources);
         }
         Ok(Cache {
             cache_type,
@@ -78,12 +112,12 @@ impl Cache {
             .get(group_path)
             .unwrap_or_else(|| panic!("Unknown group: {}", group_path));
         let mut hasher = Blake3Hasher::default();
-        group.len().hash(&mut hasher);
-        group.keys().for_each(|k| k.hash(&mut hasher));
+        group.entries.len().hash(&mut hasher);
+        group.entries.keys().for_each(|k| k.hash(&mut hasher));
         GroupIdentifier {
             root: self.root_path.clone(),
             path: group_path.to_string(),
-            num_entries: group.len(),
+            num_entries: group.entries.len(),
             entries_hash: hasher.hash_value(),
         }
     }
@@ -109,6 +143,7 @@ impl Cache {
 
         let entry = build_cache_entry_dependencies(cache_type, scope, &job)?;
         let restore_key = entry.restore().await.map_err(Error::Js)?;
+        let mut restore_keys = HashMap::new();
         if let Some(restore_key) = restore_key {
             info!(
                 "Located dependencies list for {} in cache using key {}.",
@@ -130,6 +165,7 @@ impl Cache {
                 let entry = Self::group_identifier_to_cache_entry(cache_type, group);
                 if let Some(name) = entry.restore().await? {
                     info!("Restored cache key: {}", name);
+                    restore_keys.insert(group.path.clone(), name);
                 } else {
                     info!(
                         "Failed to find {} cache entry for {}",
@@ -145,7 +181,7 @@ impl Cache {
         node::fs::create_dir_all(&folder_path).await?;
         // Revert access times
         revert_folder(&folder_path).await?;
-        Self::new(cache_type).await
+        Self::new_with_sources(cache_type, restore_keys).await
     }
 
     pub async fn save_changes(
@@ -181,9 +217,9 @@ impl Cache {
         }
 
         for (path, group) in &self.root {
-            let attempt_save = if let Some(old_group) = old.root.get(path) {
-                let group_delta = Self::compare_groups(old_group, group);
-                if group_delta.is_empty() {
+            let (attempt_save, old_restore_key) = if let Some(old_group) = old.root.get(path) {
+                let group_delta = Self::compare_groups(&old_group.entries, &group.entries);
+                let attempt_save = if group_delta.is_empty() {
                     // The group's content is unchanged
                     false
                 } else {
@@ -191,7 +227,7 @@ impl Cache {
                     // occur and modifications times could be preserved from some sort of archive.
                     // It should work fine for changes to Git repos however, which are our main
                     // concern.
-                    let old_modification = Self::group_last_modified(old_group).unwrap_or_default();
+                    let old_modification = old_group.last_modified().unwrap_or_default();
                     // Be robust against our delta being negative.
                     let modification_delta = chrono::Utc::now() - old_modification;
                     let modification_delta = std::cmp::max(chrono::Duration::zero(), modification_delta);
@@ -212,26 +248,42 @@ impl Cache {
                         );
                         false
                     }
-                }
+                };
+                (attempt_save, old_group.restore_key.as_deref())
             } else {
                 // The group did not previously exist in the cache
-                true
+                (true, None)
             };
 
             if attempt_save {
                 let identifier = self.build_group_identifier(path);
                 let entry = Self::group_identifier_to_cache_entry(self.cache_type, &identifier);
-                info!(
-                    "Saving modified {} cache group {}",
-                    self.cache_type.friendly_name(),
-                    path
-                );
-                entry.save().await?;
-                info!(
-                    "{} cache group {} saved successfully.",
-                    self.cache_type.friendly_name(),
-                    path
-                );
+                let existing_key = entry.peek_restore().await?;
+                if existing_key.as_deref() == old_restore_key {
+                    info!(
+                        "Saving modified {} cache group {}",
+                        self.cache_type.friendly_name(),
+                        path
+                    );
+                    entry.save().await?;
+                    info!(
+                        "{} cache group {} saved successfully.",
+                        self.cache_type.friendly_name(),
+                        path
+                    );
+                } else if existing_key.is_none() {
+                    info!(
+                        "It looks like the {} new cache group {} is already cached so not uploading.",
+                        self.cache_type.friendly_name(),
+                        path
+                    );
+                } else {
+                    info!(
+                        "It looks like the {} cache group {} was updated by a concurrent CI job so not uploading.",
+                        self.cache_type.friendly_name(),
+                        path
+                    );
+                }
             }
         }
         Ok(())
@@ -270,7 +322,7 @@ impl Cache {
         let to_iter = to.iter();
         let merged = from_iter.merge_join_by(to_iter, |left, right| left.path.cmp(&right.path));
         merged
-            .flat_map(|element| match element {
+            .filter_map(|element| match element {
                 EitherOrBoth::Left(left) => Some((left.path.as_str(), DeltaAction::Removed)),
                 EitherOrBoth::Right(right) => Some((right.path.as_str(), DeltaAction::Added)),
                 EitherOrBoth::Both(left, right) => {
@@ -289,7 +341,7 @@ impl Cache {
         let to_iter = to.iter();
         let merged = from_iter.merge_join_by(to_iter, |left, right| left.0.cmp(right.0));
         merged
-            .flat_map(|element| match element {
+            .filter_map(|element| match element {
                 EitherOrBoth::Left(left) => Some((left.0.as_str(), DeltaAction::Removed)),
                 EitherOrBoth::Right(right) => Some((right.0.as_str(), DeltaAction::Added)),
                 EitherOrBoth::Both(left, right) => (left.1.content_hash() != right.1.content_hash())
@@ -315,18 +367,6 @@ impl Cache {
         entry
     }
 
-    fn group_last_modified(group: &BTreeMap<String, Fingerprint>) -> Option<DateTime<Utc>> {
-        let mut result = None;
-        for fingerprint in group.values() {
-            result = match (result, fingerprint.modified()) {
-                (None, modified) => modified,
-                (modified, None) => modified,
-                (Some(a), Some(b)) => Some(std::cmp::max(a, b)),
-            };
-        }
-        result
-    }
-
     async fn prune_unused_entries(
         left: &BTreeMap<String, Fingerprint>,
         right: &mut BTreeMap<String, Fingerprint>,
@@ -337,7 +377,7 @@ impl Cache {
         let to_iter = right.iter();
         let merged = from_iter.merge_join_by(to_iter, |left, right| left.0.cmp(right.0));
         let to_prune: Vec<_> = merged
-            .flat_map(|element| match element {
+            .filter_map(|element| match element {
                 EitherOrBoth::Left(_) | EitherOrBoth::Right(_) => None,
                 EitherOrBoth::Both(left, right) => (left.1.accessed() == right.1.accessed()).then_some(left.0.as_str()),
             })
@@ -363,7 +403,7 @@ impl Cache {
                 EitherOrBoth::Left(_) | EitherOrBoth::Right(_) => {}
                 EitherOrBoth::Both(left, right) => {
                     let entry_path = root_path.join(right.0.as_str());
-                    Self::prune_unused_entries(left.1, right.1, &entry_path).await?;
+                    Self::prune_unused_entries(&left.1.entries, &mut right.1.entries, &entry_path).await?;
                 }
             }
         }
@@ -494,6 +534,7 @@ impl CacheType {
         ignores
     }
 
+    #[allow(clippy::unused_self)]
     fn grouping_depth(self) -> usize {
         1
     }
@@ -621,8 +662,6 @@ pub async fn restore_cargo_cache(input_manager: &input_manager::Manager) -> Resu
     };
     core::save_state(SCOPE_HASH_KEY, safe_encoding::encode(&scope_hash));
 
-    let job = Job::from_env()?;
-    info!("Job: {:#?}", job);
     let cached_types = get_types_to_cache(input_manager)?;
     for cache_type in cached_types {
         // Mark as used to avoid spurious warnings (we only use this when we save the
@@ -650,11 +689,7 @@ pub async fn save_cargo_cache(input_manager: &input_manager::Manager) -> Result<
     let atimes_supported = core::get_state(ATIMES_SUPPORTED_KEY).expect("Failed to find access times support flag");
     let atimes_supported: bool = serde_json::de::from_str(&atimes_supported)?;
 
-    let job = Job::from_env()?;
     let cached_types = get_types_to_cache(input_manager)?;
-
-    info!("Job: {:#?}", job);
-
     for cache_type in cached_types {
         // Delete items that should never make it into the cache
         for delete_path in find_additional_delete_paths(cache_type).await? {

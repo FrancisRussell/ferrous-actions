@@ -1,7 +1,7 @@
 use super::Hook;
 use crate::actions::exec::Command;
 use crate::core::AnnotationLevel;
-use crate::{warning, Error};
+use crate::warning;
 use async_trait::async_trait;
 use cargo_metadata::diagnostic::{DiagnosticLevel, DiagnosticSpan};
 use std::borrow::Cow;
@@ -12,11 +12,10 @@ pub struct Annotation {
 }
 
 impl Annotation {
-    pub fn new(subcommand: &str) -> Result<Annotation, Error> {
-        let result = Annotation {
+    pub fn new(subcommand: &str) -> Annotation {
+        Annotation {
             subcommand: subcommand.to_string(),
-        };
-        Ok(result)
+        }
     }
 
     fn process_json_record(cargo_subcommand: &str, line: &str) {

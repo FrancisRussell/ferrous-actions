@@ -98,7 +98,7 @@ impl Cargo {
                     true
                 };
                 if enabled {
-                    hooks.push(AnnotationHook::new(subcommand)?);
+                    hooks.push(AnnotationHook::new(subcommand));
                 }
             }
             "install" => {
