@@ -365,6 +365,12 @@ impl Cache {
         builder.add_key_data(group_id);
         builder.set_attribute(Attribute::Path, group_id.path.clone());
         builder.set_attribute(Attribute::NumEntries, group_id.num_entries.to_string());
+        let entries_hash = {
+            let lsb: &[u8] = group_id.entries_hash.as_ref();
+            let lsb = &lsb[..std::cmp::min(8, lsb.len())];
+            safe_encoding::encode(lsb)
+        };
+        builder.set_attribute(Attribute::EntriesHash, entries_hash);
         let mut entry = builder.into_entry();
         let path = Path::from(group_id.root.as_str()).join(group_id.path.as_str());
         entry.path(path);
