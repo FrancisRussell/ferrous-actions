@@ -91,7 +91,7 @@ impl Install {
     }
 
     fn build_cache_entry(&self) -> CacheEntry {
-        use crate::cache_key_builder::CacheKeyBuilder;
+        use crate::cache_key_builder::{Attribute, CacheKeyBuilder};
 
         let mut key_builder = CacheKeyBuilder::new("cargo install build artifacts");
         key_builder.add_key_data(&self.hash);
@@ -104,8 +104,7 @@ impl Install {
             }
             arg_string
         };
-        key_builder.set_attribute("args", &arg_string);
-        key_builder.set_attribute_nonce("nonce");
+        key_builder.set_attribute(Attribute::ArgsTruncated, arg_string);
         let mut cache_entry = key_builder.into_entry();
         cache_entry.path(&Path::from(self.build_dir.as_str()));
         cache_entry

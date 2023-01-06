@@ -1,42 +1,99 @@
 use crate::actions::cache::Entry as CacheEntry;
 use crate::hasher::Blake3 as Blake3Hasher;
-use crate::safe_encoding;
+use crate::{node, safe_encoding};
 use std::collections::BTreeMap;
 
-const CACHE_ENTRY_VERSION: &str = "6";
+const CACHE_ENTRY_VERSION: &str = "7";
 
 pub struct CacheKeyBuilder {
     name: String,
     hasher: Blake3Hasher,
-    attributes: BTreeMap<String, String>,
+    key_attributes: BTreeMap<&'static str, String>,
+    attributes: BTreeMap<&'static str, String>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, strum::Display, strum::IntoStaticStr, Ord, PartialEq, PartialOrd)]
+pub enum KeyAttribute {
+    #[strum(serialize = "id")]
+    Id,
+
+    #[strum(serialize = "job")]
+    Job,
+
+    #[strum(serialize = "nonce")]
+    Matrix,
+
+    #[strum(serialize = "platform")]
+    Platform,
+
+    #[strum(serialize = "workflow")]
+    Workflow,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, strum::Display, strum::IntoStaticStr, Ord, PartialEq, PartialOrd)]
+pub enum Attribute {
+    #[strum(serialize = "args_truncated")]
+    ArgsTruncated,
+
+    #[strum(serialize = "nonce")]
+    Nonce,
+
+    #[strum(serialize = "num_entries")]
+    NumEntries,
+
+    #[strum(serialize = "path")]
+    Path,
+
+    #[strum(serialize = "date")]
+    Timestamp,
+
+    #[strum(serialize = "target")]
+    Target,
+
+    #[strum(serialize = "version")]
+    Version,
 }
 
 impl CacheKeyBuilder {
-    pub fn new(name: &str) -> CacheKeyBuilder {
-        use std::hash::Hash as _;
-
-        let mut hasher = Blake3Hasher::default();
-        CACHE_ENTRY_VERSION.hash(&mut hasher);
-        CacheKeyBuilder {
+    fn empty(name: &str) -> CacheKeyBuilder {
+        let mut result = CacheKeyBuilder {
             name: name.into(),
-            hasher,
+            hasher: Blake3Hasher::default(),
+            key_attributes: BTreeMap::new(),
             attributes: BTreeMap::new(),
-        }
+        };
+        result.add_key_data(CACHE_ENTRY_VERSION);
+        result
     }
 
-    pub fn add_key_data<T: std::hash::Hash>(&mut self, data: &T) {
-        data.hash(&mut self.hasher);
-    }
-
-    pub fn set_attribute(&mut self, name: &str, value: &str) {
-        self.attributes.insert(name.into(), value.into());
-    }
-
-    pub fn set_attribute_nonce(&mut self, name: &str) {
+    pub fn new(name: &str) -> CacheKeyBuilder {
         use crate::nonce;
+
+        let mut result = Self::empty(name);
+        result.set_key_attribute(KeyAttribute::Platform, node::os::platform());
+        let date = chrono::Local::now();
+        result.set_attribute(Attribute::Timestamp, date.to_string());
         let nonce = nonce::build(8);
         let nonce = safe_encoding::encode(nonce);
-        self.set_attribute(name, &nonce);
+        result.set_attribute(Attribute::Nonce, nonce);
+        result
+    }
+
+    pub fn add_key_data<T: std::hash::Hash + ?Sized>(&mut self, data: &T) {
+        data.hash(&mut self.hasher);
+        let id: [u8; 32] = self.hasher.inner().finalize().into();
+        let id = &id[..8];
+        let id = safe_encoding::encode(id);
+        self.key_attributes.insert(KeyAttribute::Id.into(), id);
+    }
+
+    pub fn set_key_attribute(&mut self, key: KeyAttribute, value: String) {
+        assert_ne!(key, KeyAttribute::Id, "ID attribute cannot be set directly");
+        self.key_attributes.insert(key.into(), value);
+    }
+
+    pub fn set_attribute(&mut self, name: Attribute, value: String) {
+        self.attributes.insert(name.into(), value);
     }
 
     fn restore_key_to_save_key(&self, restore_key: &str) -> String {
@@ -52,10 +109,18 @@ impl CacheKeyBuilder {
     }
 
     fn current_restore_key(&self) -> String {
-        let id: [u8; 32] = self.hasher.inner().finalize().into();
-        let id = &id[..8];
-        let id = safe_encoding::encode(id);
-        let restore_key = format!("Ferrous Actions: {} - id={}", self.name, id);
+        use itertools::Itertools as _;
+
+        let mut key_mappings = String::from("(");
+        if !self.key_attributes.is_empty() {
+            key_mappings += &self
+                .key_attributes
+                .iter()
+                .map(|(a, v)| format!("{}={}", a, v))
+                .join("; ");
+        }
+        key_mappings += ")";
+        let restore_key = format!("Ferrous Actions: {} - key={}", self.name, key_mappings);
         restore_key.replace(',', ";")
     }
 

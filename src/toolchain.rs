@@ -30,12 +30,12 @@ fn get_package_decompress_path(package: &ManifestPackage) -> Result<Path, Error>
 }
 
 fn compute_package_cache_key(package: &ManifestPackage) -> CacheEntry {
-    use crate::cache_key_builder::CacheKeyBuilder;
+    use crate::cache_key_builder::{Attribute, CacheKeyBuilder};
 
     let mut builder = CacheKeyBuilder::new(&package.name);
     builder.add_key_data(&package.unique_identifier());
-    builder.set_attribute("target", &package.supported_target.to_string());
-    builder.set_attribute("version", &package.version);
+    builder.set_attribute(Attribute::Target, package.supported_target.to_string());
+    builder.set_attribute(Attribute::Version, package.version.clone());
     builder.into_entry()
 }
 
