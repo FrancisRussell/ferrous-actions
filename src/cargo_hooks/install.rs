@@ -26,6 +26,7 @@ pub struct Install {
     build_dir: String,
     fingerprint: Option<Fingerprint>,
     arg_string: String,
+    restore_key: Option<String>,
 }
 
 impl Install {
@@ -55,17 +56,19 @@ impl Install {
         arg_string.hash(&mut hasher);
         let hash = hasher.hash_value();
         let build_dir = get_package_build_dir(&hash)?;
+        node::fs::create_dir_all(&build_dir).await?;
         let mut result = Install {
             hash,
             build_dir: build_dir.to_string(),
             fingerprint: None,
             arg_string,
+            restore_key: None,
         };
-        node::fs::create_dir_all(result.build_dir.as_str()).await?;
         let cache_entry = result.build_cache_entry();
         if let Some(key) = cache_entry.restore().await? {
             info!("Restored files from cache with key {}", key);
             result.fingerprint = Some(Self::fingerprint_build_dir(&build_dir).await?);
+            result.restore_key = Some(key);
         }
         Ok(result)
     }
@@ -148,10 +151,21 @@ impl Hook for Install {
         };
         if save {
             let cache_entry = self.build_cache_entry();
-            if let Err(e) = cache_entry.save().await.map_err(Error::Js) {
-                error!("Failed to save package build artifacts to cache: {}", e);
-            } else {
-                info!("Saved package build artifacts to cache.");
+            match cache_entry
+                .save_if_update(self.restore_key.as_deref())
+                .await
+                .map_err(Error::Js)
+            {
+                Err(e) => {
+                    error!("Failed to save package build artifacts to cache: {}", e);
+                }
+                Ok(r) => {
+                    if r.is_some() {
+                        info!("Saved package build artifacts to cache.");
+                    } else {
+                        info!("Looks like a concurrent CI job updated the artifacts, not saving back to cache");
+                    }
+                }
             }
         } else {
             info!("Build artifacts unchanged, no need to save back to cache.");
