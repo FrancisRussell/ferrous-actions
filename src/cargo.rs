@@ -8,7 +8,6 @@ use crate::input_manager::{self, Input};
 use crate::node::path::Path;
 use crate::node::process;
 use crate::{node, nonce, Error};
-use rust_toolchain_manifest::HashValue;
 use std::borrow::Cow;
 
 async fn create_empty_dir() -> Result<Path, Error> {
@@ -34,6 +33,12 @@ impl CargoHook for ChangeCwdHook {
 #[derive(Clone, Debug)]
 pub struct Cargo {
     path: Path,
+}
+
+#[derive(Clone, Debug)]
+pub struct ToolchainVersion {
+    pub short: String,
+    pub long: String,
 }
 
 impl Cargo {
@@ -106,11 +111,11 @@ impl Cargo {
                 // directory before invoking cargo install cross. We do the same for all
                 // installs, not just cross.
                 let empty_dir = create_empty_dir().await?;
-                let compiler_hash = self.get_toolchain_hash(toolchain, Some(&empty_dir)).await?;
+                let compiler_version = self.get_toolchain_version(toolchain, Some(&empty_dir)).await?;
                 let empty_cwd_hook = ChangeCwdHook {
                     new_cwd: empty_dir.to_string(),
                 };
-                hooks.push(CargoInstallHook::new(&compiler_hash, args).await?);
+                hooks.push(CargoInstallHook::new(&compiler_version, args).await?);
                 hooks.push(empty_cwd_hook);
             }
             _ => {}
@@ -118,7 +123,11 @@ impl Cargo {
         Ok(hooks)
     }
 
-    async fn get_toolchain_hash(&self, toolchain: Option<&str>, cwd: Option<&Path>) -> Result<HashValue, Error> {
+    async fn get_toolchain_version(
+        &self,
+        toolchain: Option<&str>,
+        cwd: Option<&Path>,
+    ) -> Result<ToolchainVersion, Error> {
         use crate::actions::exec::Stdio;
         use parking_lot::Mutex;
         use std::sync::Arc;
@@ -142,8 +151,9 @@ impl Cargo {
             })
             .stdout(Stdio::null());
         command.exec().await?;
-        let output = output.lock().trim().to_string();
-        Ok(HashValue::from_bytes(output.as_bytes()))
+        let long = output.lock().trim().to_string();
+        let short = long.lines().next().unwrap_or_default().trim().to_string();
+        Ok(ToolchainVersion { short, long })
     }
 
     pub async fn run<'a, I>(

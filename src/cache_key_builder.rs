@@ -17,7 +17,7 @@ pub enum KeyAttribute {
     #[strum(serialize = "job")]
     Job,
 
-    #[strum(serialize = "nonce")]
+    #[strum(serialize = "matrix")]
     Matrix,
 
     #[strum(serialize = "platform")]
@@ -47,8 +47,8 @@ pub enum Attribute {
     #[strum(serialize = "target")]
     Target,
 
-    #[strum(serialize = "version")]
-    Version,
+    #[strum(serialize = "toolchain_version")]
+    ToolchainVersion,
 }
 
 impl CacheKeyBuilder {

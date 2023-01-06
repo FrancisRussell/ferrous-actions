@@ -35,7 +35,7 @@ fn compute_package_cache_key(package: &ManifestPackage) -> CacheEntry {
     let mut builder = CacheKeyBuilder::new(&package.name);
     builder.add_key_data(&package.unique_identifier());
     builder.set_attribute(Attribute::Target, package.supported_target.to_string());
-    builder.set_attribute(Attribute::Version, package.version.clone());
+    builder.set_attribute(Attribute::ToolchainVersion, package.version.clone());
     builder.into_entry()
 }
 
