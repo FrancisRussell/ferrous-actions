@@ -45,6 +45,9 @@ pub enum Attribute {
 
     #[strum(serialize = "toolchain_version")]
     ToolchainVersion,
+
+    #[strum(serialize = "entries_hash")]
+    EntriesHash,
 }
 
 impl CacheKeyBuilder {
