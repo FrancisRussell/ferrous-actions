@@ -3,17 +3,16 @@ use crate::hasher::Blake3 as Blake3Hasher;
 use crate::{node, safe_encoding};
 use std::collections::BTreeMap;
 
-const CACHE_ENTRY_VERSION: &str = "9";
+const CACHE_ENTRY_VERSION: &str = "10";
 
 pub struct CacheKeyBuilder {
     name: String,
     hasher: Blake3Hasher,
-    key_attributes: BTreeMap<&'static str, String>,
-    attributes: BTreeMap<&'static str, String>,
+    attributes: BTreeMap<&'static str, (String, bool)>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, strum::Display, strum::IntoStaticStr, Ord, PartialEq, PartialOrd)]
-pub enum KeyAttribute {
+pub enum Attribute {
     #[strum(serialize = "job")]
     Job,
 
@@ -25,10 +24,7 @@ pub enum KeyAttribute {
 
     #[strum(serialize = "workflow")]
     Workflow,
-}
 
-#[derive(Clone, Copy, Debug, Eq, Hash, strum::Display, strum::IntoStaticStr, Ord, PartialEq, PartialOrd)]
-pub enum Attribute {
     #[strum(serialize = "args_truncated")]
     ArgsTruncated,
 
@@ -56,7 +52,6 @@ impl CacheKeyBuilder {
         let mut result = CacheKeyBuilder {
             name: name.into(),
             hasher: Blake3Hasher::default(),
-            key_attributes: BTreeMap::new(),
             attributes: BTreeMap::new(),
         };
         result.add_key_data(CACHE_ENTRY_VERSION);
@@ -67,7 +62,7 @@ impl CacheKeyBuilder {
         use crate::nonce;
 
         let mut result = Self::empty(name);
-        result.set_key_attribute(KeyAttribute::Platform, node::os::platform());
+        result.set_key_attribute(Attribute::Platform, node::os::platform());
         let date = chrono::Local::now();
         result.set_attribute(Attribute::Timestamp, date.to_string());
         let nonce = nonce::build(8);
@@ -80,12 +75,12 @@ impl CacheKeyBuilder {
         data.hash(&mut self.hasher);
     }
 
-    pub fn set_key_attribute(&mut self, key: KeyAttribute, value: String) {
-        self.key_attributes.insert(key.into(), value);
+    pub fn set_key_attribute(&mut self, key: Attribute, value: String) {
+        self.attributes.insert(key.into(), (value, true));
     }
 
     pub fn set_attribute(&mut self, name: Attribute, value: String) {
-        self.attributes.insert(name.into(), value);
+        self.attributes.insert(name.into(), (value, false));
     }
 
     fn restore_key_to_save_key(&self, restore_key: &str) -> String {
@@ -93,35 +88,28 @@ impl CacheKeyBuilder {
 
         let mut save_key = restore_key.to_string();
         if !self.attributes.is_empty() {
-            save_key += " metadata={";
-            save_key += &self.attributes.iter().map(|(a, v)| format!("{}={}", a, v)).join("; ");
+            save_key += ", attributes={";
+            save_key += &self.attributes.iter().map(|(a, v)| format!("{}={}", a, v.0)).join("; ");
             save_key += "}";
         }
         save_key.replace(',', ";")
     }
 
     fn current_restore_key(&self) -> String {
-        use itertools::Itertools as _;
         use std::hash::Hash as _;
 
         let id = {
             let mut hasher = self.hasher.clone();
-            self.key_attributes.hash(&mut hasher);
+            self.attributes
+                .iter()
+                .filter(|(_, v)| v.1)
+                .for_each(|v| v.hash(&mut hasher));
             let id: [u8; 32] = self.hasher.inner().finalize().into();
             let id = &id[..8];
             safe_encoding::encode(id)
         };
 
-        let mut key_mappings = String::from("{");
-        if !self.key_attributes.is_empty() {
-            key_mappings += &self
-                .key_attributes
-                .iter()
-                .map(|(a, v)| format!("{}={}", a, v))
-                .join("; ");
-        }
-        key_mappings += "}";
-        let restore_key = format!("Ferrous Actions: {} - id={} key={}", self.name, id, key_mappings);
+        let restore_key = format!("Ferrous Actions: {} - id={}", self.name, id);
         restore_key.replace(',', ";")
     }
 

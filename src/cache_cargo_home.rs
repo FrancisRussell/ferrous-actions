@@ -602,14 +602,14 @@ fn dependency_file_path(cache_type: CacheType, scope: &HashValue, job: &Job) -> 
 }
 
 fn build_cache_entry_dependencies(cache_type: CacheType, scope: &HashValue, job: &Job) -> Result<CacheEntry, Error> {
-    use crate::cache_key_builder::{CacheKeyBuilder, KeyAttribute};
+    use crate::cache_key_builder::{Attribute, CacheKeyBuilder};
     let name = format!("{} (dependencies)", cache_type.friendly_name());
     let mut key_builder = CacheKeyBuilder::new(&name);
     key_builder.add_key_data(scope);
-    key_builder.set_key_attribute(KeyAttribute::Workflow, job.get_workflow().to_string());
-    key_builder.set_key_attribute(KeyAttribute::Job, job.get_job_id().to_string());
+    key_builder.set_key_attribute(Attribute::Workflow, job.get_workflow().to_string());
+    key_builder.set_key_attribute(Attribute::Job, job.get_job_id().to_string());
     if let Some(properties) = job.matrix_properties_as_string() {
-        key_builder.set_key_attribute(KeyAttribute::Matrix, properties);
+        key_builder.set_key_attribute(Attribute::Matrix, properties);
     }
     let mut cache_entry = key_builder.into_entry();
     let path = dependency_file_path(cache_type, scope, job)?;
