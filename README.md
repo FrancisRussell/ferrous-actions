@@ -29,7 +29,7 @@ Registry indices (e.g. the list of packages on `crates.io`), crate files and
 Git repositories downloaded by Cargo can all be cached between CI jobs.
 
 File modification timestamps are used to detect if no changes to the cached items
-have occured and avoid needlessly uploading them back to the cache.
+have occurred and avoid needlessly uploading them back to the cache.
 
 Example invocation:
 ```
@@ -218,7 +218,7 @@ added to the cache via other means (e.g. due to `cargo install`).
 
 No solution exists for the issue of the build artifact folder increasing in
 size. Rust is a fast moving language so it's expected that compiler bumps will
-cause the the folder to be rebuilt from scrach anyway before this becomes an
+cause the folder to be rebuilt from scratch anyway before this becomes an
 issue. The file access timestamp technique is unlikely to work here, since it's
 likely that necessary files are only having timestamps examined rather than
 their content read, which won't be reflected in the access time.
@@ -240,14 +240,14 @@ incorporates a hash of its expected contents.
 A cache group represents one or more dependencies (e.g. crates, git
 repositories) which are bundled together. The individual dependencies may be
 updated, but none are ever added or removed. This means any CI job is free to
-update any cache group they use. Jobs which have differing dependencies will
+update any cache group it uses. Jobs which have differing dependencies will
 interact with different cache groups.
 
 Making a cache group the finest granularity of caching possible might seem like
 a good idea. This is currently the case for cached indices and Git
 repositories, but not for crates. Many crates are quite small (tens of KiB) and
-projects typically depend on a large number of crates. It seems suboptimial and
-potentally irritating to users to construct a separate cache entry for each
+projects typically depend on a large number of crates. It seems suboptimal and
+potentially irritating to users to construct a separate cache entry for each
 cached crate. Therefore crates are cached at the level of all crates used from
 a particular index.
 
