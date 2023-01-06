@@ -258,20 +258,12 @@ impl Cache {
             if attempt_save {
                 let identifier = self.build_group_identifier(path);
                 let entry = Self::group_identifier_to_cache_entry(self.cache_type, &identifier);
-                let new_restore_key = entry.peek_restore().await?;
-                // If the new restore key is None, the cache entry is new and we're fine to
-                // upload. If the cache restore key is found, but it's the entry
-                // we downloaded earlier, then we can be certain that what we
-                // have is an update. Otherwise, we avoid pushing. This partly
-                // protects against concurrent CI jobs racing to upload the (near) same
-                // updated item.
-                if new_restore_key.is_none() || new_restore_key.as_deref() == old_restore_key {
-                    info!(
-                        "Saving modified {} cache group {}",
-                        self.cache_type.friendly_name(),
-                        path
-                    );
-                    entry.save().await?;
+                info!(
+                    "Saving modified {} cache group {}",
+                    self.cache_type.friendly_name(),
+                    path
+                );
+                if entry.save_if_update(old_restore_key).await?.is_some() {
                     info!(
                         "{} cache group {} saved successfully.",
                         self.cache_type.friendly_name(),

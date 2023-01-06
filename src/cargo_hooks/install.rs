@@ -151,21 +151,21 @@ impl Hook for Install {
         };
         if save {
             let cache_entry = self.build_cache_entry();
-            let new_restore_key = match cache_entry.peek_restore().await.map_err(Error::Js) {
-                Ok(new_restore_key) => new_restore_key,
+            match cache_entry
+                .save_if_update(self.restore_key.as_deref())
+                .await
+                .map_err(Error::Js)
+            {
                 Err(e) => {
-                    error!("Failed to check if cache had updated package build artifacts: {}", e);
-                    return;
-                }
-            };
-            if new_restore_key.is_none() || new_restore_key == self.restore_key {
-                if let Err(e) = cache_entry.save().await.map_err(Error::Js) {
                     error!("Failed to save package build artifacts to cache: {}", e);
-                } else {
-                    info!("Saved package build artifacts to cache.");
                 }
-            } else {
-                info!("Looks like a concurrent CI job updated the artifacts, not saving back to cache");
+                Ok(r) => {
+                    if r.is_some() {
+                        info!("Saved package build artifacts to cache.");
+                    } else {
+                        info!("Looks like a concurrent CI job updated the artifacts, not saving back to cache");
+                    }
+                }
             }
         } else {
             info!("Build artifacts unchanged, no need to save back to cache.");

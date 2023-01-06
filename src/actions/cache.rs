@@ -58,6 +58,15 @@ impl Entry {
         Ok(result)
     }
 
+    pub async fn save_if_update(&self, old_restore_key: Option<&str>) -> Result<Option<i64>, JsValue> {
+        let new_restore_key = self.peek_restore().await?;
+        if new_restore_key.is_none() || new_restore_key.as_deref() == old_restore_key {
+            self.save().await.map(Some)
+        } else {
+            Ok(None)
+        }
+    }
+
     pub async fn restore(&self) -> Result<Option<String>, JsValue> {
         let result = ffi::restore_cache(
             self.paths.clone(),
@@ -75,7 +84,7 @@ impl Entry {
         }
     }
 
-    pub async fn peek_restore(&self) -> Result<Option<String>, JsValue> {
+    async fn peek_restore(&self) -> Result<Option<String>, JsValue> {
         use js_sys::Object;
 
         let compression_method: JsString = ffi::get_compression_method().await?.into();
