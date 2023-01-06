@@ -1,6 +1,6 @@
 use super::Hook;
+use crate::actions::core::AnnotationLevel;
 use crate::actions::exec::Command;
-use crate::core::AnnotationLevel;
 use crate::warning;
 use async_trait::async_trait;
 use cargo_metadata::diagnostic::{DiagnosticLevel, DiagnosticSpan};
@@ -19,7 +19,7 @@ impl Annotation {
     }
 
     fn process_json_record(cargo_subcommand: &str, line: &str) {
-        use crate::core::Annotation;
+        use crate::actions::core::Annotation;
         use crate::node::path::Path;
         use cargo_metadata::Message;
 
