@@ -116,6 +116,8 @@ that Ferrous actions currently aims towards transparent tool caching - the
 cache should not result in you using a version of a binary you would not
 otherwise had you not used the cache.
 
+![grcov install](doc/images/cargo-install-grcov.webp)
+
 This means that Ferrous actions caches the build artifacts folder rather than
 the built binaries themselves. The only way to only cache the latter would be
 to be completely certain of all dependencies prior to the build,
@@ -154,7 +156,7 @@ compile the binary.
 When the `build`, `check` or `clippy` Cargo subcommands are run via Ferrous actions,
 annotations are output which can be viewed via the GitHub UI.
 
-![Example annotation](doc/images/annotation.webp)
+![Unused function annotation](doc/images/annotation.webp)
 
 Example invocation:
 ```
