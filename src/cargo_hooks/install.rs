@@ -37,13 +37,12 @@ impl Install {
         use std::hash::Hash as _;
 
         let mut hasher = Blake3Hasher::default();
+        toolchain_hash.hash(&mut hasher);
         let arg_string = {
-            toolchain_hash.hash(&mut hasher);
             let mut arg_string = String::new();
             let mut first = true;
             for arg in args {
                 let arg = arg.as_ref();
-                arg.hash(&mut hasher);
                 if first {
                     first = false;
                 } else {
@@ -53,8 +52,8 @@ impl Install {
             }
             arg_string
         };
-        let hash = hasher.inner().finalize();
-        let hash = HashValue::from_bytes(hash.as_bytes());
+        arg_string.hash(&mut hasher);
+        let hash = hasher.hash_value();
         let build_dir = get_package_build_dir(&hash)?;
         let mut result = Install {
             hash,

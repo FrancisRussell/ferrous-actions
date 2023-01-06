@@ -40,18 +40,12 @@ impl CacheKeyBuilder {
     }
 
     fn restore_key_to_save_key(&self, restore_key: &str) -> String {
+        use itertools::Itertools as _;
+
         let mut save_key = restore_key.to_string();
         if !self.attributes.is_empty() {
             save_key += " (";
-            let mut first = true;
-            for (attribute, value) in &self.attributes {
-                if first {
-                    first = false;
-                } else {
-                    save_key += "; ";
-                }
-                save_key += &format!("{}={}", attribute, value);
-            }
+            save_key += &self.attributes.iter().map(|(a, v)| format!("{}={}", a, v)).join("; ");
             save_key += ")";
         }
         save_key.replace(',', ";")

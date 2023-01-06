@@ -142,7 +142,7 @@ impl Cargo {
             })
             .stdout(Stdio::null());
         command.exec().await?;
-        let output: String = output.lock().trim().to_string();
+        let output = output.lock().trim().to_string();
         Ok(HashValue::from_bytes(output.as_bytes()))
     }
 
@@ -157,7 +157,7 @@ impl Cargo {
         I: IntoIterator<Item = &'a str>,
     {
         let args: Vec<String> = args.into_iter().map(Into::into).collect();
-        let mut final_args = Vec::new();
+        let mut final_args = Vec::with_capacity(args.len());
         if let Some(toolchain) = toolchain {
             final_args.push(format!("+{}", toolchain));
         }
