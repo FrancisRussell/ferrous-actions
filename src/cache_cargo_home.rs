@@ -11,6 +11,7 @@ use crate::node::os::homedir;
 use crate::node::path::Path;
 use crate::{actions, error, info, node, notice, safe_encoding, warning, Error};
 use chrono::{DateTime, Utc};
+use lazy_static::lazy_static;
 use rust_toolchain_manifest::HashValue;
 use serde::{Deserialize, Serialize};
 use simple_path_match::{PathMatch, PathMatchBuilder};
@@ -22,6 +23,17 @@ use strum::{Display, EnumIter, EnumString, IntoEnumIterator, IntoStaticStr};
 
 const SCOPE_HASH_KEY: &str = "SCOPE_HASH";
 const ATIMES_SUPPORTED_KEY: &str = "ACCESS_TIMES_SUPPORTED";
+
+lazy_static! {
+    static ref CARGO_HOME: String = {
+        node::process::get_env()
+            .get("CARGO_HOME")
+            .map(String::as_str)
+            .map(Path::from)
+            .unwrap_or_else(|| homedir().join(".cargo"))
+            .to_string()
+    };
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct Group {
@@ -415,7 +427,7 @@ impl Cache {
 }
 
 fn find_cargo_home() -> Path {
-    homedir().join(".cargo")
+    Path::from(CARGO_HOME.as_str())
 }
 
 fn find_path(cache_type: CacheType) -> Path {
@@ -606,6 +618,7 @@ fn build_cache_entry_dependencies(cache_type: CacheType, scope: &HashValue, job:
     let name = format!("{} (dependencies)", cache_type.friendly_name());
     let mut key_builder = CacheKeyBuilder::new(&name);
     key_builder.add_key_data(scope);
+    key_builder.add_key_data(&find_path(cache_type).to_string());
     key_builder.set_key_attribute(Attribute::Workflow, job.get_workflow().to_string());
     key_builder.set_key_attribute(Attribute::Job, job.get_job_id().to_string());
     if let Some(properties) = job.matrix_properties_as_string() {
