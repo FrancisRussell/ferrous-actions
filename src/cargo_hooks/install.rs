@@ -40,7 +40,7 @@ impl Install {
         use std::hash::Hash as _;
 
         let mut hasher = Blake3Hasher::default();
-        toolchain_version.long.hash(&mut hasher);
+        toolchain_version.long().hash(&mut hasher);
         let arg_string = {
             let mut arg_string = String::new();
             let mut first = true;
@@ -65,7 +65,7 @@ impl Install {
             fingerprint: None,
             arg_string,
             restore_key: None,
-            toolchain_version_short: toolchain_version.short.clone(),
+            toolchain_version_short: toolchain_version.short().to_string(),
         };
         let cache_entry = result.build_cache_entry();
         if let Some(key) = cache_entry.restore().await? {

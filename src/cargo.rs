@@ -37,8 +37,17 @@ pub struct Cargo {
 
 #[derive(Clone, Debug)]
 pub struct ToolchainVersion {
-    pub short: String,
-    pub long: String,
+    long: String,
+}
+
+impl ToolchainVersion {
+    pub fn short(&self) -> Cow<str> {
+        self.long.lines().next().unwrap_or_default().trim().into()
+    }
+
+    pub fn long(&self) -> Cow<str> {
+        self.long.as_str().into()
+    }
 }
 
 impl Cargo {
@@ -152,8 +161,7 @@ impl Cargo {
             .stdout(Stdio::null());
         command.exec().await?;
         let long = output.lock().trim().to_string();
-        let short = long.lines().next().unwrap_or_default().trim().to_string();
-        Ok(ToolchainVersion { short, long })
+        Ok(ToolchainVersion { long })
     }
 
     pub async fn run<'a, I>(
