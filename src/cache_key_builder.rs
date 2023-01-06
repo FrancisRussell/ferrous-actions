@@ -3,7 +3,7 @@ use crate::hasher::Blake3 as Blake3Hasher;
 use crate::{node, safe_encoding};
 use std::collections::BTreeMap;
 
-const CACHE_ENTRY_VERSION: &str = "7";
+const CACHE_ENTRY_VERSION: &str = "8";
 
 pub struct CacheKeyBuilder {
     name: String,
@@ -101,9 +101,9 @@ impl CacheKeyBuilder {
 
         let mut save_key = restore_key.to_string();
         if !self.attributes.is_empty() {
-            save_key += " (";
+            save_key += " metadata={";
             save_key += &self.attributes.iter().map(|(a, v)| format!("{}={}", a, v)).join("; ");
-            save_key += ")";
+            save_key += "}";
         }
         save_key.replace(',', ";")
     }
@@ -111,7 +111,7 @@ impl CacheKeyBuilder {
     fn current_restore_key(&self) -> String {
         use itertools::Itertools as _;
 
-        let mut key_mappings = String::from("(");
+        let mut key_mappings = String::from("{");
         if !self.key_attributes.is_empty() {
             key_mappings += &self
                 .key_attributes
@@ -119,7 +119,7 @@ impl CacheKeyBuilder {
                 .map(|(a, v)| format!("{}={}", a, v))
                 .join("; ");
         }
-        key_mappings += ")";
+        key_mappings += "}";
         let restore_key = format!("Ferrous Actions: {} - key={}", self.name, key_mappings);
         restore_key.replace(',', ";")
     }
