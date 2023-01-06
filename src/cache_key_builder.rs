@@ -14,9 +14,6 @@ pub struct CacheKeyBuilder {
 
 #[derive(Clone, Copy, Debug, Eq, Hash, strum::Display, strum::IntoStaticStr, Ord, PartialEq, PartialOrd)]
 pub enum KeyAttribute {
-    #[strum(serialize = "id")]
-    Id,
-
     #[strum(serialize = "job")]
     Job,
 
@@ -84,7 +81,6 @@ impl CacheKeyBuilder {
     }
 
     pub fn set_key_attribute(&mut self, key: KeyAttribute, value: String) {
-        assert_ne!(key, KeyAttribute::Id, "ID attribute cannot be set directly");
         self.key_attributes.insert(key.into(), value);
     }
 
