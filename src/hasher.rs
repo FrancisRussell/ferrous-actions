@@ -1,6 +1,6 @@
 use rust_toolchain_manifest::HashValue;
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct Blake3 {
     inner: blake3::Hasher,
 }

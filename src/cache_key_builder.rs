@@ -3,7 +3,7 @@ use crate::hasher::Blake3 as Blake3Hasher;
 use crate::{node, safe_encoding};
 use std::collections::BTreeMap;
 
-const CACHE_ENTRY_VERSION: &str = "8";
+const CACHE_ENTRY_VERSION: &str = "9";
 
 pub struct CacheKeyBuilder {
     name: String,
@@ -81,10 +81,6 @@ impl CacheKeyBuilder {
 
     pub fn add_key_data<T: std::hash::Hash + ?Sized>(&mut self, data: &T) {
         data.hash(&mut self.hasher);
-        let id: [u8; 32] = self.hasher.inner().finalize().into();
-        let id = &id[..8];
-        let id = safe_encoding::encode(id);
-        self.key_attributes.insert(KeyAttribute::Id.into(), id);
     }
 
     pub fn set_key_attribute(&mut self, key: KeyAttribute, value: String) {
@@ -110,6 +106,15 @@ impl CacheKeyBuilder {
 
     fn current_restore_key(&self) -> String {
         use itertools::Itertools as _;
+        use std::hash::Hash as _;
+
+        let id = {
+            let mut hasher = self.hasher.clone();
+            self.key_attributes.hash(&mut hasher);
+            let id: [u8; 32] = self.hasher.inner().finalize().into();
+            let id = &id[..8];
+            safe_encoding::encode(id)
+        };
 
         let mut key_mappings = String::from("{");
         if !self.key_attributes.is_empty() {
@@ -120,7 +125,7 @@ impl CacheKeyBuilder {
                 .join("; ");
         }
         key_mappings += "}";
-        let restore_key = format!("Ferrous Actions: {} - key={}", self.name, key_mappings);
+        let restore_key = format!("Ferrous Actions: {} - id={} key={}", self.name, id, key_mappings);
         restore_key.replace(',', ";")
     }
 
