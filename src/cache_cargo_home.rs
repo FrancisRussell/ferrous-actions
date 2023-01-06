@@ -346,16 +346,13 @@ impl Cache {
     }
 
     fn group_identifier_to_cache_entry(cache_type: CacheType, group_id: &GroupIdentifier) -> CacheEntry {
-        use crate::cache_key_builder::CacheKeyBuilder;
+        use crate::cache_key_builder::{Attribute, CacheKeyBuilder};
 
         let name = format!("{} (content)", cache_type.friendly_name());
-        let date = chrono::Local::now();
         let mut builder = CacheKeyBuilder::new(&name);
         builder.add_key_data(group_id);
-        builder.set_attribute("path", group_id.path.as_str());
-        builder.set_attribute("num_entries", &group_id.num_entries.to_string());
-        builder.set_attribute("date", &date.to_string());
-        builder.set_attribute_nonce("nonce");
+        builder.set_attribute(Attribute::Path, group_id.path.clone());
+        builder.set_attribute(Attribute::NumEntries, group_id.num_entries.to_string());
         let mut entry = builder.into_entry();
         let path = Path::from(group_id.root.as_str()).join(group_id.path.as_str());
         entry.path(path);
@@ -605,18 +602,14 @@ fn dependency_file_path(cache_type: CacheType, scope: &HashValue, job: &Job) -> 
 }
 
 fn build_cache_entry_dependencies(cache_type: CacheType, scope: &HashValue, job: &Job) -> Result<CacheEntry, Error> {
-    use crate::cache_key_builder::CacheKeyBuilder;
+    use crate::cache_key_builder::{Attribute, CacheKeyBuilder};
     let name = format!("{} (dependencies)", cache_type.friendly_name());
     let mut key_builder = CacheKeyBuilder::new(&name);
     key_builder.add_key_data(scope);
-    key_builder.add_key_data(job);
-    let date = chrono::Local::now();
-    key_builder.set_attribute("date", &date.to_string());
-    key_builder.set_attribute_nonce("nonce");
-    key_builder.set_attribute("workflow", job.get_workflow());
-    key_builder.set_attribute("job", job.get_job_id());
+    key_builder.set_key_attribute(Attribute::Workflow, job.get_workflow().to_string());
+    key_builder.set_key_attribute(Attribute::Job, job.get_job_id().to_string());
     if let Some(properties) = job.matrix_properties_as_string() {
-        key_builder.set_attribute("matrix", &properties);
+        key_builder.set_key_attribute(Attribute::Matrix, properties);
     }
     let mut cache_entry = key_builder.into_entry();
     let path = dependency_file_path(cache_type, scope, job)?;

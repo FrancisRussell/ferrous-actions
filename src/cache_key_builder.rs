@@ -1,42 +1,86 @@
 use crate::actions::cache::Entry as CacheEntry;
 use crate::hasher::Blake3 as Blake3Hasher;
-use crate::safe_encoding;
+use crate::{node, safe_encoding};
 use std::collections::BTreeMap;
 
-const CACHE_ENTRY_VERSION: &str = "6";
+const CACHE_ENTRY_VERSION: &str = "10";
 
 pub struct CacheKeyBuilder {
     name: String,
     hasher: Blake3Hasher,
-    attributes: BTreeMap<String, String>,
+    attributes: BTreeMap<&'static str, (String, bool)>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, strum::Display, strum::IntoStaticStr, Ord, PartialEq, PartialOrd)]
+pub enum Attribute {
+    #[strum(serialize = "job")]
+    Job,
+
+    #[strum(serialize = "matrix")]
+    Matrix,
+
+    #[strum(serialize = "platform")]
+    Platform,
+
+    #[strum(serialize = "workflow")]
+    Workflow,
+
+    #[strum(serialize = "args_truncated")]
+    ArgsTruncated,
+
+    #[strum(serialize = "nonce")]
+    Nonce,
+
+    #[strum(serialize = "num_entries")]
+    NumEntries,
+
+    #[strum(serialize = "path")]
+    Path,
+
+    #[strum(serialize = "date")]
+    Timestamp,
+
+    #[strum(serialize = "target")]
+    Target,
+
+    #[strum(serialize = "toolchain_version")]
+    ToolchainVersion,
 }
 
 impl CacheKeyBuilder {
-    pub fn new(name: &str) -> CacheKeyBuilder {
-        use std::hash::Hash as _;
-
-        let mut hasher = Blake3Hasher::default();
-        CACHE_ENTRY_VERSION.hash(&mut hasher);
-        CacheKeyBuilder {
+    fn empty(name: &str) -> CacheKeyBuilder {
+        let mut result = CacheKeyBuilder {
             name: name.into(),
-            hasher,
+            hasher: Blake3Hasher::default(),
             attributes: BTreeMap::new(),
-        }
+        };
+        result.add_key_data(CACHE_ENTRY_VERSION);
+        result
     }
 
-    pub fn add_key_data<T: std::hash::Hash>(&mut self, data: &T) {
+    pub fn new(name: &str) -> CacheKeyBuilder {
+        use crate::nonce;
+
+        let mut result = Self::empty(name);
+        result.set_key_attribute(Attribute::Platform, node::os::platform());
+        let date = chrono::Local::now();
+        result.set_attribute(Attribute::Timestamp, date.to_string());
+        let nonce = nonce::build(8);
+        let nonce = safe_encoding::encode(nonce);
+        result.set_attribute(Attribute::Nonce, nonce);
+        result
+    }
+
+    pub fn add_key_data<T: std::hash::Hash + ?Sized>(&mut self, data: &T) {
         data.hash(&mut self.hasher);
     }
 
-    pub fn set_attribute(&mut self, name: &str, value: &str) {
-        self.attributes.insert(name.into(), value.into());
+    pub fn set_key_attribute(&mut self, key: Attribute, value: String) {
+        self.attributes.insert(key.into(), (value, true));
     }
 
-    pub fn set_attribute_nonce(&mut self, name: &str) {
-        use crate::nonce;
-        let nonce = nonce::build(8);
-        let nonce = safe_encoding::encode(nonce);
-        self.set_attribute(name, &nonce);
+    pub fn set_attribute(&mut self, name: Attribute, value: String) {
+        self.attributes.insert(name.into(), (value, false));
     }
 
     fn restore_key_to_save_key(&self, restore_key: &str) -> String {
@@ -44,17 +88,27 @@ impl CacheKeyBuilder {
 
         let mut save_key = restore_key.to_string();
         if !self.attributes.is_empty() {
-            save_key += " (";
-            save_key += &self.attributes.iter().map(|(a, v)| format!("{}={}", a, v)).join("; ");
-            save_key += ")";
+            save_key += ", attributes={";
+            save_key += &self.attributes.iter().map(|(a, v)| format!("{}={}", a, v.0)).join("; ");
+            save_key += "}";
         }
         save_key.replace(',', ";")
     }
 
     fn current_restore_key(&self) -> String {
-        let id: [u8; 32] = self.hasher.inner().finalize().into();
-        let id = &id[..8];
-        let id = safe_encoding::encode(id);
+        use std::hash::Hash as _;
+
+        let id = {
+            let mut hasher = self.hasher.clone();
+            self.attributes
+                .iter()
+                .filter(|(_, v)| v.1)
+                .for_each(|v| v.hash(&mut hasher));
+            let id: [u8; 32] = self.hasher.inner().finalize().into();
+            let id = &id[..8];
+            safe_encoding::encode(id)
+        };
+
         let restore_key = format!("Ferrous Actions: {} - id={}", self.name, id);
         restore_key.replace(',', ";")
     }

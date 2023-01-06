@@ -1,6 +1,7 @@
 use super::Hook;
 use crate::action_paths::get_action_cache_dir;
 use crate::actions::cache::Entry as CacheEntry;
+use crate::cargo::ToolchainVersion;
 use crate::delta::render_list as render_delta_list;
 use crate::fingerprinting::Fingerprint;
 use crate::hasher::Blake3 as Blake3Hasher;
@@ -27,10 +28,11 @@ pub struct Install {
     fingerprint: Option<Fingerprint>,
     arg_string: String,
     restore_key: Option<String>,
+    toolchain_version_short: String,
 }
 
 impl Install {
-    pub async fn new<I, A>(toolchain_hash: &HashValue, args: I) -> Result<Install, Error>
+    pub async fn new<I, A>(toolchain_version: &ToolchainVersion, args: I) -> Result<Install, Error>
     where
         I: IntoIterator<Item = A>,
         A: AsRef<str>,
@@ -38,7 +40,7 @@ impl Install {
         use std::hash::Hash as _;
 
         let mut hasher = Blake3Hasher::default();
-        toolchain_hash.hash(&mut hasher);
+        toolchain_version.long().hash(&mut hasher);
         let arg_string = {
             let mut arg_string = String::new();
             let mut first = true;
@@ -63,6 +65,7 @@ impl Install {
             fingerprint: None,
             arg_string,
             restore_key: None,
+            toolchain_version_short: toolchain_version.short().to_string(),
         };
         let cache_entry = result.build_cache_entry();
         if let Some(key) = cache_entry.restore().await? {
@@ -91,10 +94,11 @@ impl Install {
     }
 
     fn build_cache_entry(&self) -> CacheEntry {
-        use crate::cache_key_builder::CacheKeyBuilder;
+        use crate::cache_key_builder::{Attribute, CacheKeyBuilder};
 
         let mut key_builder = CacheKeyBuilder::new("cargo install build artifacts");
         key_builder.add_key_data(&self.hash);
+        key_builder.set_attribute(Attribute::ToolchainVersion, self.toolchain_version_short.clone());
         let arg_string = {
             let mut arg_string = self.arg_string.clone();
             if arg_string.len() > MAX_ARG_STRING_LENGTH {
@@ -104,8 +108,7 @@ impl Install {
             }
             arg_string
         };
-        key_builder.set_attribute("args", &arg_string);
-        key_builder.set_attribute_nonce("nonce");
+        key_builder.set_attribute(Attribute::ArgsTruncated, arg_string);
         let mut cache_entry = key_builder.into_entry();
         cache_entry.path(&Path::from(self.build_dir.as_str()));
         cache_entry
