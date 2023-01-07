@@ -31,8 +31,7 @@ lazy_static! {
         node::process::get_env()
             .get("CARGO_HOME")
             .map(String::as_str)
-            .map(Path::from)
-            .unwrap_or_else(|| homedir().join(".cargo"))
+            .map_or_else(|| homedir().join(".cargo"), Path::from)
             .to_string()
     };
 }
@@ -629,9 +628,7 @@ impl CacheType {
 
 fn get_cross_platform_sharing(input_manager: &input_manager::Manager) -> Result<CrossPlatformSharing, Error> {
     Ok(if let Some(value) = input_manager.get(Input::CrossPlatformSharing) {
-        let sharing =
-            CrossPlatformSharing::from_str(value).map_err(|_| Error::ParseCrossPlatformSharing(value.to_string()))?;
-        sharing
+        CrossPlatformSharing::from_str(value).map_err(|_| Error::ParseCrossPlatformSharing(value.to_string()))?
     } else {
         CrossPlatformSharing::UnixLike
     })
@@ -730,7 +727,7 @@ pub async fn restore_cargo_cache(input_manager: &input_manager::Manager) -> Resu
     };
     core::save_state(SCOPE_HASH_KEY, safe_encoding::encode(&scope_hash));
 
-    let cross_platform_sharing = get_cross_platform_sharing(&input_manager)?;
+    let cross_platform_sharing = get_cross_platform_sharing(input_manager)?;
     let cached_types = get_types_to_cache(input_manager)?;
     for cache_type in cached_types {
         // Mark as used to avoid spurious warnings (we only use this when we save the
@@ -758,7 +755,7 @@ pub async fn save_cargo_cache(input_manager: &input_manager::Manager) -> Result<
     let atimes_supported = core::get_state(ATIMES_SUPPORTED_KEY).expect("Failed to find access times support flag");
     let atimes_supported: bool = serde_json::de::from_str(&atimes_supported)?;
 
-    let cross_platform_sharing = get_cross_platform_sharing(&input_manager)?;
+    let cross_platform_sharing = get_cross_platform_sharing(input_manager)?;
     let cached_types = get_types_to_cache(input_manager)?;
     for cache_type in cached_types {
         // Delete items that should never make it into the cache
