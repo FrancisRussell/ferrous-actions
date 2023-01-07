@@ -132,7 +132,7 @@ impl Cache {
         let entry_depth_relative = entry_depth - grouping_depth;
         let mut map = BTreeMap::new();
         for group in top_depth_paths {
-            let group_path = folder_path.join(group.clone());
+            let group_path = folder_path.join(&group);
             map.insert(
                 AgnosticPath::from(&group),
                 Group {
@@ -347,7 +347,7 @@ impl Cache {
         let entry_level_paths = match_relative_paths(group_path, &entry_level_glob, true).await?;
         let mut map = BTreeMap::new();
         for path in entry_level_paths {
-            let entry_path = group_path.join(path.clone());
+            let entry_path = group_path.join(&path);
             map.insert(
                 AgnosticPath::from(&path),
                 Self::build_entry(cache_type, &entry_path).await?,

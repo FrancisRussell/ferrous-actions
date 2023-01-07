@@ -97,8 +97,8 @@ async fn install_components(toolchain: &Toolchain, package: &ManifestPackage) ->
                 .map(|data| String::from_utf8_lossy(&data[..]).into_owned())?;
             let manifest = PackageManifest::from_str(manifest.as_str())?;
             for (entry_type, path) in manifest.iter() {
-                let source = component_path.join(path.clone());
-                let dest = cargo_home.join(path.clone());
+                let source = component_path.join(path);
+                let dest = cargo_home.join(path);
                 node::fs::create_dir_all(&dest.parent()).await?;
 
                 match *entry_type {

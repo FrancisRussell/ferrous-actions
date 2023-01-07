@@ -59,7 +59,7 @@ impl Cargo {
     }
 
     pub async fn from_path(path: &Path) -> Result<Cargo, Error> {
-        let full_path = process::cwd().join(path.clone());
+        let full_path = process::cwd().join(path);
         if !full_path.exists().await {
             return Err(Error::PathDoesNotExist(full_path.to_string()));
         }
