@@ -67,7 +67,6 @@ struct Cache {
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 struct GroupIdentifier {
-    root: String,
     path: String,
     num_entries: usize,
     entries_hash: HashValue,
@@ -127,7 +126,6 @@ impl Cache {
         group.entries.len().hash(&mut hasher);
         group.entries.keys().for_each(|k| k.hash(&mut hasher));
         GroupIdentifier {
-            root: self.root_path.clone(),
             path: group_path.to_string(),
             num_entries: group.entries.len(),
             entries_hash: hasher.hash_value(),
@@ -372,7 +370,8 @@ impl Cache {
         };
         builder.set_attribute(Attribute::EntriesHash, entries_hash);
         let mut entry = builder.into_entry();
-        let path = Path::from(group_id.root.as_str()).join(group_id.path.as_str());
+        let root_path = find_path(cache_type);
+        let path = root_path.join(group_id.path.as_str());
         entry.path(path);
         entry
     }
