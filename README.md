@@ -40,7 +40,6 @@ Example invocation:
   min-recache-crates: 1m
   min-recache-git-repos: 12h
   min-recache-indices: 7d
-
 ```
 
 The following options are also available:
@@ -49,8 +48,13 @@ The following options are also available:
   `git-repos`, `crates` and `indices`. If provided, only these items will be
   cached. The default is to cache all items.
 * `min-recache-crates` (optional): minimum time before recaching crates. 
-* `min-recache-git-repos` (optional): minimum time before recaching Git repositories. 
-* `min-recache-indices` (optional): minimum time before recaching registry indices. 
+* `min-recache-git-repos` (optional): minimum time before recaching Git
+  repositories.
+* `min-recache-indices` (optional): minimum time before recaching registry
+  indices.
+* `cross-platform-sharing` (optional, experimental): Attempt to share Cargo
+  home caches across all platforms (`all`), only Unix-like platforms
+  (`unix-like`), or make all caches platform-specific (`none`).
 
 All recaching intervals are specified in [human
 time](https://docs.rs/humantime/latest/humantime/). Specifying the recaching

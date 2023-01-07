@@ -21,6 +21,9 @@ pub enum Input {
     #[strum(serialize = "components")]
     Components,
 
+    #[strum(serialize = "cross-platform-sharing")]
+    CrossPlatformSharing,
+
     #[strum(serialize = "default")]
     Default,
 

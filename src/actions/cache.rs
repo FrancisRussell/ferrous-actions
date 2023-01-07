@@ -31,6 +31,11 @@ impl Entry {
         self.paths(std::iter::once(path.borrow()))
     }
 
+    pub fn permit_sharing_with_windows(&mut self, allow: bool) -> &mut Entry {
+        self.cross_os_archive = allow;
+        self
+    }
+
     pub fn restore_keys<I, K>(&mut self, restore_keys: I) -> &mut Entry
     where
         I: IntoIterator<Item = K>,

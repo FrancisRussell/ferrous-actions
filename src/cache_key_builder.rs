@@ -121,6 +121,9 @@ impl CacheKeyBuilder {
         let save_key = self.restore_key_to_save_key(&restore_key);
         let mut result = CacheEntry::new(save_key.as_str());
         result.restore_key(restore_key);
+        // Since we have the "platform" attribute, turning this on makes no difference
+        // unless the user overrides it
+        result.permit_sharing_with_windows(true);
         result
     }
 }

@@ -22,8 +22,8 @@ use std::hash::Hash as _;
 use std::str::FromStr;
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator, IntoStaticStr};
 
-const SCOPE_HASH_KEY: &str = "SCOPE_HASH";
 const ATIMES_SUPPORTED_KEY: &str = "ACCESS_TIMES_SUPPORTED";
+const SCOPE_HASH_KEY: &str = "SCOPE_HASH";
 
 lazy_static! {
     static ref CARGO_HOME: String = {
@@ -34,6 +34,34 @@ lazy_static! {
             .unwrap_or_else(|| homedir().join(".cargo"))
             .to_string()
     };
+}
+
+#[derive(Clone, Copy, Debug, EnumString)]
+enum CrossPlatformSharing {
+    #[strum(serialize = "none")]
+    None,
+
+    #[strum(serialize = "unix-like")]
+    UnixLike,
+
+    #[strum(serialize = "all")]
+    All,
+}
+
+impl CrossPlatformSharing {
+    pub fn current_platform(self) -> Cow<'static, str> {
+        match self {
+            CrossPlatformSharing::All => "any".into(),
+            CrossPlatformSharing::None => node::os::platform().into(),
+            CrossPlatformSharing::UnixLike => {
+                let platform = node::os::platform();
+                match platform.as_str() {
+                    "aix" | "darwin" | "freebsd" | "linux" | "openbsd" | "sunos" => "unix-like".into(),
+                    _ => platform.into(),
+                }
+            }
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -144,7 +172,11 @@ impl Cache {
         }
     }
 
-    pub async fn restore_from_env(cache_type: CacheType, scope: &HashValue) -> Result<Cache, Error> {
+    pub async fn restore_from_env(
+        cache_type: CacheType,
+        scope: &HashValue,
+        cross_platform_sharing: CrossPlatformSharing,
+    ) -> Result<Cache, Error> {
         use crate::access_times::revert_folder;
         use itertools::Itertools as _;
 
@@ -184,7 +216,7 @@ impl Cache {
                 group_list_string
             );
             for group in &groups {
-                let entry = Self::group_identifier_to_cache_entry(cache_type, group);
+                let entry = Self::group_identifier_to_cache_entry(cache_type, group, cross_platform_sharing);
                 if let Some(name) = entry.restore().await? {
                     info!("Restored cache key: {}", name);
                     restore_keys.insert(group.path.clone(), name);
@@ -211,6 +243,7 @@ impl Cache {
         old: &Cache,
         scope_hash: &HashValue,
         min_recache_interval: &chrono::Duration,
+        cross_platform_sharing: CrossPlatformSharing,
     ) -> Result<(), Error> {
         let job = Job::from_env()?;
         let dep_file_path = dependency_file_path(self.cache_type, scope_hash, &job)?;
@@ -279,7 +312,7 @@ impl Cache {
 
             if attempt_save {
                 let identifier = self.build_group_identifier(path);
-                let entry = Self::group_identifier_to_cache_entry(self.cache_type, &identifier);
+                let entry = Self::group_identifier_to_cache_entry(self.cache_type, &identifier, cross_platform_sharing);
                 info!(
                     "Saving modified {} cache group {}",
                     self.cache_type.friendly_name(),
@@ -372,7 +405,11 @@ impl Cache {
             .collect()
     }
 
-    fn group_identifier_to_cache_entry(cache_type: CacheType, group_id: &GroupIdentifier) -> CacheEntry {
+    fn group_identifier_to_cache_entry(
+        cache_type: CacheType,
+        group_id: &GroupIdentifier,
+        cross_platform_sharing: CrossPlatformSharing,
+    ) -> CacheEntry {
         use crate::cache_key_builder::{Attribute, CacheKeyBuilder};
 
         let name = format!("{} (content)", cache_type.friendly_name());
@@ -386,6 +423,10 @@ impl Cache {
             safe_encoding::encode(lsb)
         };
         builder.set_attribute(Attribute::EntriesHash, entries_hash);
+        builder.set_key_attribute(
+            Attribute::Platform,
+            cross_platform_sharing.current_platform().to_string(),
+        );
         let mut entry = builder.into_entry();
         let root_path = find_path(cache_type);
         let path = root_path.join(&group_id.path);
@@ -591,6 +632,16 @@ impl CacheType {
     }
 }
 
+fn get_cross_platform_sharing(input_manager: &input_manager::Manager) -> Result<CrossPlatformSharing, Error> {
+    Ok(if let Some(value) = input_manager.get(Input::CrossPlatformSharing) {
+        let sharing =
+            CrossPlatformSharing::from_str(value).map_err(|_| Error::ParseCrossPlatformSharing(value.to_string()))?;
+        sharing
+    } else {
+        CrossPlatformSharing::UnixLike
+    })
+}
+
 fn get_types_to_cache(input_manager: &input_manager::Manager) -> Result<Vec<CacheType>, Error> {
     let mut result = HashSet::new();
     if let Some(types) = input_manager.get(Input::CacheOnly) {
@@ -684,6 +735,7 @@ pub async fn restore_cargo_cache(input_manager: &input_manager::Manager) -> Resu
     };
     core::save_state(SCOPE_HASH_KEY, safe_encoding::encode(&scope_hash));
 
+    let cross_platform_sharing = get_cross_platform_sharing(&input_manager)?;
     let cached_types = get_types_to_cache(input_manager)?;
     for cache_type in cached_types {
         // Mark as used to avoid spurious warnings (we only use this when we save the
@@ -691,7 +743,7 @@ pub async fn restore_cargo_cache(input_manager: &input_manager::Manager) -> Resu
         let _ = get_min_recache_interval(input_manager, cache_type)?;
 
         // Build the cache
-        let cache = Cache::restore_from_env(cache_type, &scope_hash).await?;
+        let cache = Cache::restore_from_env(cache_type, &scope_hash, cross_platform_sharing).await?;
         let serialized_cache = serde_json::to_string(&cache)?;
         let cached_info_path = cached_folder_info_path(cache_type)?;
         {
@@ -711,6 +763,7 @@ pub async fn save_cargo_cache(input_manager: &input_manager::Manager) -> Result<
     let atimes_supported = core::get_state(ATIMES_SUPPORTED_KEY).expect("Failed to find access times support flag");
     let atimes_supported: bool = serde_json::de::from_str(&atimes_supported)?;
 
+    let cross_platform_sharing = get_cross_platform_sharing(&input_manager)?;
     let cached_types = get_types_to_cache(input_manager)?;
     for cache_type in cached_types {
         // Delete items that should never make it into the cache
@@ -750,7 +803,7 @@ pub async fn save_cargo_cache(input_manager: &input_manager::Manager) -> Result<
         // Save groups to cache if they have changed
         let min_recache_interval = get_min_recache_interval(input_manager, cache_type)?;
         cache
-            .save_changes(&cache_old, &scope_hash, &min_recache_interval)
+            .save_changes(&cache_old, &scope_hash, &min_recache_interval, cross_platform_sharing)
             .await?;
     }
     Ok(())
