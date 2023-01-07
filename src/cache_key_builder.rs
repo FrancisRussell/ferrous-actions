@@ -86,40 +86,38 @@ impl CacheKeyBuilder {
         self.attributes.insert(name.into(), (value, false));
     }
 
-    fn restore_key_to_save_key(&self, restore_key: &str) -> String {
+    fn restore_key_to_save_key(restore_key: &str, attributes: &BTreeMap<&str, (String, bool)>) -> String {
         use itertools::Itertools as _;
 
         let mut save_key = restore_key.to_string();
-        if !self.attributes.is_empty() {
+        if !attributes.is_empty() {
             save_key += ", attributes={";
-            save_key += &self.attributes.iter().map(|(a, v)| format!("{}={}", a, v.0)).join("; ");
+            save_key += &attributes.iter().map(|(a, v)| format!("{}={}", a, v.0)).join("; ");
             save_key += "}";
         }
         save_key.replace(',', ";")
     }
 
-    fn current_restore_key(&self) -> String {
+    fn build_restore_key(name: &str, mut hasher: Blake3Hasher, attributes: &BTreeMap<&str, (String, bool)>) -> String {
         use std::hash::Hash as _;
 
         let id = {
-            let mut hasher = self.hasher.clone();
-            self.attributes
+            attributes
                 .iter()
-                .filter(|(_, v)| v.1)
+                .filter_map(|(k, v)| v.1.then_some((k, &v.0)))
                 .for_each(|v| v.hash(&mut hasher));
-            // Be careful not to use self.hasher here!
             let id: [u8; 32] = hasher.inner().finalize().into();
             let id = &id[..8];
             safe_encoding::encode(id)
         };
 
-        let restore_key = format!("Ferrous Actions: {} - id={}", self.name, id);
+        let restore_key = format!("Ferrous Actions: {} - id={}", name, id);
         restore_key.replace(',', ";")
     }
 
     pub fn into_entry(self) -> CacheEntry {
-        let restore_key = self.current_restore_key();
-        let save_key = self.restore_key_to_save_key(&restore_key);
+        let restore_key = Self::build_restore_key(&self.name, self.hasher, &self.attributes);
+        let save_key = Self::restore_key_to_save_key(&restore_key, &self.attributes);
         let mut result = CacheEntry::new(save_key.as_str());
         result.restore_key(restore_key);
         // Since we have the "platform" attribute, turning this on makes no difference
