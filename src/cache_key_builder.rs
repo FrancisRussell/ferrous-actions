@@ -107,7 +107,8 @@ impl CacheKeyBuilder {
                 .iter()
                 .filter(|(_, v)| v.1)
                 .for_each(|v| v.hash(&mut hasher));
-            let id: [u8; 32] = self.hasher.inner().finalize().into();
+            // Be careful not to use self.hasher here!
+            let id: [u8; 32] = hasher.inner().finalize().into();
             let id = &id[..8];
             safe_encoding::encode(id)
         };
