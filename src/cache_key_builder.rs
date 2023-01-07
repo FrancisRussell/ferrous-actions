@@ -88,11 +88,17 @@ impl CacheKeyBuilder {
 
     fn restore_key_to_save_key(restore_key: &str, attributes: &BTreeMap<&str, (String, bool)>) -> String {
         use itertools::Itertools as _;
+        use std::fmt::Write as _;
 
         let mut save_key = restore_key.to_string();
         if !attributes.is_empty() {
             save_key += ", attributes={";
-            save_key += &attributes.iter().map(|(a, v)| format!("{}={}", a, v.0)).join("; ");
+            write!(
+                save_key,
+                "{}",
+                attributes.iter().map(|(a, v)| format!("{}={}", a, v.0)).format("; ")
+            )
+            .expect("Unable to format restore key");
             save_key += "}";
         }
         save_key.replace(',', ";")
