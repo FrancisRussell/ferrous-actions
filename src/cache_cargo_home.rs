@@ -1,6 +1,7 @@
 use crate::action_paths::get_action_cache_dir;
 use crate::actions::cache::Entry as CacheEntry;
 use crate::actions::core;
+use crate::agnostic_path::AgnosticPath;
 use crate::delta::{render_list as render_delta_list, Action as DeltaAction};
 use crate::dir_tree::match_relative_paths;
 use crate::fingerprinting::{fingerprint_path_with_ignores, Fingerprint, Ignores};
@@ -9,6 +10,7 @@ use crate::input_manager::{self, Input};
 use crate::job::Job;
 use crate::node::os::homedir;
 use crate::node::path::Path;
+use crate::serde_helpers::{deserialize_btree_map, serialize_btree_map};
 use crate::{actions, error, info, node, notice, safe_encoding, warning, Error};
 use chrono::{DateTime, Utc};
 use lazy_static::lazy_static;
@@ -21,24 +23,52 @@ use std::hash::Hash as _;
 use std::str::FromStr;
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator, IntoStaticStr};
 
-const SCOPE_HASH_KEY: &str = "SCOPE_HASH";
 const ATIMES_SUPPORTED_KEY: &str = "ACCESS_TIMES_SUPPORTED";
+const SCOPE_HASH_KEY: &str = "SCOPE_HASH";
 
 lazy_static! {
     static ref CARGO_HOME: String = {
         node::process::get_env()
             .get("CARGO_HOME")
             .map(String::as_str)
-            .map(Path::from)
-            .unwrap_or_else(|| homedir().join(".cargo"))
+            .map_or_else(|| homedir().join(".cargo"), Path::from)
             .to_string()
     };
+}
+
+#[derive(Clone, Copy, Debug, EnumString)]
+enum CrossPlatformSharing {
+    #[strum(serialize = "none")]
+    None,
+
+    #[strum(serialize = "unix-like")]
+    UnixLike,
+
+    #[strum(serialize = "all")]
+    All,
+}
+
+impl CrossPlatformSharing {
+    pub fn current_platform(self) -> Cow<'static, str> {
+        match self {
+            CrossPlatformSharing::All => "any".into(),
+            CrossPlatformSharing::None => node::os::platform().into(),
+            CrossPlatformSharing::UnixLike => {
+                let platform = node::os::platform();
+                match platform.as_str() {
+                    "aix" | "darwin" | "freebsd" | "linux" | "openbsd" | "sunos" => "unix-like".into(),
+                    _ => platform.into(),
+                }
+            }
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct Group {
     restore_key: Option<String>,
-    entries: BTreeMap<String, Fingerprint>,
+    #[serde(serialize_with = "serialize_btree_map", deserialize_with = "deserialize_btree_map")]
+    entries: BTreeMap<AgnosticPath, Fingerprint>,
 }
 
 impl Group {
@@ -61,14 +91,14 @@ impl Group {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct Cache {
     cache_type: CacheType,
-    root: BTreeMap<String, Group>,
+    #[serde(serialize_with = "serialize_btree_map", deserialize_with = "deserialize_btree_map")]
+    root: BTreeMap<AgnosticPath, Group>,
     root_path: String,
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 struct GroupIdentifier {
-    root: String,
-    path: String,
+    path: AgnosticPath,
     num_entries: usize,
     entries_hash: HashValue,
 }
@@ -79,7 +109,10 @@ impl Cache {
         Self::new_with_sources(cache_type, sources).await
     }
 
-    async fn new_with_sources(cache_type: CacheType, mut sources: HashMap<String, String>) -> Result<Cache, Error> {
+    async fn new_with_sources(
+        cache_type: CacheType,
+        mut sources: HashMap<AgnosticPath, String>,
+    ) -> Result<Cache, Error> {
         // Delete derived content at any paths we want to build the cache at
         for delete_path in find_additional_delete_paths(cache_type).await? {
             if delete_path.exists().await {
@@ -101,9 +134,9 @@ impl Cache {
         for group in top_depth_paths {
             let group_path = folder_path.join(group.clone());
             map.insert(
-                group.to_string(),
+                AgnosticPath::from(&group),
                 Group {
-                    restore_key: sources.remove(&group.to_string()),
+                    restore_key: sources.remove(&AgnosticPath::from(&group)),
                     entries: Self::build_group(cache_type, &group_path, entry_depth_relative).await?,
                 },
             );
@@ -118,7 +151,7 @@ impl Cache {
         })
     }
 
-    fn build_group_identifier(&self, group_path: &str) -> GroupIdentifier {
+    fn build_group_identifier(&self, group_path: &AgnosticPath) -> GroupIdentifier {
         let group = &self
             .root
             .get(group_path)
@@ -127,14 +160,17 @@ impl Cache {
         group.entries.len().hash(&mut hasher);
         group.entries.keys().for_each(|k| k.hash(&mut hasher));
         GroupIdentifier {
-            root: self.root_path.clone(),
-            path: group_path.to_string(),
+            path: group_path.clone(),
             num_entries: group.entries.len(),
             entries_hash: hasher.hash_value(),
         }
     }
 
-    pub async fn restore_from_env(cache_type: CacheType, scope: &HashValue) -> Result<Cache, Error> {
+    pub async fn restore_from_env(
+        cache_type: CacheType,
+        scope: &HashValue,
+        cross_platform_sharing: CrossPlatformSharing,
+    ) -> Result<Cache, Error> {
         use crate::access_times::revert_folder;
         use itertools::Itertools as _;
 
@@ -174,7 +210,7 @@ impl Cache {
                 group_list_string
             );
             for group in &groups {
-                let entry = Self::group_identifier_to_cache_entry(cache_type, group);
+                let entry = Self::group_identifier_to_cache_entry(cache_type, group, cross_platform_sharing);
                 if let Some(name) = entry.restore().await? {
                     info!("Restored cache key: {}", name);
                     restore_keys.insert(group.path.clone(), name);
@@ -201,6 +237,7 @@ impl Cache {
         old: &Cache,
         scope_hash: &HashValue,
         min_recache_interval: &chrono::Duration,
+        cross_platform_sharing: CrossPlatformSharing,
     ) -> Result<(), Error> {
         let job = Job::from_env()?;
         let dep_file_path = dependency_file_path(self.cache_type, scope_hash, &job)?;
@@ -269,7 +306,7 @@ impl Cache {
 
             if attempt_save {
                 let identifier = self.build_group_identifier(path);
-                let entry = Self::group_identifier_to_cache_entry(self.cache_type, &identifier);
+                let entry = Self::group_identifier_to_cache_entry(self.cache_type, &identifier, cross_platform_sharing);
                 info!(
                     "Saving modified {} cache group {}",
                     self.cache_type.friendly_name(),
@@ -305,13 +342,16 @@ impl Cache {
         cache_type: CacheType,
         group_path: &Path,
         entry_level: usize,
-    ) -> Result<BTreeMap<String, Fingerprint>, Error> {
+    ) -> Result<BTreeMap<AgnosticPath, Fingerprint>, Error> {
         let entry_level_glob = depth_to_match(entry_level)?;
         let entry_level_paths = match_relative_paths(group_path, &entry_level_glob, true).await?;
         let mut map = BTreeMap::new();
         for path in entry_level_paths {
             let entry_path = group_path.join(path.clone());
-            map.insert(path.to_string(), Self::build_entry(cache_type, &entry_path).await?);
+            map.insert(
+                AgnosticPath::from(&path),
+                Self::build_entry(cache_type, &entry_path).await?,
+            );
         }
         Ok(map)
     }
@@ -323,47 +363,53 @@ impl Cache {
             .collect()
     }
 
-    fn compare_group_lists<'a>(from: &'a [GroupIdentifier], to: &'a [GroupIdentifier]) -> Vec<(&'a str, DeltaAction)> {
+    fn compare_group_lists<'a>(
+        from: &'a [GroupIdentifier],
+        to: &'a [GroupIdentifier],
+    ) -> Vec<(&'a AgnosticPath, DeltaAction)> {
         use itertools::{EitherOrBoth, Itertools as _};
         let from_iter = from.iter();
         let to_iter = to.iter();
         let merged = from_iter.merge_join_by(to_iter, |left, right| left.path.cmp(&right.path));
         merged
             .filter_map(|element| match element {
-                EitherOrBoth::Left(left) => Some((left.path.as_str(), DeltaAction::Removed)),
-                EitherOrBoth::Right(right) => Some((right.path.as_str(), DeltaAction::Added)),
-                EitherOrBoth::Both(left, right) => {
-                    (left != right).then_some((right.path.as_str(), DeltaAction::Changed))
-                }
+                EitherOrBoth::Left(left) => Some((&left.path, DeltaAction::Removed)),
+                EitherOrBoth::Right(right) => Some((&right.path, DeltaAction::Added)),
+                EitherOrBoth::Both(left, right) => (left != right).then_some((&right.path, DeltaAction::Changed)),
             })
             .collect()
     }
 
     fn compare_groups<'a>(
-        from: &'a BTreeMap<String, Fingerprint>,
-        to: &'a BTreeMap<String, Fingerprint>,
-    ) -> Vec<(&'a str, DeltaAction)> {
+        from: &'a BTreeMap<AgnosticPath, Fingerprint>,
+        to: &'a BTreeMap<AgnosticPath, Fingerprint>,
+    ) -> Vec<(&'a AgnosticPath, DeltaAction)> {
         use itertools::{EitherOrBoth, Itertools as _};
         let from_iter = from.iter();
         let to_iter = to.iter();
         let merged = from_iter.merge_join_by(to_iter, |left, right| left.0.cmp(right.0));
         merged
             .filter_map(|element| match element {
-                EitherOrBoth::Left(left) => Some((left.0.as_str(), DeltaAction::Removed)),
-                EitherOrBoth::Right(right) => Some((right.0.as_str(), DeltaAction::Added)),
-                EitherOrBoth::Both(left, right) => (left.1.content_hash() != right.1.content_hash())
-                    .then_some((right.0.as_str(), DeltaAction::Changed)),
+                EitherOrBoth::Left(left) => Some((left.0, DeltaAction::Removed)),
+                EitherOrBoth::Right(right) => Some((right.0, DeltaAction::Added)),
+                EitherOrBoth::Both(left, right) => {
+                    (left.1.content_hash() != right.1.content_hash()).then_some((right.0, DeltaAction::Changed))
+                }
             })
             .collect()
     }
 
-    fn group_identifier_to_cache_entry(cache_type: CacheType, group_id: &GroupIdentifier) -> CacheEntry {
+    fn group_identifier_to_cache_entry(
+        cache_type: CacheType,
+        group_id: &GroupIdentifier,
+        cross_platform_sharing: CrossPlatformSharing,
+    ) -> CacheEntry {
         use crate::cache_key_builder::{Attribute, CacheKeyBuilder};
 
         let name = format!("{} (content)", cache_type.friendly_name());
         let mut builder = CacheKeyBuilder::new(&name);
         builder.add_key_data(group_id);
-        builder.set_attribute(Attribute::Path, group_id.path.clone());
+        builder.set_attribute(Attribute::Path, group_id.path.to_string());
         builder.set_attribute(Attribute::NumEntries, group_id.num_entries.to_string());
         let entries_hash = {
             let lsb: &[u8] = group_id.entries_hash.as_ref();
@@ -371,33 +417,38 @@ impl Cache {
             safe_encoding::encode(lsb)
         };
         builder.set_attribute(Attribute::EntriesHash, entries_hash);
+        builder.set_key_attribute(
+            Attribute::Platform,
+            cross_platform_sharing.current_platform().to_string(),
+        );
         let mut entry = builder.into_entry();
-        let path = Path::from(group_id.root.as_str()).join(group_id.path.as_str());
+        let root_path = find_path(cache_type);
+        let path = root_path.join(&group_id.path);
         entry.path(path);
         entry
     }
 
     async fn prune_unused_entries(
-        left: &BTreeMap<String, Fingerprint>,
-        right: &mut BTreeMap<String, Fingerprint>,
+        left: &BTreeMap<AgnosticPath, Fingerprint>,
+        right: &mut BTreeMap<AgnosticPath, Fingerprint>,
         right_path: &Path,
     ) -> Result<(), Error> {
         use itertools::{EitherOrBoth, Itertools as _};
         let from_iter = left.iter();
         let to_iter = right.iter();
         let merged = from_iter.merge_join_by(to_iter, |left, right| left.0.cmp(right.0));
-        let to_prune: Vec<_> = merged
+        let to_prune: Vec<&AgnosticPath> = merged
             .filter_map(|element| match element {
                 EitherOrBoth::Left(_) | EitherOrBoth::Right(_) => None,
-                EitherOrBoth::Both(left, right) => (left.1.accessed() == right.1.accessed()).then_some(left.0.as_str()),
+                EitherOrBoth::Both(left, right) => (left.1.accessed() == right.1.accessed()).then_some(left.0),
             })
             .collect();
 
-        for element_name in to_prune {
-            let path = right_path.join(element_name);
+        for element_path in to_prune {
+            let path = right_path.join(element_path);
             info!("Pruning unused cache element at {}", path);
             actions::io::rm_rf(&path).await?;
-            right.remove(element_name);
+            right.remove(element_path);
         }
         Ok(())
     }
@@ -412,7 +463,7 @@ impl Cache {
             match element {
                 EitherOrBoth::Left(_) | EitherOrBoth::Right(_) => {}
                 EitherOrBoth::Both(left, right) => {
-                    let entry_path = root_path.join(right.0.as_str());
+                    let entry_path = root_path.join(right.0);
                     Self::prune_unused_entries(&left.1.entries, &mut right.1.entries, &entry_path).await?;
                 }
             }
@@ -575,6 +626,14 @@ impl CacheType {
     }
 }
 
+fn get_cross_platform_sharing(input_manager: &input_manager::Manager) -> Result<CrossPlatformSharing, Error> {
+    Ok(if let Some(value) = input_manager.get(Input::CrossPlatformSharing) {
+        CrossPlatformSharing::from_str(value).map_err(|_| Error::ParseCrossPlatformSharing(value.to_string()))?
+    } else {
+        CrossPlatformSharing::UnixLike
+    })
+}
+
 fn get_types_to_cache(input_manager: &input_manager::Manager) -> Result<Vec<CacheType>, Error> {
     let mut result = HashSet::new();
     if let Some(types) = input_manager.get(Input::CacheOnly) {
@@ -624,7 +683,6 @@ fn build_cache_entry_dependencies(cache_type: CacheType, scope: &HashValue, job:
     let name = format!("{} (dependencies)", cache_type.friendly_name());
     let mut key_builder = CacheKeyBuilder::new(&name);
     key_builder.add_key_data(scope);
-    key_builder.add_key_data(&find_path(cache_type).to_string());
     key_builder.set_key_attribute(Attribute::Workflow, job.get_workflow().to_string());
     key_builder.set_key_attribute(Attribute::Job, job.get_job_id().to_string());
     if let Some(properties) = job.matrix_properties_as_string() {
@@ -669,6 +727,7 @@ pub async fn restore_cargo_cache(input_manager: &input_manager::Manager) -> Resu
     };
     core::save_state(SCOPE_HASH_KEY, safe_encoding::encode(&scope_hash));
 
+    let cross_platform_sharing = get_cross_platform_sharing(input_manager)?;
     let cached_types = get_types_to_cache(input_manager)?;
     for cache_type in cached_types {
         // Mark as used to avoid spurious warnings (we only use this when we save the
@@ -676,7 +735,7 @@ pub async fn restore_cargo_cache(input_manager: &input_manager::Manager) -> Resu
         let _ = get_min_recache_interval(input_manager, cache_type)?;
 
         // Build the cache
-        let cache = Cache::restore_from_env(cache_type, &scope_hash).await?;
+        let cache = Cache::restore_from_env(cache_type, &scope_hash, cross_platform_sharing).await?;
         let serialized_cache = serde_json::to_string(&cache)?;
         let cached_info_path = cached_folder_info_path(cache_type)?;
         {
@@ -696,6 +755,7 @@ pub async fn save_cargo_cache(input_manager: &input_manager::Manager) -> Result<
     let atimes_supported = core::get_state(ATIMES_SUPPORTED_KEY).expect("Failed to find access times support flag");
     let atimes_supported: bool = serde_json::de::from_str(&atimes_supported)?;
 
+    let cross_platform_sharing = get_cross_platform_sharing(input_manager)?;
     let cached_types = get_types_to_cache(input_manager)?;
     for cache_type in cached_types {
         // Delete items that should never make it into the cache
@@ -735,7 +795,7 @@ pub async fn save_cargo_cache(input_manager: &input_manager::Manager) -> Result<
         // Save groups to cache if they have changed
         let min_recache_interval = get_min_recache_interval(input_manager, cache_type)?;
         cache
-            .save_changes(&cache_old, &scope_hash, &min_recache_interval)
+            .save_changes(&cache_old, &scope_hash, &min_recache_interval, cross_platform_sharing)
             .await?;
     }
     Ok(())
