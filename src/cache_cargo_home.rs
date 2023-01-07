@@ -1,6 +1,7 @@
 use crate::action_paths::get_action_cache_dir;
 use crate::actions::cache::Entry as CacheEntry;
 use crate::actions::core;
+use crate::agnostic_path::AgnosticPath;
 use crate::delta::{render_list as render_delta_list, Action as DeltaAction};
 use crate::dir_tree::match_relative_paths;
 use crate::fingerprinting::{fingerprint_path_with_ignores, Fingerprint, Ignores};
@@ -38,7 +39,7 @@ lazy_static! {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct Group {
     restore_key: Option<String>,
-    entries: BTreeMap<String, Fingerprint>,
+    entries: BTreeMap<AgnosticPath, Fingerprint>,
 }
 
 impl Group {
@@ -61,7 +62,7 @@ impl Group {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct Cache {
     cache_type: CacheType,
-    root: BTreeMap<String, Group>,
+    root: BTreeMap<AgnosticPath, Group>,
     root_path: String,
 }
 
@@ -100,7 +101,7 @@ impl Cache {
         for group in top_depth_paths {
             let group_path = folder_path.join(group.clone());
             map.insert(
-                group.to_string(),
+                AgnosticPath::from(&group),
                 Group {
                     restore_key: sources.remove(&group.to_string()),
                     entries: Self::build_group(cache_type, &group_path, entry_depth_relative).await?,
@@ -117,7 +118,7 @@ impl Cache {
         })
     }
 
-    fn build_group_identifier(&self, group_path: &str) -> GroupIdentifier {
+    fn build_group_identifier(&self, group_path: &AgnosticPath) -> GroupIdentifier {
         let group = &self
             .root
             .get(group_path)
@@ -303,13 +304,16 @@ impl Cache {
         cache_type: CacheType,
         group_path: &Path,
         entry_level: usize,
-    ) -> Result<BTreeMap<String, Fingerprint>, Error> {
+    ) -> Result<BTreeMap<AgnosticPath, Fingerprint>, Error> {
         let entry_level_glob = depth_to_match(entry_level)?;
         let entry_level_paths = match_relative_paths(group_path, &entry_level_glob, true).await?;
         let mut map = BTreeMap::new();
         for path in entry_level_paths {
             let entry_path = group_path.join(path.clone());
-            map.insert(path.to_string(), Self::build_entry(cache_type, &entry_path).await?);
+            map.insert(
+                AgnosticPath::from(&path),
+                Self::build_entry(cache_type, &entry_path).await?,
+            );
         }
         Ok(map)
     }
@@ -338,19 +342,20 @@ impl Cache {
     }
 
     fn compare_groups<'a>(
-        from: &'a BTreeMap<String, Fingerprint>,
-        to: &'a BTreeMap<String, Fingerprint>,
-    ) -> Vec<(&'a str, DeltaAction)> {
+        from: &'a BTreeMap<AgnosticPath, Fingerprint>,
+        to: &'a BTreeMap<AgnosticPath, Fingerprint>,
+    ) -> Vec<(&'a AgnosticPath, DeltaAction)> {
         use itertools::{EitherOrBoth, Itertools as _};
         let from_iter = from.iter();
         let to_iter = to.iter();
         let merged = from_iter.merge_join_by(to_iter, |left, right| left.0.cmp(right.0));
         merged
             .filter_map(|element| match element {
-                EitherOrBoth::Left(left) => Some((left.0.as_str(), DeltaAction::Removed)),
-                EitherOrBoth::Right(right) => Some((right.0.as_str(), DeltaAction::Added)),
-                EitherOrBoth::Both(left, right) => (left.1.content_hash() != right.1.content_hash())
-                    .then_some((right.0.as_str(), DeltaAction::Changed)),
+                EitherOrBoth::Left(left) => Some((left.0, DeltaAction::Removed)),
+                EitherOrBoth::Right(right) => Some((right.0, DeltaAction::Added)),
+                EitherOrBoth::Both(left, right) => {
+                    (left.1.content_hash() != right.1.content_hash()).then_some((right.0, DeltaAction::Changed))
+                }
             })
             .collect()
     }
@@ -377,26 +382,26 @@ impl Cache {
     }
 
     async fn prune_unused_entries(
-        left: &BTreeMap<String, Fingerprint>,
-        right: &mut BTreeMap<String, Fingerprint>,
+        left: &BTreeMap<AgnosticPath, Fingerprint>,
+        right: &mut BTreeMap<AgnosticPath, Fingerprint>,
         right_path: &Path,
     ) -> Result<(), Error> {
         use itertools::{EitherOrBoth, Itertools as _};
         let from_iter = left.iter();
         let to_iter = right.iter();
         let merged = from_iter.merge_join_by(to_iter, |left, right| left.0.cmp(right.0));
-        let to_prune: Vec<_> = merged
+        let to_prune: Vec<&AgnosticPath> = merged
             .filter_map(|element| match element {
                 EitherOrBoth::Left(_) | EitherOrBoth::Right(_) => None,
-                EitherOrBoth::Both(left, right) => (left.1.accessed() == right.1.accessed()).then_some(left.0.as_str()),
+                EitherOrBoth::Both(left, right) => (left.1.accessed() == right.1.accessed()).then_some(left.0),
             })
             .collect();
 
-        for element_name in to_prune {
-            let path = right_path.join(element_name);
+        for element_path in to_prune {
+            let path = right_path.join(element_path);
             info!("Pruning unused cache element at {}", path);
             actions::io::rm_rf(&path).await?;
-            right.remove(element_name);
+            right.remove(element_path);
         }
         Ok(())
     }
@@ -411,7 +416,7 @@ impl Cache {
             match element {
                 EitherOrBoth::Left(_) | EitherOrBoth::Right(_) => {}
                 EitherOrBoth::Both(left, right) => {
-                    let entry_path = root_path.join(right.0.as_str());
+                    let entry_path = root_path.join(right.0);
                     Self::prune_unused_entries(&left.1.entries, &mut right.1.entries, &entry_path).await?;
                 }
             }
