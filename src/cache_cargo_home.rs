@@ -68,7 +68,7 @@ struct Cache {
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
 struct GroupIdentifier {
-    path: String,
+    path: AgnosticPath,
     num_entries: usize,
     entries_hash: HashValue,
 }
@@ -79,7 +79,10 @@ impl Cache {
         Self::new_with_sources(cache_type, sources).await
     }
 
-    async fn new_with_sources(cache_type: CacheType, mut sources: HashMap<String, String>) -> Result<Cache, Error> {
+    async fn new_with_sources(
+        cache_type: CacheType,
+        mut sources: HashMap<AgnosticPath, String>,
+    ) -> Result<Cache, Error> {
         // Delete derived content at any paths we want to build the cache at
         for delete_path in find_additional_delete_paths(cache_type).await? {
             if delete_path.exists().await {
@@ -103,7 +106,7 @@ impl Cache {
             map.insert(
                 AgnosticPath::from(&group),
                 Group {
-                    restore_key: sources.remove(&group.to_string()),
+                    restore_key: sources.remove(&AgnosticPath::from(&group)),
                     entries: Self::build_group(cache_type, &group_path, entry_depth_relative).await?,
                 },
             );
@@ -127,7 +130,7 @@ impl Cache {
         group.entries.len().hash(&mut hasher);
         group.entries.keys().for_each(|k| k.hash(&mut hasher));
         GroupIdentifier {
-            path: group_path.to_string(),
+            path: group_path.clone(),
             num_entries: group.entries.len(),
             entries_hash: hasher.hash_value(),
         }
@@ -325,18 +328,19 @@ impl Cache {
             .collect()
     }
 
-    fn compare_group_lists<'a>(from: &'a [GroupIdentifier], to: &'a [GroupIdentifier]) -> Vec<(&'a str, DeltaAction)> {
+    fn compare_group_lists<'a>(
+        from: &'a [GroupIdentifier],
+        to: &'a [GroupIdentifier],
+    ) -> Vec<(&'a AgnosticPath, DeltaAction)> {
         use itertools::{EitherOrBoth, Itertools as _};
         let from_iter = from.iter();
         let to_iter = to.iter();
         let merged = from_iter.merge_join_by(to_iter, |left, right| left.path.cmp(&right.path));
         merged
             .filter_map(|element| match element {
-                EitherOrBoth::Left(left) => Some((left.path.as_str(), DeltaAction::Removed)),
-                EitherOrBoth::Right(right) => Some((right.path.as_str(), DeltaAction::Added)),
-                EitherOrBoth::Both(left, right) => {
-                    (left != right).then_some((right.path.as_str(), DeltaAction::Changed))
-                }
+                EitherOrBoth::Left(left) => Some((&left.path, DeltaAction::Removed)),
+                EitherOrBoth::Right(right) => Some((&right.path, DeltaAction::Added)),
+                EitherOrBoth::Both(left, right) => (left != right).then_some((&right.path, DeltaAction::Changed)),
             })
             .collect()
     }
@@ -366,7 +370,7 @@ impl Cache {
         let name = format!("{} (content)", cache_type.friendly_name());
         let mut builder = CacheKeyBuilder::new(&name);
         builder.add_key_data(group_id);
-        builder.set_attribute(Attribute::Path, group_id.path.clone());
+        builder.set_attribute(Attribute::Path, group_id.path.to_string());
         builder.set_attribute(Attribute::NumEntries, group_id.num_entries.to_string());
         let entries_hash = {
             let lsb: &[u8] = group_id.entries_hash.as_ref();
@@ -376,7 +380,7 @@ impl Cache {
         builder.set_attribute(Attribute::EntriesHash, entries_hash);
         let mut entry = builder.into_entry();
         let root_path = find_path(cache_type);
-        let path = root_path.join(group_id.path.as_str());
+        let path = root_path.join(&group_id.path);
         entry.path(path);
         entry
     }
