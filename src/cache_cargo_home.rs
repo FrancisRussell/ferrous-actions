@@ -10,6 +10,7 @@ use crate::input_manager::{self, Input};
 use crate::job::Job;
 use crate::node::os::homedir;
 use crate::node::path::Path;
+use crate::serde_helpers::{deserialize_btree_map, serialize_btree_map};
 use crate::{actions, error, info, node, notice, safe_encoding, warning, Error};
 use chrono::{DateTime, Utc};
 use lazy_static::lazy_static;
@@ -67,10 +68,7 @@ impl CrossPlatformSharing {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct Group {
     restore_key: Option<String>,
-    #[serde(
-        serialize_with = "crate::serde_helpers::serialize_btree_map",
-        deserialize_with = "crate::serde_helpers::deserialize_btree_map"
-    )]
+    #[serde(serialize_with = "serialize_btree_map", deserialize_with = "deserialize_btree_map")]
     entries: BTreeMap<AgnosticPath, Fingerprint>,
 }
 
@@ -94,10 +92,7 @@ impl Group {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct Cache {
     cache_type: CacheType,
-    #[serde(
-        serialize_with = "crate::serde_helpers::serialize_btree_map",
-        deserialize_with = "crate::serde_helpers::deserialize_btree_map"
-    )]
+    #[serde(serialize_with = "serialize_btree_map", deserialize_with = "deserialize_btree_map")]
     root: BTreeMap<AgnosticPath, Group>,
     root_path: String,
 }
