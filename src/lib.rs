@@ -29,6 +29,7 @@ mod package_manifest;
 mod run;
 mod rustup;
 mod safe_encoding;
+mod serde_helpers;
 mod system;
 mod toolchain;
 mod utils;

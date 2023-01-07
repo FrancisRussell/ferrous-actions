@@ -39,6 +39,10 @@ lazy_static! {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct Group {
     restore_key: Option<String>,
+    #[serde(
+        serialize_with = "crate::serde_helpers::serialize_btree_map",
+        deserialize_with = "crate::serde_helpers::deserialize_btree_map"
+    )]
     entries: BTreeMap<AgnosticPath, Fingerprint>,
 }
 
@@ -62,6 +66,10 @@ impl Group {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct Cache {
     cache_type: CacheType,
+    #[serde(
+        serialize_with = "crate::serde_helpers::serialize_btree_map",
+        deserialize_with = "crate::serde_helpers::deserialize_btree_map"
+    )]
     root: BTreeMap<AgnosticPath, Group>,
     root_path: String,
 }

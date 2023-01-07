@@ -3,7 +3,7 @@ use crate::hasher::Blake3 as Blake3Hasher;
 use crate::{node, safe_encoding};
 use std::collections::BTreeMap;
 
-const CACHE_ENTRY_VERSION: &str = "12";
+const CACHE_ENTRY_VERSION: &str = "14";
 
 pub struct CacheKeyBuilder {
     name: String,
