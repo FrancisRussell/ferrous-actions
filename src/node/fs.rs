@@ -172,6 +172,12 @@ pub async fn remove_dir<P: Into<JsString>>(path: P) -> Result<(), JsValue> {
     Ok(())
 }
 
+pub async fn remove_file<P: Into<JsString>>(path: P) -> Result<(), JsValue> {
+    let path: JsString = path.into();
+    ffi::unlink(&path).await?;
+    Ok(())
+}
+
 pub async fn rename<P: Into<JsString>>(from: P, to: P) -> Result<(), JsValue> {
     let from: JsString = from.into();
     let to: JsString = to.into();
@@ -376,5 +382,209 @@ pub mod ffi {
 
         #[wasm_bindgen(catch)]
         pub async fn lutimes(path: &JsString, atime: &JsValue, mtime: &JsValue) -> Result<JsValue, JsValue>;
+
+        #[wasm_bindgen(catch)]
+        pub async fn unlink(path: &JsString) -> Result<JsValue, JsValue>;
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::node;
+    use crate::node::path::Path;
+    use lazy_static::lazy_static;
+    use parking_lot::Mutex;
+    use std::collections::HashMap;
+    use wasm_bindgen::JsValue;
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    #[derive(Debug, Clone, Copy)]
+    enum Entry {
+        File(u64),
+        Dir,
+    }
+
+    lazy_static! {
+        static ref COUNTER: Mutex<usize> = Mutex::default();
+    }
+
+    fn get_random() -> u64 {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash as _, Hasher as _};
+
+        let id = {
+            let mut guard = COUNTER.lock();
+            let id = *guard;
+            *guard += 1;
+            id
+        };
+        let now = chrono::Local::now();
+        let mut hasher = DefaultHasher::default();
+        id.hash(&mut hasher);
+        now.hash(&mut hasher);
+        hasher.finish()
+    }
+
+    fn temp_path() -> Path {
+        let unique_id = get_random();
+        let temp = node::os::temp_dir();
+        let file_name = format!("ferrous-actions-fs-test - {}", unique_id);
+        temp.join(file_name.as_str())
+    }
+
+    #[wasm_bindgen_test]
+    async fn write_read_unlink_file() -> Result<(), JsValue> {
+        let path = temp_path();
+        let data = format!("{}", chrono::Local::now()).into_bytes();
+        node::fs::write_file(&path, &data).await?;
+        let read_data = node::fs::read_file(&path).await?;
+        assert_eq!(data, read_data);
+        node::fs::remove_file(&path).await?;
+        assert!(!path.exists().await);
+        Ok(())
+    }
+
+    #[wasm_bindgen_test]
+    async fn create_remove_dir() -> Result<(), JsValue> {
+        let first = temp_path();
+        let second = first.join("a");
+        let third = second.join("b");
+        super::create_dir_all(&second).await?;
+        assert!(first.exists().await);
+        assert!(second.exists().await);
+        super::create_dir(&third).await?;
+        assert!(third.exists().await);
+        super::remove_dir(&third).await?;
+        assert!(!third.exists().await);
+        super::remove_dir(&second).await?;
+        assert!(!second.exists().await);
+        super::remove_dir(&first).await?;
+        assert!(!first.exists().await);
+        Ok(())
+    }
+
+    #[wasm_bindgen_test]
+    async fn rename_file() -> Result<(), JsValue> {
+        let from = temp_path();
+        let to = temp_path();
+        let data = format!("{}", chrono::Local::now()).into_bytes();
+        node::fs::write_file(&from, &data).await?;
+        assert!(from.exists().await);
+        assert!(!to.exists().await);
+        node::fs::rename(&from, &to).await?;
+        assert!(!from.exists().await);
+        assert!(to.exists().await);
+        drop(node::fs::remove_file(&to).await);
+        Ok(())
+    }
+
+    #[wasm_bindgen_test]
+    async fn read_dir_and_lstat() -> Result<(), JsValue> {
+        const NUM_ENTRIES: usize = 256;
+        const MAX_SIZE: u64 = 4096;
+
+        // Build some entries
+        let mut entries = HashMap::with_capacity(NUM_ENTRIES);
+        let root = temp_path();
+        node::fs::create_dir(&root).await?;
+        for _ in 0..NUM_ENTRIES {
+            let name = format!("{}", get_random());
+            let path = root.join(name.as_str());
+            let is_dir = get_random() < (u64::MAX / 2);
+            let entry = if is_dir {
+                node::fs::create_dir(&path).await?;
+                Entry::Dir
+            } else {
+                let size = get_random() % MAX_SIZE;
+                let data = vec![0u8; size as usize];
+                node::fs::write_file(&path, &data).await?;
+                Entry::File(size)
+            };
+            entries.insert(name, entry);
+        }
+
+        for entry in node::fs::read_dir(&root).await? {
+            let file_name = entry.file_name();
+            let reference = entries
+                .get(&file_name)
+                .unwrap_or_else(|| panic!("Missing entry: {}", file_name));
+            let path = entry.path();
+            assert!(path.exists().await);
+            let file_type = entry.file_type();
+            let metadata = node::fs::symlink_metadata(&path).await?;
+            assert_eq!(metadata.file_type(), file_type);
+            match reference {
+                Entry::File(size) => {
+                    assert!(file_type.is_file());
+                    assert_eq!(metadata.len(), *size);
+                    drop(node::fs::remove_file(path).await);
+                }
+                Entry::Dir => {
+                    assert!(file_type.is_dir());
+                    drop(node::fs::remove_dir(path).await);
+                }
+            }
+            assert!(!file_type.is_symlink());
+            assert!(!file_type.is_fifo());
+            assert!(!file_type.is_socket());
+            assert!(!file_type.is_block_device());
+            assert!(!file_type.is_char_device());
+        }
+        drop(node::fs::remove_dir(root).await);
+        Ok(())
+    }
+
+    fn duration_abs(duration: chrono::Duration) -> chrono::Duration {
+        if duration < chrono::Duration::zero() {
+            -duration
+        } else {
+            duration
+        }
+    }
+
+    #[wasm_bindgen_test]
+    async fn timestamps_match_system_time() -> Result<(), JsValue> {
+        // Old Unix is 1 second granularity, FAT is 2
+        let max_delta = chrono::Duration::seconds(2);
+
+        let path = temp_path();
+        let data = format!("{}", chrono::Local::now()).into_bytes();
+        node::fs::write_file(&path, &data).await?;
+        let now = chrono::Utc::now();
+        let metadata = node::fs::symlink_metadata(&path).await?;
+
+        for timestamp in [metadata.created(), metadata.modified(), metadata.accessed()] {
+            let delta = duration_abs(now - timestamp);
+            assert!(delta <= max_delta);
+        }
+        drop(node::fs::remove_file(&path).await);
+        Ok(())
+    }
+
+    #[wasm_bindgen_test]
+    async fn utimes() -> Result<(), JsValue> {
+        let max_delta = chrono::Duration::seconds(2);
+        let atime_change = chrono::Duration::seconds(64);
+        let mtime_change = chrono::Duration::seconds(64);
+
+        let path = temp_path();
+        let data = format!("{}", chrono::Local::now()).into_bytes();
+        node::fs::write_file(&path, &data).await?;
+
+        let metadata = node::fs::symlink_metadata(&path).await?;
+        let new_atime = metadata.accessed() - atime_change;
+        let new_mtime = metadata.accessed() - mtime_change;
+        node::fs::lutimes(&path, &new_atime, &new_mtime).await?;
+
+        let new_metadata = node::fs::symlink_metadata(&path).await?;
+        for (expected, actual) in [
+            (new_atime, new_metadata.accessed()),
+            (new_mtime, new_metadata.modified()),
+        ] {
+            let delta = duration_abs(expected - actual);
+            assert!(delta < max_delta);
+        }
+        drop(node::fs::remove_file(&path).await);
+        Ok(())
     }
 }
