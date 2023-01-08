@@ -12,3 +12,16 @@ pub mod ffi {
         pub fn new(options: Option<Object>) -> Writable;
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use js_sys::Object;
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    #[wasm_bindgen_test]
+    fn construct_writable() {
+        let options = Object::default();
+        ffi::Writable::new(Some(options));
+    }
+}

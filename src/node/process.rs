@@ -34,3 +34,19 @@ pub mod ffi {
         pub fn cwd() -> JsString;
     }
 }
+
+#[cfg(test)]
+mod test {
+    use wasm_bindgen_test::wasm_bindgen_test;
+
+    #[wasm_bindgen_test]
+    fn invoke_get_env() {
+        super::get_env();
+    }
+
+    #[wasm_bindgen_test]
+    async fn invoke_cwd() {
+        let cwd = super::cwd();
+        assert!(cwd.exists().await);
+    }
+}
