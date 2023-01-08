@@ -32,7 +32,7 @@ lazy_static! {
 impl std::fmt::Display for Path {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         let string = String::from(&self.inner);
-        formatter.write_str(string.as_str())
+        string.fmt(formatter)
     }
 }
 
@@ -125,6 +125,12 @@ impl From<&str> for Path {
     }
 }
 
+impl From<&String> for Path {
+    fn from(path: &String) -> Path {
+        Path::from(path.as_str())
+    }
+}
+
 impl From<Path> for JsString {
     fn from(path: Path) -> JsString {
         path.inner
@@ -188,7 +194,7 @@ mod test {
 
     #[wasm_bindgen_test]
     fn check_relative() {
-        let relative = Path::from(format!("{}{}{}", "a", super::separator(), "b").as_str());
+        let relative = Path::from(&format!("{}{}{}", "a", super::separator(), "b"));
         assert!(!relative.is_absolute());
     }
 
@@ -207,7 +213,7 @@ mod test {
     #[wasm_bindgen_test]
     fn check_parent() {
         let parent_name = "parent";
-        let path = Path::from(format!("{}{}{}", parent_name, super::separator(), "child").as_str());
+        let path = Path::from(&format!("{}{}{}", parent_name, super::separator(), "child"));
         let parent_path = path.parent();
         assert_eq!(parent_path.to_string(), parent_name);
     }
@@ -217,7 +223,7 @@ mod test {
         let child_base = "child.";
         let child_ext = ".extension";
         let child_name = format!("{}{}", child_base, child_ext);
-        let path = Path::from(format!("{}{}{}", "parent", super::separator(), child_name).as_str());
+        let path = Path::from(&format!("{}{}{}", "parent", super::separator(), child_name));
         assert_eq!(child_name, path.file_name());
         assert_eq!(
             child_name,
@@ -257,7 +263,7 @@ mod test {
         use itertools::Itertools as _;
         let current = ".";
         let long_current = std::iter::repeat(current).take(10).join(&super::separator());
-        assert_eq!(Path::from(long_current.as_str()).to_string(), current);
+        assert_eq!(Path::from(&long_current).to_string(), current);
     }
 
     #[wasm_bindgen_test]
@@ -271,20 +277,20 @@ mod test {
             .take(count)
             .chain(std::iter::repeat(parent).take(count))
             .join(&super::separator());
-        assert_eq!(Path::from(long_current.as_str()).to_string(), current);
+        assert_eq!(Path::from(&long_current).to_string(), current);
 
         let long_parent = std::iter::repeat("child")
             .take(count)
             .chain(std::iter::repeat(parent).take(count + 1))
             .join(&super::separator());
-        assert_eq!(Path::from(long_parent.as_str()).to_string(), parent);
+        assert_eq!(Path::from(&long_parent).to_string(), parent);
     }
 
     #[wasm_bindgen_test]
     async fn check_exists() -> Result<(), JsValue> {
         let temp = node::os::temp_dir();
         let file_name = format!("ferrous-actions-exists-test - {}", chrono::Local::now());
-        let temp_file_path = temp.join(file_name.as_str());
+        let temp_file_path = temp.join(&file_name);
         let data = "Nothing to see here\n";
         node::fs::write_file(&temp_file_path, data.as_bytes()).await?;
         assert!(temp_file_path.exists().await);
@@ -304,13 +310,13 @@ mod test {
         assert_eq!(Path::from("."), Path::from("."));
         assert_eq!(Path::from(".."), Path::from(".."));
         assert_eq!(
-            Path::from(format!("a{}..", super::separator()).as_str()),
-            Path::from(format!("b{}..", super::separator()).as_str())
+            Path::from(&format!("a{}..", super::separator())),
+            Path::from(&format!("b{}..", super::separator()))
         );
         assert_ne!(Path::from("."), Path::from(".."));
         assert_ne!(Path::from("a"), Path::from("b"));
 
         let path = ["a", "b", "c", "d"].into_iter().join(&super::separator());
-        assert_eq!(Path::from(path.as_str()), Path::from(path.as_str()));
+        assert_eq!(Path::from(&path), Path::from(&path));
     }
 }

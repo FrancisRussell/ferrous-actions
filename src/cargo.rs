@@ -14,7 +14,7 @@ async fn create_empty_dir() -> Result<Path, Error> {
     let nonce = nonce::build(8);
     let path = get_action_cache_dir()?
         .join("empty-directories")
-        .join(nonce.to_string().as_str());
+        .join(&nonce.to_string());
     node::fs::create_dir_all(&path).await?;
     Ok(path)
 }
@@ -25,7 +25,7 @@ struct ChangeCwdHook {
 
 impl CargoHook for ChangeCwdHook {
     fn modify_command(&self, command: &mut Command) {
-        let path = Path::from(self.new_cwd.as_str());
+        let path = Path::from(&self.new_cwd);
         command.current_dir(&path);
     }
 }

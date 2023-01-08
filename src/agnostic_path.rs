@@ -40,7 +40,7 @@ impl From<&Path> for AgnosticPath {
 impl From<&AgnosticPath> for Path {
     fn from(path: &AgnosticPath) -> Path {
         let os_path = path.to_string_with_separator(&node::path::separator());
-        Path::from(os_path.as_str())
+        Path::from(&os_path)
     }
 }
 

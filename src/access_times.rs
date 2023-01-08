@@ -65,7 +65,7 @@ pub async fn supports_atime() -> Result<bool, Error> {
     let atime_check_dir = get_atime_check_dir().await?;
     let file_path = {
         let nonce = nonce::build(8);
-        atime_check_dir.join(nonce.to_string().as_str())
+        atime_check_dir.join(&nonce.to_string())
     };
     let data = [0u8; 1];
     node::fs::write_file(&file_path, &data).await?;
