@@ -98,10 +98,22 @@ impl std::fmt::Debug for Path {
     }
 }
 
+impl From<&JsString> for Path {
+    fn from(path: &JsString) -> Path {
+        let path = ffi::normalize(path);
+        Path { inner: path }
+    }
+}
+
 impl From<JsString> for Path {
     fn from(path: JsString) -> Path {
-        let path = ffi::normalize(&path);
-        Path { inner: path }
+        Path::from(&path)
+    }
+}
+
+impl From<&Path> for Path {
+    fn from(path: &Path) -> Path {
+        path.clone()
     }
 }
 
@@ -113,9 +125,15 @@ impl From<&str> for Path {
     }
 }
 
+impl From<Path> for JsString {
+    fn from(path: Path) -> JsString {
+        path.inner
+    }
+}
+
 impl From<&Path> for JsString {
     fn from(path: &Path) -> JsString {
-        path.inner.to_string()
+        path.inner.clone()
     }
 }
 
