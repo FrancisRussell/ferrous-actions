@@ -12,3 +12,6 @@ Commit: `6ac38a64a969d92a5187bc1754b4c52c700eed31`
 `opt-level = "z"`: 925461
 
 Setting `opt-level = "s"` due to concerns about potential speed costs.
+
+Commit: `d0b4d8a8423f2cd1c934a9acbb63874e2433db39`
+Monomorphizing `dir_tree::apply_visitor_impl`: 940065
