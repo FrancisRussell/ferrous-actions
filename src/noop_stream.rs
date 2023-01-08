@@ -1,25 +1,11 @@
+use crate::node::stream;
 use js_sys::{Function, Object};
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::JsValue;
 
-pub mod ffi {
-    use js_sys::Object;
-    use wasm_bindgen::prelude::*;
-
-    #[wasm_bindgen(module = "stream")]
-    extern "C" {
-        #[derive(Debug)]
-        #[wasm_bindgen(js_name = "Writable")]
-        pub type Writable;
-
-        #[wasm_bindgen(constructor)]
-        pub fn new(options: Option<Object>) -> Writable;
-    }
-}
-
 pub struct Sink {
     _write: Closure<dyn FnMut(JsValue, JsValue, JsValue)>,
-    writable: ffi::Writable,
+    writable: stream::ffi::Writable,
 }
 
 impl Default for Sink {
@@ -33,7 +19,7 @@ impl Default for Sink {
         let options = js_sys::Map::new();
         options.set(&"write".into(), write.as_ref());
         let options = Object::from_entries(&options).expect("Failed to convert options map to object");
-        let writable = ffi::Writable::new(Some(options));
+        let writable = stream::ffi::Writable::new(Some(options));
         Sink {
             _write: write,
             writable,
