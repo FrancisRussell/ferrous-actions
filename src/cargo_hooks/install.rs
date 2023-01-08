@@ -18,7 +18,7 @@ fn get_package_build_dir(hash: &HashValue) -> Result<Path, Error> {
     // might not be case sensitive
     let dir = get_action_cache_dir()?
         .join("package-build-artifacts")
-        .join(hash.to_string().as_str());
+        .join(&hash.to_string());
     Ok(dir)
 }
 
@@ -110,7 +110,7 @@ impl Install {
         };
         key_builder.set_attribute(Attribute::ArgsTruncated, arg_string);
         let mut cache_entry = key_builder.into_entry();
-        cache_entry.path(&Path::from(self.build_dir.as_str()));
+        cache_entry.path(&Path::from(&self.build_dir));
         cache_entry
     }
 
@@ -129,7 +129,7 @@ impl Hook for Install {
 
     async fn succeeded(&mut self) {
         let save = if let Some(old_fingerprint) = &self.fingerprint {
-            let path = Path::from(self.build_dir.as_str());
+            let path = Path::from(&self.build_dir);
             match Self::fingerprint_build_dir(&path).await {
                 Ok(new_fingerprint) => {
                     let changed = new_fingerprint.content_hash() != old_fingerprint.content_hash();

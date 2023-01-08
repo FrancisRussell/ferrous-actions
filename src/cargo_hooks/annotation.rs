@@ -43,7 +43,7 @@ impl Annotation {
                 annotation
             };
             if let Some(span) = Self::get_primary_span(&diagnostic.spans) {
-                let file_name = Path::from(span.file_name.as_str());
+                let file_name = Path::from(&span.file_name);
                 annotation
                     .file(&file_name)
                     .start_line(span.line_start)

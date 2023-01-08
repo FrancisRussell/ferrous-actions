@@ -429,7 +429,7 @@ mod test {
         let unique_id = get_random();
         let temp = node::os::temp_dir();
         let file_name = format!("ferrous-actions-fs-test - {}", unique_id);
-        temp.join(file_name.as_str())
+        temp.join(&file_name)
     }
 
     #[wasm_bindgen_test]
@@ -489,7 +489,7 @@ mod test {
         node::fs::create_dir(&root).await?;
         for _ in 0..NUM_ENTRIES {
             let name = format!("{}", get_random());
-            let path = root.join(name.as_str());
+            let path = root.join(&name);
             let is_dir = get_random() < (u64::MAX / 2);
             let entry = if is_dir {
                 node::fs::create_dir(&path).await?;

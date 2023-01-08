@@ -86,7 +86,7 @@ impl<'a> PathMatchVisitor<'a> {
     fn full_path_to_relative(&self, full_path: &Path) -> Path {
         self.path_stack
             .back()
-            .map_or_else(|| Path::from("."), |p| p.join(full_path.file_name().as_str()))
+            .map_or_else(|| Path::from("."), |p| p.join(&full_path.file_name()))
     }
 
     fn visit_path(&mut self, absolute: &Path, relative: &Path) {

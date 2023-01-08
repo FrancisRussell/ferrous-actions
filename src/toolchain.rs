@@ -13,9 +13,7 @@ use target_lexicon::Triple;
 const MAX_CONCURRENT_PACKAGE_INSTALLS: usize = 4;
 
 fn get_toolchain_home(toolchain: &Toolchain) -> Result<Path, Error> {
-    let dir = get_action_share_dir()?
-        .join("toolchains")
-        .join(toolchain.to_string().as_str());
+    let dir = get_action_share_dir()?.join("toolchains").join(&toolchain.to_string());
     Ok(dir)
 }
 
@@ -25,7 +23,7 @@ fn get_package_decompress_path(package: &ManifestPackage) -> Result<Path, Error>
     let package_hash = package.unique_identifier();
     let dir = get_action_cache_dir()?
         .join("package-decompression")
-        .join(package_hash.to_string().as_str());
+        .join(&package_hash.to_string());
     Ok(dir)
 }
 
@@ -60,7 +58,7 @@ async fn overlay_and_move_dir(from: &Path, to: &Path) -> Result<(), Error> {
         let dir = node::fs::read_dir(from).await?;
         for entry in dir {
             let from = entry.path();
-            let to = to.join(entry.file_name().as_str());
+            let to = to.join(&entry.file_name());
             let file_type = entry.file_type();
             if file_type.is_dir() {
                 overlay_and_move_dir(&from, &to).await?;
@@ -90,7 +88,7 @@ async fn install_components(toolchain: &Toolchain, package: &ManifestPackage) ->
             .map(String::from)
             .collect();
         for component in components {
-            let component_path = entry.path().join(component.as_str());
+            let component_path = entry.path().join(&component);
             let manifest_path = component_path.clone().join("manifest.in");
             let manifest = node::fs::read_file(&manifest_path)
                 .await

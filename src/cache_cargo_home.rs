@@ -455,7 +455,7 @@ impl Cache {
 
     pub async fn prune_unused(&mut self, old: &Cache) -> Result<(), Error> {
         use itertools::{EitherOrBoth, Itertools as _};
-        let root_path = Path::from(self.root_path.as_str());
+        let root_path = Path::from(&self.root_path);
         let from_iter = old.root.iter();
         let to_iter = self.root.iter_mut();
         let merged = from_iter.merge_join_by(to_iter, |left, right| left.0.cmp(right.0));
@@ -479,7 +479,7 @@ impl Cache {
     }
 
     pub fn get_root_path(&self) -> Path {
-        Path::from(self.root_path.as_str())
+        Path::from(&self.root_path)
     }
 }
 
@@ -517,9 +517,7 @@ async fn find_additional_delete_paths(cache_type: CacheType) -> Result<Vec<Path>
 
 fn cached_folder_info_path(cache_type: CacheType) -> Result<Path, Error> {
     let file_name = format!("{}.json", cache_type.short_name());
-    Ok(get_action_cache_dir()?
-        .join("cached-folder-info")
-        .join(file_name.as_str()))
+    Ok(get_action_cache_dir()?.join("cached-folder-info").join(&file_name))
 }
 
 fn dependency_files_dir() -> Result<Path, Error> {
@@ -675,7 +673,7 @@ fn dependency_file_path(cache_type: CacheType, scope: &HashValue, job: &Job) -> 
     cache_type.hash(&mut hasher);
     job.hash(&mut hasher);
     let file_name = format!("{}.json", hasher.hash_value());
-    Ok(dependency_dir.join(file_name.as_str()))
+    Ok(dependency_dir.join(&file_name))
 }
 
 fn build_cache_entry_dependencies(cache_type: CacheType, scope: &HashValue, job: &Job) -> Result<CacheEntry, Error> {
