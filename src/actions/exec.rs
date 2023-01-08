@@ -66,11 +66,12 @@ impl Command {
             listeners.set(&"errline".into(), callback.as_ref());
         }
         options.set(&"cwd".into(), &self.cwd.to_js_string());
+        let sink = noop_stream::Sink::default();
         if let StdioEnum::Null = self.stdout.inner {
-            options.set(&"outStream".into(), &noop_stream::ffi::writable());
+            options.set(&"outStream".into(), sink.as_ref());
         }
         if let StdioEnum::Null = self.stderr.inner {
-            options.set(&"errStream".into(), &noop_stream::ffi::writable());
+            options.set(&"errStream".into(), sink.as_ref());
         }
         let listeners = Object::from_entries(&listeners).expect("Failed to convert listeners map to object");
         options.set(&"listeners".into(), &listeners);
