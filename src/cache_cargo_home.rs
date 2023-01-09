@@ -201,7 +201,7 @@ impl Cache {
             let dep_file_path = dependency_file_path(cache_type, scope, &job)?;
             let groups: Vec<GroupIdentifier> = {
                 let file_contents = node::fs::read_file(&dep_file_path).await?;
-                serde_json::de::from_slice(&file_contents)?
+                postcard::from_bytes(&file_contents)?
             };
             let group_list_string = groups.iter().map(|g| &g.path).join(", ");
             info!(
@@ -243,7 +243,7 @@ impl Cache {
         let dep_file_path = dependency_file_path(self.cache_type, scope_hash, &job)?;
         let old_groups = if dep_file_path.exists().await {
             let file_contents = node::fs::read_file(&dep_file_path).await?;
-            serde_json::de::from_slice(&file_contents)?
+            postcard::from_bytes(&file_contents)?
         } else {
             Vec::new()
         };
@@ -254,12 +254,12 @@ impl Cache {
         } else {
             info!("{} dependency list changed:", self.cache_type.friendly_name());
             info!("{}", render_delta_list(&group_list_delta));
-            let serialized_groups = serde_json::to_string(&new_groups)?;
+            let serialized_groups = postcard::to_stdvec(&new_groups)?;
             {
                 let parent = dep_file_path.parent();
                 node::fs::create_dir_all(&parent).await?;
             }
-            node::fs::write_file(&dep_file_path, serialized_groups.as_bytes()).await?;
+            node::fs::write_file(&dep_file_path, &serialized_groups).await?;
             let dependencies_entry = build_cache_entry_dependencies(self.cache_type, scope_hash, &job)?;
             dependencies_entry.save().await?;
             info!("{} dependency list was successfully saved.", self.cache_type);
@@ -672,7 +672,7 @@ fn dependency_file_path(cache_type: CacheType, scope: &HashValue, job: &Job) -> 
     scope.hash(&mut hasher);
     cache_type.hash(&mut hasher);
     job.hash(&mut hasher);
-    let file_name = format!("{}.json", hasher.hash_value());
+    let file_name = format!("{}.postcard", hasher.hash_value());
     Ok(dependency_dir.join(&file_name))
 }
 

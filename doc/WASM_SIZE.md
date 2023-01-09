@@ -15,3 +15,5 @@ Setting `opt-level = "s"` due to concerns about potential speed costs.
 
 Commit: `d0b4d8a8423f2cd1c934a9acbb63874e2433db39`
 Monomorphizing `dir_tree::apply_visitor_impl`: 940065
+
+Switch to postcard for dependency file (cache group list) format: 938404
