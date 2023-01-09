@@ -58,7 +58,7 @@ pub enum Error {
     #[error("Toolchain install backend does not support {0} functionality")]
     ToolchainInstallFunctionality(String),
 
-    #[error("Postcardserialization/deserialization error: {0}")]
+    #[error("Postcard serialization/deserialization error: {0}")]
     SerdePostcard(#[from] postcard::Error),
 }
 

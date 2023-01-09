@@ -516,7 +516,7 @@ async fn find_additional_delete_paths(cache_type: CacheType) -> Result<Vec<Path>
 }
 
 fn cached_folder_info_path(cache_type: CacheType) -> Result<Path, Error> {
-    let file_name = format!("{}.json", cache_type.short_name());
+    let file_name = format!("{}.postcard", cache_type.short_name());
     Ok(get_action_cache_dir()?.join("cached-folder-info").join(&file_name))
 }
 
@@ -734,13 +734,13 @@ pub async fn restore_cargo_cache(input_manager: &input_manager::Manager) -> Resu
 
         // Build the cache
         let cache = Cache::restore_from_env(cache_type, &scope_hash, cross_platform_sharing).await?;
-        let serialized_cache = serde_json::to_string(&cache)?;
+        let serialized_cache = postcard::to_stdvec(&cache)?;
         let cached_info_path = cached_folder_info_path(cache_type)?;
         {
             let parent = cached_info_path.parent();
             node::fs::create_dir_all(&parent).await?;
         }
-        node::fs::write_file(&cached_info_path, serialized_cache.as_bytes()).await?;
+        node::fs::write_file(&cached_info_path, &serialized_cache).await?;
     }
     Ok(())
 }
@@ -768,7 +768,7 @@ pub async fn save_cargo_cache(input_manager: &input_manager::Manager) -> Result<
         let cache_old: Cache = {
             let cached_info_path = cached_folder_info_path(cache_type)?;
             let cache_serialized = node::fs::read_file(&cached_info_path).await?;
-            serde_json::de::from_slice(&cache_serialized)?
+            postcard::from_bytes(&cache_serialized)?
         };
 
         // Construct the new cache
