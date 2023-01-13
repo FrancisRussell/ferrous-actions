@@ -21,3 +21,6 @@ Switch to postcard for dependency file (cache group list) format: 938404
 
 Commit `56c6bcdae9f951c4f23e57ed23481de18ec7adad`
 Switch to postcard for serialization of cache between phases: 908558
+
+Commit: `0015270238008c49b7ad1dd8b49568fd52319159`
+Switch to no-`regex` `simple-path-match`: 748528
