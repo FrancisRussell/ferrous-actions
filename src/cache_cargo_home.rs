@@ -23,6 +23,7 @@ use std::str::FromStr;
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator, IntoStaticStr};
 
 const ATIMES_SUPPORTED_KEY: &str = "ACCESS_TIMES_SUPPORTED";
+const DEFAULT_CROSS_OS_SHARING: CrossPlatformSharing = CrossPlatformSharing::None;
 const SCOPE_HASH_KEY: &str = "SCOPE_HASH";
 
 lazy_static! {
@@ -629,7 +630,7 @@ fn get_cross_platform_sharing(input_manager: &input_manager::Manager) -> Result<
     Ok(if let Some(value) = input_manager.get(Input::CrossPlatformSharing) {
         CrossPlatformSharing::from_str(value).map_err(|_| Error::ParseCrossPlatformSharing(value.to_string()))?
     } else {
-        CrossPlatformSharing::UnixLike
+        DEFAULT_CROSS_OS_SHARING
     })
 }
 
