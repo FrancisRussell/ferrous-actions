@@ -23,6 +23,11 @@ a single action rather than being separated. The `command` parameter is always c
 In all following examples, `FrancisRussell/ferrous-actions@v0.1.0-alpha.3`
 should be replaced by the version of the action that this README is for.
 
+Note that by default, GitHub will use the name of action as the name of a build
+step in its user interface. This can be confusing since with a mono-action
+these are always the same.  Liberal use of the `name` attribute is recommended
+and is used in the examples below.
+
 ### Caching Cargo home
 
 Registry indices (e.g. the list of packages on `crates.io`), crate files and
@@ -34,12 +39,13 @@ have occurred and avoid needlessly uploading them back to the cache.
 Example invocation:
 ```
 - uses: FrancisRussell/ferrous-actions@v0.1.0-alpha.3
+  name: Cargo cache
   with:
-  command: cache
-  cache-only: indices
-  min-recache-crates: 1m
-  min-recache-git-repos: 12h
-  min-recache-indices: 7d
+    command: cache
+    cache-only: indices
+    min-recache-crates: 1m
+    min-recache-git-repos: 12h
+    min-recache-indices: 7d
 ```
 
 The following options are also available:
@@ -71,6 +77,7 @@ Ferrous actions can download Rustup and install a specified Rust toolchain.
 Example invocation:
 ```
 - uses: FrancisRussell/ferrous-actions@v0.1.0-alpha.3
+  name: Install Rustup
   with:
     command: install-rustup
     toolchain: nightly
@@ -99,6 +106,7 @@ this case is `cargo SUBCOMMAND` where `SUBCOMMAND` is a single token.
 Example invocation:
 ```
 - uses: FrancisRussell/ferrous-actions@v0.1.0-alpha.3
+  name: Cargo build
   with:
     command: cargo build
     toolchain: stable
@@ -139,6 +147,7 @@ From the user-perspective this means:
 Example invocation:
 ```
 - uses: FrancisRussell/ferrous-actions@v0.1.0-alpha.3
+  name: Install grcov
   with:
     command: cargo install
     args: grcov
@@ -165,6 +174,7 @@ annotations are output which can be viewed via the GitHub UI.
 Example invocation:
 ```
 - uses: FrancisRussell/ferrous-actions@v0.1.0-alpha.3
+  name: Cargo clippy
   with:
     command: cargo clippy
     annotations: true
@@ -183,6 +193,7 @@ that the [cross](https://github.com/cross-rs/cross) tool is used.
 Example invocation:
 ```
 - uses: FrancisRussell/ferrous-actions@v0.1.0-alpha.3
+  name: Cargo build
   with:
     command: cargo build
     args: --target=x86_64-apple-darwin
