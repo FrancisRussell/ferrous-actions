@@ -82,4 +82,4 @@ jobs:
         if: ${{ matrix.platform  != 'windows-latest' }}
       - run: find ~/.local
         if: ${{ matrix.platform != 'windows-latest' }}
-      - run: rustc --version
+      - run: rustc -Vv
