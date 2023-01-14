@@ -24,3 +24,8 @@ Switch to postcard for serialization of cache between phases: 908558
 
 Commit: `0015270238008c49b7ad1dd8b49568fd52319159`
 Switch to no-`regex` `simple-path-match`: 748528
+
+Commit `eccc9c747514c5b4077e4a61c100d2583dfc412e`
+Removing all `regex` use: 747994
+
+Keeping existing code as the saving is barely within expected variation.
