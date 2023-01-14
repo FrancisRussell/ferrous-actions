@@ -1,3 +1,4 @@
+use super::push_line_splitter::PushLineSplitter;
 use crate::node::path::Path;
 use crate::{node, noop_stream};
 use js_sys::{JsString, Object};
@@ -29,68 +30,47 @@ impl Stdio {
     }
 }
 
-/// Work around for https://github.com/FrancisRussell/ferrous-actions-dev/issues/81
+/// Work around for <https://github.com/FrancisRussell/ferrous-actions-dev/issues/81>
 struct StreamToLines {
-    buffer: Arc<Mutex<Vec<u8>>>,
+    splitter: Arc<Mutex<PushLineSplitter>>,
+    #[allow(clippy::type_complexity)]
     callback: Arc<Box<dyn Fn(&str)>>,
     closure: Closure<dyn Fn(JsValue)>,
 }
 
 impl StreamToLines {
+    #[allow(clippy::type_complexity)]
     pub fn new(callback: Arc<Box<dyn Fn(&str)>>) -> StreamToLines {
-        let buffer: Arc<Mutex<Vec<u8>>> = Arc::default();
+        let splitter: Arc<Mutex<PushLineSplitter>> = Arc::default();
         let closure = {
-            let buffer = buffer.clone();
-            let newline = node::os::eol();
+            let splitter = splitter.clone();
             let callback = callback.clone();
             Closure::new(move |data: JsValue| {
                 let data: js_sys::Uint8Array = data.into();
-                let mut buffer = buffer.lock();
-                let buffer_len = buffer.len();
-                buffer.resize(buffer_len + data.length() as usize, 0u8);
-                data.copy_to(&mut buffer[buffer_len..]);
-                let mut offset = 0;
-                while let Some(newline_pos) = Self::find_pattern_idx(&buffer[offset..], newline.as_bytes()) {
-                    let line = String::from_utf8_lossy(&buffer[offset..(offset + newline_pos)]);
+                let mut splitter = splitter.lock();
+                let mut write_buffer = splitter.write_via_buffer(data.length() as usize);
+                data.copy_to(write_buffer.as_mut());
+                drop(write_buffer);
+                while let Some(line) = splitter.next_line() {
                     callback(&line);
-                    offset += newline_pos + newline.as_bytes().len();
                 }
-                drop(buffer.drain(..offset));
             })
         };
-
         StreamToLines {
-            buffer,
+            splitter,
             callback,
             closure,
-        }
-    }
-
-    fn find_pattern_idx(data: &[u8], pattern: &[u8]) -> Option<usize> {
-        // We have this for str, surely it must exist in std for slice?
-        if pattern.first().is_some() {
-            let pattern_len = pattern.len();
-            if pattern_len > data.len() {
-                return None;
-            }
-            for idx in 0..=(data.len() - pattern.len()) {
-                if &data[idx..(idx + pattern_len)] == pattern {
-                    return Some(idx);
-                }
-            }
-            None
-        } else {
-            Some(0)
         }
     }
 }
 
 impl Drop for StreamToLines {
     fn drop(&mut self) {
-        let mut buffer = self.buffer.lock();
-        let string = String::from_utf8_lossy(&buffer[..]);
-        (self.callback)(&string);
-        buffer.clear();
+        let mut splitter = self.splitter.lock();
+        splitter.close();
+        while let Some(line) = splitter.next_line() {
+            (self.callback)(&line);
+        }
     }
 }
 
@@ -103,7 +83,9 @@ impl AsRef<JsValue> for StreamToLines {
 pub struct Command {
     command: Path,
     args: Vec<JsString>,
+    #[allow(clippy::type_complexity)]
     outline: Option<Arc<Box<dyn Fn(&str)>>>,
+    #[allow(clippy::type_complexity)]
     errline: Option<Arc<Box<dyn Fn(&str)>>>,
     stdout: Stdio,
     stderr: Stdio,
@@ -137,7 +119,6 @@ impl Command {
         if let Some(callback) = &outline_adapter {
             listeners.set(&"stdout".into(), callback.as_ref());
         }
-
         let errline_adapter = self.errline.clone().map(StreamToLines::new);
         if let Some(callback) = &errline_adapter {
             listeners.set(&"stderr".into(), callback.as_ref());
@@ -151,14 +132,20 @@ impl Command {
         if let StdioEnum::Null = self.stderr.inner {
             options.set(&"errStream".into(), sink.as_ref());
         }
+
         let listeners = Object::from_entries(&listeners).expect("Failed to convert listeners map to object");
         options.set(&"listeners".into(), &listeners);
         let options = Object::from_entries(&options).expect("Failed to convert options map to object");
-        ffi::exec(&command, Some(args), &options).await.map(|r| {
+        let result = ffi::exec(&command, Some(args), &options).await.map(|r| {
             #[allow(clippy::cast_possible_truncation)]
             let code = r.as_f64().expect("exec didn't return a number") as i32;
             code
-        })
+        });
+
+        // Be explict about line-buffer flushing
+        drop(outline_adapter);
+        drop(errline_adapter);
+        result
     }
 
     pub fn outline<F: Fn(&str) + 'static>(&mut self, callback: F) -> &mut Command {
