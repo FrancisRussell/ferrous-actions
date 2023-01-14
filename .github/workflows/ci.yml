@@ -29,6 +29,7 @@ jobs:
       # Test the action
       #
       - id: restore-cargo-cache
+        name: Cargo cache
         uses: ./
         with:
           command: cache
@@ -36,6 +37,7 @@ jobs:
           min-recache-indices: 1h
       - id: install-toolchain
         uses: ./
+        name: Install toolchain
         with:
           command: install-rustup
           toolchain: nightly
@@ -44,17 +46,20 @@ jobs:
           components: clippy
           default: true
       - id: install-grcov
+        name: Install grcov
         uses: ./
         with:
           command: cargo install
           args: grcov
       - id: cargo-build
+        name: Cargo build
         uses: ./
         with:
           command: cargo build
           args: --target=wasm32-unknown-unknown
           use-cross: true
       - id: cargo-clippy
+        name: Cargo clippy
         uses: ./
         with:
           command: cargo clippy
