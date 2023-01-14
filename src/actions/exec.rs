@@ -1,6 +1,8 @@
 use crate::node::path::Path;
 use crate::{node, noop_stream};
 use js_sys::{JsString, Object};
+use parking_lot::Mutex;
+use std::sync::Arc;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::JsValue;
 
@@ -27,11 +29,82 @@ impl Stdio {
     }
 }
 
+/// Work around for https://github.com/FrancisRussell/ferrous-actions-dev/issues/81
+struct StreamToLines {
+    buffer: Arc<Mutex<Vec<u8>>>,
+    callback: Arc<Box<dyn Fn(&str)>>,
+    closure: Closure<dyn Fn(JsValue)>,
+}
+
+impl StreamToLines {
+    pub fn new(callback: Arc<Box<dyn Fn(&str)>>) -> StreamToLines {
+        let buffer: Arc<Mutex<Vec<u8>>> = Arc::default();
+        let closure = {
+            let buffer = buffer.clone();
+            let newline = node::os::eol();
+            let callback = callback.clone();
+            Closure::new(move |data: JsValue| {
+                let data: js_sys::Uint8Array = data.into();
+                let mut buffer = buffer.lock();
+                let buffer_len = buffer.len();
+                buffer.resize(buffer_len + data.length() as usize, 0u8);
+                data.copy_to(&mut buffer[buffer_len..]);
+                let mut offset = 0;
+                while let Some(newline_pos) = Self::find_pattern_idx(&buffer[offset..], newline.as_bytes()) {
+                    let line = String::from_utf8_lossy(&buffer[offset..(offset + newline_pos)]);
+                    callback(&line);
+                    offset += newline_pos + newline.as_bytes().len();
+                }
+                drop(buffer.drain(..offset));
+            })
+        };
+
+        StreamToLines {
+            buffer,
+            callback,
+            closure,
+        }
+    }
+
+    fn find_pattern_idx(data: &[u8], pattern: &[u8]) -> Option<usize> {
+        // We have this for str, surely it must exist in std for slice?
+        if pattern.first().is_some() {
+            let pattern_len = pattern.len();
+            if pattern_len > data.len() {
+                return None;
+            }
+            for idx in 0..=(data.len() - pattern.len()) {
+                if &data[idx..(idx + pattern_len)] == pattern {
+                    return Some(idx);
+                }
+            }
+            None
+        } else {
+            Some(0)
+        }
+    }
+}
+
+impl Drop for StreamToLines {
+    fn drop(&mut self) {
+        let mut buffer = self.buffer.lock();
+        let string = String::from_utf8_lossy(&buffer[..]);
+        (self.callback)(&string);
+        buffer.clear();
+    }
+}
+
+impl AsRef<JsValue> for StreamToLines {
+    fn as_ref(&self) -> &JsValue {
+        self.closure.as_ref()
+    }
+}
+
 pub struct Command {
     command: Path,
     args: Vec<JsString>,
-    outline: Option<Closure<dyn Fn(JsString)>>,
-    errline: Option<Closure<dyn Fn(JsString)>>,
+    outline: Option<Arc<Box<dyn Fn(&str)>>>,
+    errline: Option<Arc<Box<dyn Fn(&str)>>>,
     stdout: Stdio,
     stderr: Stdio,
     cwd: Path,
@@ -59,12 +132,17 @@ impl Command {
         let args: Vec<JsString> = self.args.iter().map(JsString::to_string).collect();
         let options = js_sys::Map::new();
         let listeners = js_sys::Map::new();
-        if let Some(callback) = &self.outline {
-            listeners.set(&"stdline".into(), callback.as_ref());
+
+        let outline_adapter = self.outline.clone().map(StreamToLines::new);
+        if let Some(callback) = &outline_adapter {
+            listeners.set(&"stdout".into(), callback.as_ref());
         }
-        if let Some(callback) = &self.errline {
-            listeners.set(&"errline".into(), callback.as_ref());
+
+        let errline_adapter = self.errline.clone().map(StreamToLines::new);
+        if let Some(callback) = &errline_adapter {
+            listeners.set(&"stderr".into(), callback.as_ref());
         }
+
         options.set(&"cwd".into(), &self.cwd.to_js_string());
         let sink = noop_stream::Sink::default();
         if let StdioEnum::Null = self.stdout.inner {
@@ -84,18 +162,12 @@ impl Command {
     }
 
     pub fn outline<F: Fn(&str) + 'static>(&mut self, callback: F) -> &mut Command {
-        self.outline = Some(Closure::new(move |line: JsString| {
-            let line: String = line.into();
-            callback(line.as_str());
-        }));
+        self.outline = Some(Arc::new(Box::new(callback)));
         self
     }
 
     pub fn errline<F: Fn(&str) + 'static>(&mut self, callback: F) -> &mut Command {
-        self.errline = Some(Closure::new(move |line: JsString| {
-            let line: String = line.into();
-            callback(line.as_str());
-        }));
+        self.errline = Some(Arc::new(Box::new(callback)));
         self
     }
 

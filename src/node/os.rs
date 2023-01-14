@@ -1,4 +1,22 @@
 use super::path;
+use js_sys::JsString;
+use lazy_static::lazy_static;
+use std::borrow::Cow;
+
+lazy_static! {
+    static ref EOL: String = {
+        use wasm_bindgen::JsCast as _;
+        ffi::EOL
+            .clone()
+            .dyn_into::<JsString>()
+            .expect("eol wasn't a string")
+            .into()
+    };
+}
+
+pub fn eol() -> Cow<'static, str> {
+    EOL.as_str().into()
+}
 
 pub fn platform() -> String {
     ffi::platform().into()
@@ -21,11 +39,14 @@ pub fn temp_dir() -> path::Path {
 }
 
 pub mod ffi {
-    use js_sys::JsString;
+    use js_sys::{JsString, Object};
     use wasm_bindgen::prelude::*;
 
     #[wasm_bindgen(module = "os")]
     extern "C" {
+        #[wasm_bindgen(js_name = "EOL")]
+        pub static EOL: Object;
+
         pub fn arch() -> JsString;
         pub fn homedir() -> JsString;
         pub fn machine() -> JsString;
