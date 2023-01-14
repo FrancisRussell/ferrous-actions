@@ -20,7 +20,7 @@ For practicality and implementation reasons, Ferrous Actions is structured as
 a ‘mono-action’, meaning that all operations are implemented as sub-commands of
 a single action rather than being separated. The `command` parameter is always compulsory.
 
-In all following examples, `FrancisRussell/ferrous-actions@v0.1.0-alpha.2`
+In all following examples, `FrancisRussell/ferrous-actions@v0.1.0-alpha.3`
 should be replaced by the version of the action that this README is for.
 
 ### Caching Cargo home
@@ -33,7 +33,7 @@ have occurred and avoid needlessly uploading them back to the cache.
 
 Example invocation:
 ```
-- uses: FrancisRussell/ferrous-actions@v0.1.0-alpha.2
+- uses: FrancisRussell/ferrous-actions@v0.1.0-alpha.3
   with:
   command: cache
   cache-only: indices
@@ -70,7 +70,7 @@ Ferrous actions can download Rustup and install a specified Rust toolchain.
 
 Example invocation:
 ```
-- uses: FrancisRussell/ferrous-actions@v0.1.0-alpha.2
+- uses: FrancisRussell/ferrous-actions@v0.1.0-alpha.3
   with:
     command: install-rustup
     toolchain: nightly
@@ -98,7 +98,7 @@ this case is `cargo SUBCOMMAND` where `SUBCOMMAND` is a single token.
 
 Example invocation:
 ```
-- uses: FrancisRussell/ferrous-actions@v0.1.0-alpha.2
+- uses: FrancisRussell/ferrous-actions@v0.1.0-alpha.3
   with:
     command: cargo build
     toolchain: stable
@@ -138,7 +138,7 @@ From the user-perspective this means:
 
 Example invocation:
 ```
-- uses: FrancisRussell/ferrous-actions@v0.1.0-alpha.2
+- uses: FrancisRussell/ferrous-actions@v0.1.0-alpha.3
   with:
     command: cargo install
     args: grcov
@@ -164,7 +164,7 @@ annotations are output which can be viewed via the GitHub UI.
 
 Example invocation:
 ```
-- uses: FrancisRussell/ferrous-actions@v0.1.0-alpha.2
+- uses: FrancisRussell/ferrous-actions@v0.1.0-alpha.3
   with:
     command: cargo clippy
     annotations: true
@@ -182,7 +182,7 @@ that the [cross](https://github.com/cross-rs/cross) tool is used.
 
 Example invocation:
 ```
-- uses: FrancisRussell/ferrous-actions@v0.1.0-alpha.2
+- uses: FrancisRussell/ferrous-actions@v0.1.0-alpha.3
   with:
     command: cargo build
     args: --target=x86_64-apple-darwin
