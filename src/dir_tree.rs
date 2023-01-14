@@ -42,10 +42,12 @@ where
 }
 
 #[async_recursion(?Send)]
-async fn apply_visitor_impl<V>(depth: usize, path: &Path, ignores: &Ignores, visitor: &mut V) -> Result<(), Error>
-where
-    V: Visitor,
-{
+async fn apply_visitor_impl(
+    depth: usize,
+    path: &Path,
+    ignores: &Ignores,
+    visitor: &mut dyn Visitor,
+) -> Result<(), Error> {
     let file_name: Cow<str> = if depth == 0 {
         ROOT_NAME.into()
     } else {

@@ -16,7 +16,7 @@ default = ["console_error_panic_hook"]
 async-recursion = "1.0.0"
 async-trait = "0.1.59"
 base64 = "0.20.0"
-blake3 = "1.3.3"
+blake3 = { version = "1.3.3", default-features = false }
 cargo_metadata = "0.15.1"
 chrono = { version = "0.4.23", default-features = false, features = ["wasmbind", "std", "clock"] }
 console_error_panic_hook = { version = "0.1.7", optional = true }
@@ -27,6 +27,7 @@ itertools = "0.10.5"
 js-sys = "0.3.55"
 lazy_static = "1.4.0"
 parking_lot = "0.12.1"
+postcard = { version = "1.0.2", default-features = false, features = ["use-std"] }
 regex = { version = "1.7.0", default-features = false, features = [ "std" ] }
 serde_json = "1.0.87"
 serde = { version = "1.0", features = [ "derive" ] }
@@ -44,10 +45,11 @@ rev = "5c84a85f48e2a0b236e84b2241854372c996cf31"
 
 [dependencies.simple-path-match]
 git = "https://github.com/FrancisRussell/simple-path-match.git"
-rev = "22d1d28ed11cb1de600c29bd34937a2bcb32b37b"
+rev = "ec334380b5325769251b6a6bad48d62cf926a79d"
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3"
 
 [profile.release]
 lto = true
+opt-level = "s"

@@ -10,7 +10,6 @@ use crate::input_manager::{self, Input};
 use crate::job::Job;
 use crate::node::os::homedir;
 use crate::node::path::Path;
-use crate::serde_helpers::{deserialize_btree_map, serialize_btree_map};
 use crate::{actions, error, info, node, notice, safe_encoding, warning, Error};
 use chrono::{DateTime, Utc};
 use lazy_static::lazy_static;
@@ -67,7 +66,6 @@ impl CrossPlatformSharing {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct Group {
     restore_key: Option<String>,
-    #[serde(serialize_with = "serialize_btree_map", deserialize_with = "deserialize_btree_map")]
     entries: BTreeMap<AgnosticPath, Fingerprint>,
 }
 
@@ -91,7 +89,6 @@ impl Group {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct Cache {
     cache_type: CacheType,
-    #[serde(serialize_with = "serialize_btree_map", deserialize_with = "deserialize_btree_map")]
     root: BTreeMap<AgnosticPath, Group>,
     root_path: String,
 }
@@ -201,7 +198,7 @@ impl Cache {
             let dep_file_path = dependency_file_path(cache_type, scope, &job)?;
             let groups: Vec<GroupIdentifier> = {
                 let file_contents = node::fs::read_file(&dep_file_path).await?;
-                serde_json::de::from_slice(&file_contents)?
+                postcard::from_bytes(&file_contents)?
             };
             let group_list_string = groups.iter().map(|g| &g.path).join(", ");
             info!(
@@ -243,7 +240,7 @@ impl Cache {
         let dep_file_path = dependency_file_path(self.cache_type, scope_hash, &job)?;
         let old_groups = if dep_file_path.exists().await {
             let file_contents = node::fs::read_file(&dep_file_path).await?;
-            serde_json::de::from_slice(&file_contents)?
+            postcard::from_bytes(&file_contents)?
         } else {
             Vec::new()
         };
@@ -254,12 +251,12 @@ impl Cache {
         } else {
             info!("{} dependency list changed:", self.cache_type.friendly_name());
             info!("{}", render_delta_list(&group_list_delta));
-            let serialized_groups = serde_json::to_string(&new_groups)?;
+            let serialized_groups = postcard::to_stdvec(&new_groups)?;
             {
                 let parent = dep_file_path.parent();
                 node::fs::create_dir_all(&parent).await?;
             }
-            node::fs::write_file(&dep_file_path, serialized_groups.as_bytes()).await?;
+            node::fs::write_file(&dep_file_path, &serialized_groups).await?;
             let dependencies_entry = build_cache_entry_dependencies(self.cache_type, scope_hash, &job)?;
             dependencies_entry.save().await?;
             info!("{} dependency list was successfully saved.", self.cache_type);
@@ -516,7 +513,7 @@ async fn find_additional_delete_paths(cache_type: CacheType) -> Result<Vec<Path>
 }
 
 fn cached_folder_info_path(cache_type: CacheType) -> Result<Path, Error> {
-    let file_name = format!("{}.json", cache_type.short_name());
+    let file_name = format!("{}.postcard", cache_type.short_name());
     Ok(get_action_cache_dir()?.join("cached-folder-info").join(&file_name))
 }
 
@@ -672,7 +669,7 @@ fn dependency_file_path(cache_type: CacheType, scope: &HashValue, job: &Job) -> 
     scope.hash(&mut hasher);
     cache_type.hash(&mut hasher);
     job.hash(&mut hasher);
-    let file_name = format!("{}.json", hasher.hash_value());
+    let file_name = format!("{}.postcard", hasher.hash_value());
     Ok(dependency_dir.join(&file_name))
 }
 
@@ -734,13 +731,13 @@ pub async fn restore_cargo_cache(input_manager: &input_manager::Manager) -> Resu
 
         // Build the cache
         let cache = Cache::restore_from_env(cache_type, &scope_hash, cross_platform_sharing).await?;
-        let serialized_cache = serde_json::to_string(&cache)?;
+        let serialized_cache = postcard::to_stdvec(&cache)?;
         let cached_info_path = cached_folder_info_path(cache_type)?;
         {
             let parent = cached_info_path.parent();
             node::fs::create_dir_all(&parent).await?;
         }
-        node::fs::write_file(&cached_info_path, serialized_cache.as_bytes()).await?;
+        node::fs::write_file(&cached_info_path, &serialized_cache).await?;
     }
     Ok(())
 }
@@ -768,7 +765,7 @@ pub async fn save_cargo_cache(input_manager: &input_manager::Manager) -> Result<
         let cache_old: Cache = {
             let cached_info_path = cached_folder_info_path(cache_type)?;
             let cache_serialized = node::fs::read_file(&cached_info_path).await?;
-            serde_json::de::from_slice(&cache_serialized)?
+            postcard::from_bytes(&cache_serialized)?
         };
 
         // Construct the new cache
