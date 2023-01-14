@@ -414,10 +414,14 @@ impl Cache {
             safe_encoding::encode(lsb)
         };
         builder.set_attribute(Attribute::EntriesHash, entries_hash);
-        builder.set_key_attribute(
-            Attribute::Platform,
-            cross_platform_sharing.current_platform().to_string(),
-        );
+
+        let sharing_platform = cross_platform_sharing.current_platform();
+        let origin_platform = node::os::platform();
+        if sharing_platform != origin_platform {
+            builder.set_attribute(Attribute::OriginPlatform, origin_platform);
+        }
+        builder.set_key_attribute(Attribute::Platform, sharing_platform.to_string());
+
         let mut entry = builder.into_entry();
         let root_path = find_path(cache_type);
         let path = root_path.join(&group_id.path);

@@ -19,6 +19,9 @@ pub enum Attribute {
     #[strum(serialize = "matrix")]
     Matrix,
 
+    #[strum(serialize = "origin_platform")]
+    OriginPlatform,
+
     #[strum(serialize = "platform")]
     Platform,
 
