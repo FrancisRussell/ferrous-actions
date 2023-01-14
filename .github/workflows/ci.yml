@@ -6,6 +6,7 @@ env:
 
 jobs:
   build:
+    name: Build and unit tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -17,17 +18,31 @@ jobs:
             ~/.cargo/git/db
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-
-      # Build and run tests
       - uses: actions/setup-node@v3
         with:
           node-version: 16.x
       - run: npm ci
       - run: npm run build
       - run: npm run test
+      - uses: actions/upload-artifact@v3
+        with:
+          name: built-action
+          path: |
+            action.yml
+            dist
 
-      # Test the action
-      #
+  test:
+    name: Functionality tests
+    needs: build
+    strategy:
+      matrix:
+        platform: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/download-artifact@v3
+        with:
+          name: built-action
       - id: restore-cargo-cache
         name: Cargo cache
         uses: ./
@@ -52,7 +67,7 @@ jobs:
           command: cargo install
           args: grcov
       - id: cargo-build
-        name: Cargo build
+        name: Cargo build (with cross)
         uses: ./
         with:
           command: cargo build
@@ -63,6 +78,8 @@ jobs:
         uses: ./
         with:
           command: cargo clippy
-      - run: find ~/.cache
+      - run: find ~/.cache 
+        if: ${{ matrix.platform  != 'windows-latest' }}
       - run: find ~/.local
+        if: ${{ matrix.platform != 'windows-latest' }}
       - run: rustc --version
