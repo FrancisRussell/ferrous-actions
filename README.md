@@ -276,6 +276,12 @@ determine if any cache group we intend to update has had a new version pushed
 out since we downloaded it, just before we upload a new version. This reduces
 the window for a race from minutes down to a few seconds.
 
+## `crates.io`
+
+This code is pushed to `crates.io` primarily as a proactive measure against
+name-squatting and for maintaining a historical record. Consequently it may be
+out of date, and the homepage should be consulted for the latest information.
+
 ## Notes / Disclaimer
 
 Ferrous actions is very much experimental and should not be relied upon in
