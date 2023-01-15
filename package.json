@@ -1,6 +1,6 @@
 {
   "name": "ferrous-actions",
-  "version": "0.1.0",
+  "version": "0.1.0-beta.1",
   "private": true,
   "description": "GitHub actions for Rust written in Rust and compiled to WebAssembly",
   "scripts": {
