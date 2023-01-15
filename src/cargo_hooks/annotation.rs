@@ -23,6 +23,12 @@ impl Annotation {
         use crate::node::path::Path;
         use cargo_metadata::Message;
 
+        // Ignore blank lines
+        let line = line.trim();
+        if line.is_empty() {
+            return;
+        }
+
         let metadata: Message = match serde_json::from_str(line) {
             Ok(metadata) => metadata,
             Err(e) => {
