@@ -5,8 +5,8 @@ use crate::node::{self};
 use crate::rustup::ToolchainConfig;
 use crate::{actions, info, Error};
 use async_recursion::async_recursion;
-use rust_toolchain_manifest::manifest::ManifestPackage;
-use rust_toolchain_manifest::Toolchain;
+use rustup_toolchain_manifest::manifest::Package as ManifestPackage;
+use rustup_toolchain_manifest::Toolchain;
 use std::str::FromStr;
 use target_lexicon::Triple;
 
@@ -117,7 +117,7 @@ async fn cleanup_decompressed_package(package: &ManifestPackage) -> Result<(), E
 
 async fn fetch_and_decompress_package(package: &ManifestPackage) -> Result<(), Error> {
     use actions::tool_cache::{self, StreamCompression};
-    use rust_toolchain_manifest::manifest::Compression;
+    use rustup_toolchain_manifest::manifest::Compression;
 
     let extract_path = get_package_decompress_path(package)?;
     let mut cache_entry = compute_package_cache_key(package);
@@ -149,7 +149,7 @@ async fn fetch_and_decompress_package(package: &ManifestPackage) -> Result<(), E
 pub async fn install(toolchain_config: &ToolchainConfig) -> Result<(), Error> {
     use actions::tool_cache;
     use futures::{StreamExt as _, TryStreamExt as _};
-    use rust_toolchain_manifest::{InstallSpec, Manifest};
+    use rustup_toolchain_manifest::{InstallSpec, Manifest};
 
     let toolchain = {
         let mut toolchain = Toolchain::from_str(&toolchain_config.name)?;

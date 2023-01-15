@@ -17,13 +17,13 @@ pub enum Error {
     UnknownCommand(String),
 
     #[error("Toolchain parse error: {0}")]
-    ToolchainParse(#[from] rust_toolchain_manifest::toolchain::ToolchainParseError),
+    ToolchainParse(#[from] rustup_toolchain_manifest::toolchain::ParseError),
 
     #[error("Manifest file not UTF-8")]
     ManifestNotUtf8,
 
     #[error("Manifest error: {0}")]
-    ManifestError(#[from] rust_toolchain_manifest::Error),
+    ManifestError(#[from] rustup_toolchain_manifest::Error),
 
     #[error("Unsupported platform: {0}")]
     UnsupportedPlatform(String),

@@ -39,9 +39,10 @@ wasm-bindgen = "0.2.78"
 wasm-bindgen-futures = "0.4.33"
 wasm-bindgen-test = "0.3"
 
-[dependencies.rust-toolchain-manifest]
-git = "https://github.com/FrancisRussell/rust-toolchain-manifest.git"
-rev = "5c84a85f48e2a0b236e84b2241854372c996cf31"
+[dependencies.rustup-toolchain-manifest]
+git = "https://github.com/FrancisRussell/rustup-toolchain-manifest.git"
+rev = "ecc0cd3c43b4dd1ccfb384830e18b86a3aafbc83"
+version = "0.2.0"
 
 [dependencies.simple-path-match]
 git = "https://github.com/FrancisRussell/simple-path-match.git"

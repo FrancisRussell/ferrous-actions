@@ -13,7 +13,7 @@ use crate::node::path::Path;
 use crate::{actions, error, info, node, notice, safe_encoding, warning, Error};
 use chrono::{DateTime, Utc};
 use lazy_static::lazy_static;
-use rust_toolchain_manifest::HashValue;
+use rustup_toolchain_manifest::HashValue;
 use serde::{Deserialize, Serialize};
 use simple_path_match::{PathMatch, PathMatchBuilder};
 use std::borrow::Cow;

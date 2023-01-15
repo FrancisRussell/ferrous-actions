@@ -330,7 +330,7 @@ dependencies = [
  "parking_lot",
  "postcard",
  "regex",
- "rust-toolchain-manifest",
+ "rustup-toolchain-manifest",
  "serde",
  "serde_json",
  "shlex",
@@ -694,19 +694,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "456c603be3e8d448b072f410900c09faf164fbce2d480456f50eea6e25f9c848"
 
 [[package]]
-name = "rust-toolchain-manifest"
-version = "0.1.0"
-source = "git+https://github.com/FrancisRussell/rust-toolchain-manifest.git?rev=5c84a85f48e2a0b236e84b2241854372c996cf31#5c84a85f48e2a0b236e84b2241854372c996cf31"
-dependencies = [
- "chrono",
- "clap",
- "serde",
- "target-lexicon",
- "thiserror",
- "toml",
-]
-
-[[package]]
 name = "rustix"
 version = "0.36.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -718,6 +705,19 @@ dependencies = [
  "libc",
  "linux-raw-sys",
  "windows-sys",
+]
+
+[[package]]
+name = "rustup-toolchain-manifest"
+version = "0.2.0"
+source = "git+https://github.com/FrancisRussell/rustup-toolchain-manifest.git?rev=ecc0cd3c43b4dd1ccfb384830e18b86a3aafbc83#ecc0cd3c43b4dd1ccfb384830e18b86a3aafbc83"
+dependencies = [
+ "chrono",
+ "clap",
+ "serde",
+ "target-lexicon",
+ "thiserror",
+ "toml",
 ]
 
 [[package]]
