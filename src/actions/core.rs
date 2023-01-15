@@ -252,6 +252,14 @@ pub fn get_state<N: Into<JsString>>(name: N) -> Option<String> {
     }
 }
 
+pub fn start_group<N: Into<JsString>>(name: N) {
+    ffi::start_group(&name.into());
+}
+
+pub fn end_group() {
+    ffi::end_group();
+}
+
 #[allow(clippy::drop_non_drop)]
 pub mod ffi {
     use js_sys::{JsString, Object};
@@ -311,5 +319,11 @@ pub mod ffi {
 
         #[wasm_bindgen(js_name = "getState")]
         pub fn get_state(name: &JsString) -> JsString;
+
+        #[wasm_bindgen(js_name = "startGroup")]
+        pub fn start_group(name: &JsString);
+
+        #[wasm_bindgen(js_name = "endGroup")]
+        pub fn end_group();
     }
 }

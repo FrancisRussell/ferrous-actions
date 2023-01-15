@@ -730,6 +730,7 @@ pub async fn restore_cargo_cache(input_manager: &input_manager::Manager) -> Resu
     let cross_platform_sharing = get_cross_platform_sharing(input_manager)?;
     let cached_types = get_types_to_cache(input_manager)?;
     for cache_type in cached_types {
+        core::start_group(cache_type.friendly_name().to_string());
         // Mark as used to avoid spurious warnings (we only use this when we save the
         // entries)
         let _ = get_min_recache_interval(input_manager, cache_type)?;
@@ -743,6 +744,7 @@ pub async fn restore_cargo_cache(input_manager: &input_manager::Manager) -> Resu
             node::fs::create_dir_all(&parent).await?;
         }
         node::fs::write_file(&cached_info_path, &serialized_cache).await?;
+        core::end_group();
     }
     Ok(())
 }
@@ -758,6 +760,7 @@ pub async fn save_cargo_cache(input_manager: &input_manager::Manager) -> Result<
     let cross_platform_sharing = get_cross_platform_sharing(input_manager)?;
     let cached_types = get_types_to_cache(input_manager)?;
     for cache_type in cached_types {
+        core::start_group(cache_type.friendly_name().to_string());
         // Delete items that should never make it into the cache
         for delete_path in find_additional_delete_paths(cache_type).await? {
             if delete_path.exists().await {
@@ -797,6 +800,7 @@ pub async fn save_cargo_cache(input_manager: &input_manager::Manager) -> Result<
         cache
             .save_changes(&cache_old, &scope_hash, &min_recache_interval, cross_platform_sharing)
             .await?;
+        core::end_group();
     }
     Ok(())
 }
