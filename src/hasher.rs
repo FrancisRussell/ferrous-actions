@@ -1,4 +1,4 @@
-use rust_toolchain_manifest::HashValue;
+use rustup_toolchain_manifest::HashValue;
 
 #[derive(Debug, Default)]
 pub struct Blake3 {

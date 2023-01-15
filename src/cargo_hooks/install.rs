@@ -8,7 +8,7 @@ use crate::hasher::Blake3 as Blake3Hasher;
 use crate::node::path::Path;
 use crate::{actions, error, info, node, warning, Error};
 use async_trait::async_trait;
-use rust_toolchain_manifest::HashValue;
+use rustup_toolchain_manifest::HashValue;
 use std::borrow::Cow;
 
 const MAX_ARG_STRING_LENGTH: usize = 80;
