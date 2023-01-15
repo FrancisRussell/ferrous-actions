@@ -185,6 +185,7 @@ mod tests {
                         }
                     }
                 }
+                assert_eq!(lines.len(), input.len(), "Wrong number of lines from splitter");
                 let reconstructed = lines.join(delimiter);
                 assert_eq!(string, reconstructed);
             }
