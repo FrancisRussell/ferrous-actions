@@ -1,6 +1,9 @@
+use super::push_line_splitter::PushLineSplitter;
 use crate::node::path::Path;
 use crate::{node, noop_stream};
 use js_sys::{JsString, Object};
+use parking_lot::Mutex;
+use std::sync::Arc;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::JsValue;
 
@@ -27,11 +30,63 @@ impl Stdio {
     }
 }
 
+/// Work around for <https://github.com/FrancisRussell/ferrous-actions-dev/issues/81>
+struct StreamToLines {
+    splitter: Arc<Mutex<PushLineSplitter>>,
+    #[allow(clippy::type_complexity)]
+    callback: Arc<Box<dyn Fn(&str)>>,
+    closure: Closure<dyn Fn(JsValue)>,
+}
+
+impl StreamToLines {
+    #[allow(clippy::type_complexity)]
+    pub fn new(callback: Arc<Box<dyn Fn(&str)>>) -> StreamToLines {
+        let splitter: Arc<Mutex<PushLineSplitter>> = Arc::default();
+        let closure = {
+            let splitter = splitter.clone();
+            let callback = callback.clone();
+            Closure::new(move |data: JsValue| {
+                let data: js_sys::Uint8Array = data.into();
+                let mut splitter = splitter.lock();
+                let mut write_buffer = splitter.write_via_buffer(data.length() as usize);
+                data.copy_to(write_buffer.as_mut());
+                drop(write_buffer);
+                while let Some(line) = splitter.next_line() {
+                    callback(&line);
+                }
+            })
+        };
+        StreamToLines {
+            splitter,
+            callback,
+            closure,
+        }
+    }
+}
+
+impl Drop for StreamToLines {
+    fn drop(&mut self) {
+        let mut splitter = self.splitter.lock();
+        splitter.close();
+        while let Some(line) = splitter.next_line() {
+            (self.callback)(&line);
+        }
+    }
+}
+
+impl AsRef<JsValue> for StreamToLines {
+    fn as_ref(&self) -> &JsValue {
+        self.closure.as_ref()
+    }
+}
+
 pub struct Command {
     command: Path,
     args: Vec<JsString>,
-    outline: Option<Closure<dyn Fn(JsString)>>,
-    errline: Option<Closure<dyn Fn(JsString)>>,
+    #[allow(clippy::type_complexity)]
+    outline: Option<Arc<Box<dyn Fn(&str)>>>,
+    #[allow(clippy::type_complexity)]
+    errline: Option<Arc<Box<dyn Fn(&str)>>>,
     stdout: Stdio,
     stderr: Stdio,
     cwd: Path,
@@ -59,12 +114,16 @@ impl Command {
         let args: Vec<JsString> = self.args.iter().map(JsString::to_string).collect();
         let options = js_sys::Map::new();
         let listeners = js_sys::Map::new();
-        if let Some(callback) = &self.outline {
-            listeners.set(&"stdline".into(), callback.as_ref());
+
+        let outline_adapter = self.outline.clone().map(StreamToLines::new);
+        if let Some(callback) = &outline_adapter {
+            listeners.set(&"stdout".into(), callback.as_ref());
         }
-        if let Some(callback) = &self.errline {
-            listeners.set(&"errline".into(), callback.as_ref());
+        let errline_adapter = self.errline.clone().map(StreamToLines::new);
+        if let Some(callback) = &errline_adapter {
+            listeners.set(&"stderr".into(), callback.as_ref());
         }
+
         options.set(&"cwd".into(), &self.cwd.to_js_string());
         let sink = noop_stream::Sink::default();
         if let StdioEnum::Null = self.stdout.inner {
@@ -73,29 +132,29 @@ impl Command {
         if let StdioEnum::Null = self.stderr.inner {
             options.set(&"errStream".into(), sink.as_ref());
         }
+
         let listeners = Object::from_entries(&listeners).expect("Failed to convert listeners map to object");
         options.set(&"listeners".into(), &listeners);
         let options = Object::from_entries(&options).expect("Failed to convert options map to object");
-        ffi::exec(&command, Some(args), &options).await.map(|r| {
+        let result = ffi::exec(&command, Some(args), &options).await.map(|r| {
             #[allow(clippy::cast_possible_truncation)]
             let code = r.as_f64().expect("exec didn't return a number") as i32;
             code
-        })
+        });
+
+        // Be explict about line-buffer flushing
+        drop(outline_adapter);
+        drop(errline_adapter);
+        result
     }
 
     pub fn outline<F: Fn(&str) + 'static>(&mut self, callback: F) -> &mut Command {
-        self.outline = Some(Closure::new(move |line: JsString| {
-            let line: String = line.into();
-            callback(line.as_str());
-        }));
+        self.outline = Some(Arc::new(Box::new(callback)));
         self
     }
 
     pub fn errline<F: Fn(&str) + 'static>(&mut self, callback: F) -> &mut Command {
-        self.errline = Some(Closure::new(move |line: JsString| {
-            let line: String = line.into();
-            callback(line.as_str());
-        }));
+        self.errline = Some(Arc::new(Box::new(callback)));
         self
     }
 
