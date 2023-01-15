@@ -50,7 +50,7 @@ pub enum Error {
     PathDoesNotExist(String),
 
     #[error("Error during path match construction: {0}")]
-    PathMatchPatternError(#[from] simple_path_match::PatternError),
+    PathMatchPatternError(simple_path_match::Error),
 
     #[error("Required input was not supplied: {0}")]
     MissingInput(String),
@@ -65,5 +65,11 @@ pub enum Error {
 impl From<JsValue> for Error {
     fn from(value: JsValue) -> Error {
         Error::Js(value)
+    }
+}
+
+impl From<simple_path_match::Error> for Error {
+    fn from(value: simple_path_match::Error) -> Error {
+        Error::PathMatchPatternError(value)
     }
 }
