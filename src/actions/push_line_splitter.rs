@@ -41,10 +41,6 @@ impl Drop for WriteBuffer<'_> {
 }
 
 impl PushLineSplitter {
-    pub fn len(&self) -> usize {
-        self.buffer.len()
-    }
-
     fn pre_write(&mut self) {
         assert!(!self.closed, "Data written after close");
         self.drain_taken();
