@@ -39,7 +39,7 @@ File modification timestamps are used to detect if no changes to the cached item
 have occurred and avoid needlessly uploading them back to the cache.
 
 Example invocation:
-```
+```yml
 - uses: FrancisRussell/ferrous-actions@v0.1.0-beta.1
   name: Cargo cache
   with:
@@ -78,7 +78,7 @@ none is specified for crate files or Git repositories.
 Ferrous actions can download Rustup and install a specified Rust toolchain.
 
 Example invocation:
-```
+```yml
 - uses: FrancisRussell/ferrous-actions@v0.1.0-beta.1
   name: Install Rustup
   with:
@@ -107,7 +107,7 @@ Cargo commands can be invoked via Ferrous actions. The value for `command` in
 this case is `cargo SUBCOMMAND` where `SUBCOMMAND` is a single token.
 
 Example invocation:
-```
+```yml
 - uses: FrancisRussell/ferrous-actions@v0.1.0-beta.1
   name: Cargo build
   with:
@@ -148,7 +148,7 @@ From the user-perspective this means:
   happens.
 
 Example invocation:
-```
+```yml
 - uses: FrancisRussell/ferrous-actions@v0.1.0-beta.1
   name: Install grcov
   with:
@@ -175,7 +175,7 @@ annotations are output which can be viewed via the GitHub UI.
 ![Unused function annotation](doc/images/annotation.webp)
 
 Example invocation:
-```
+```yml
 - uses: FrancisRussell/ferrous-actions@v0.1.0-beta.1
   name: Cargo clippy
   with:
@@ -194,7 +194,7 @@ Invocation of `cargo build` via Ferrous actions can also be done in such a way
 that the [cross](https://github.com/cross-rs/cross) tool is used.
 
 Example invocation:
-```
+```yml
 - uses: FrancisRussell/ferrous-actions@v0.1.0-beta.1
   name: Cargo build
   with:
