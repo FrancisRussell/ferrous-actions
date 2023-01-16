@@ -73,6 +73,7 @@ impl Entry {
     }
 
     pub async fn restore(&self) -> Result<Option<String>, JsValue> {
+        crate::info!("Restoring the following paths: {:#?}", self.paths);
         let result = ffi::restore_cache(
             self.paths.clone(),
             &self.key,
