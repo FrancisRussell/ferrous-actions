@@ -90,6 +90,16 @@ impl Path {
         result.push(path.into());
         result
     }
+
+    pub fn relative_to<P: Into<Path>>(&self, path: P) -> Path {
+        let path = path.into();
+        let relative = ffi::relative(&path.inner, &self.inner);
+        if relative.length() == 0 {
+            ".".into()
+        } else {
+            relative.into()
+        }
+    }
 }
 
 impl std::fmt::Debug for Path {
