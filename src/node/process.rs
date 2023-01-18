@@ -1,5 +1,6 @@
-use super::path;
+use super::path::{self, Path};
 use std::collections::HashMap;
+use wasm_bindgen::JsValue;
 
 pub fn cwd() -> path::Path {
     path::Path::from(ffi::cwd())
@@ -22,6 +23,12 @@ pub fn get_env() -> HashMap<String, String> {
     env
 }
 
+pub fn chdir<P: Into<Path>>(path: P) -> Result<(), JsValue> {
+    let path = path.into();
+    ffi::chdir(&path.to_js_string())?;
+    Ok(())
+}
+
 pub mod ffi {
     use js_sys::{JsString, Object};
     use wasm_bindgen::prelude::*;
@@ -32,6 +39,9 @@ pub mod ffi {
         pub static ENV: Object;
 
         pub fn cwd() -> JsString;
+
+        #[wasm_bindgen(catch)]
+        pub fn chdir(path: &JsString) -> Result<JsValue, JsValue>;
     }
 }
 
