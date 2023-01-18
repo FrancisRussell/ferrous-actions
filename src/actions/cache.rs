@@ -174,10 +174,7 @@ impl Entry {
     }
 
     pub async fn restore(&self) -> Result<Option<String>, JsValue> {
-        crate::info!("Restoring the following paths: {:#?}", self.paths);
-        crate::info!("The environment: {:#?}", crate::node::process::get_env());
         let patterns = self.build_patterns();
-        crate::info!("Restoring the following patterns: {:#?}", patterns);
         let result = {
             let _caching_scope = self.build_action_scope()?;
             ffi::restore_cache(
