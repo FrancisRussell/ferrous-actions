@@ -7,6 +7,43 @@ use wasm_bindgen::prelude::*;
 
 const WORKSPACE_ENV_VAR: &str = "GITHUB_WORKSPACE";
 
+// Actually getting caching to work cross platform is complicated. First of all,
+// the action takes patterns not paths (which is unhelpful for apps that don't
+// want to use globs), It also means that on Windows you're going to need to
+// convert any paths to use forward slash as a separator.
+//
+// The cache action keys actions on patterns, but the key is simply the hash of
+// the patterns passed in, without modification. This means that for cross
+// platform caching, the patterns need to be for relative paths, not absolute
+// ones. This in turn means that if your action needs to produce a consistent
+// cache key for a path that's not at a consistent location relative to the CWD
+// at the time of action invocation, you're going to need to change CWD.
+//
+// As a final complication, when files are archived, they are done so using
+// paths which are specified relative to the GitHub workspace. So, even if you
+// sit in a directory you want to restore things in, and generate the right
+// relative paths to match a cache key, you might end up restoring to the wrong
+// location (e.g. because $CARGO_HOME moved relative to the GitHub workspace).
+//
+// The issue with any sort of reusable file caching across OSes is that there
+// needs to be some concept of a reference path or paths which are well defined
+// on each platform and under which it is valid to cache and restore certain
+// paths. GitHub actions chooses this to be $GITHUB_WORKSPACE. Unfortunately
+// this is problematic for two reasons:
+// - We have no guarantee that the path we want to cache (e.g. something in the
+//   home directory) will remain at consistent path relative to
+//   $GITHUB_WORKSPACE (or that is is on other OSes).
+// - Patterns cannot contain `.` or `..`, meaning we cannot use the GitHub
+//   workspace as our root location when we want to cache paths located in the
+//   home directory.
+//
+// To work around this, we have the cache user specify a root path. `Entry` both
+// changes CWD to that path and rewrites the supplied paths to be relative to
+// the root path. In addition, it sets $GITHUB_WORKSPACE to this path too, which
+// causes all files in the generated tarball to be specified relative to that
+// location. This is a hack, but in general it means that we can reliably cache
+// and restore paths to locations that may change across time.
+
 #[derive(Debug)]
 pub struct ScopedWorkspace {
     original_cwd: Path,

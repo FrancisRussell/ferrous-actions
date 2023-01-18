@@ -24,7 +24,7 @@ pub fn get_env() -> HashMap<String, String> {
 }
 
 pub fn set_var(name: &str, value: &str) {
-    use js_sys::{JsString, Object, Map};
+    use js_sys::{JsString, Map, Object};
 
     let name: JsString = name.into();
     let value: JsString = value.into();
