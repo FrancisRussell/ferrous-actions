@@ -1,13 +1,14 @@
+use super::scoped_cwd::ScopedCwd;
+use crate::node;
 use crate::node::path::Path;
 use js_sys::JsString;
-use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::convert::Into;
 use wasm_bindgen::prelude::*;
 
 pub struct Entry {
     key: JsString,
-    paths: Vec<JsString>,
+    paths: Vec<Path>,
     restore_keys: Vec<JsString>,
     cross_os_archive: bool,
 }
@@ -22,13 +23,13 @@ impl Entry {
         }
     }
 
-    pub fn paths<I: IntoIterator<Item = P>, P: Borrow<Path>>(&mut self, paths: I) -> &mut Entry {
-        self.paths.extend(paths.into_iter().map(|p| p.borrow().into()));
+    pub fn paths<I: IntoIterator<Item = P>, P: Into<Path>>(&mut self, paths: I) -> &mut Entry {
+        self.paths.extend(paths.into_iter().map(|p| p.into()));
         self
     }
 
-    pub fn path<P: Borrow<Path>>(&mut self, path: P) -> &mut Entry {
-        self.paths(std::iter::once(path.borrow()))
+    pub fn path<P: Into<Path>>(&mut self, path: P) -> &mut Entry {
+        self.paths(std::iter::once(path.into()))
     }
 
     pub fn permit_sharing_with_windows(&mut self, allow: bool) -> &mut Entry {
@@ -51,7 +52,12 @@ impl Entry {
 
     pub async fn save(&self) -> Result<i64, JsValue> {
         use wasm_bindgen::JsCast;
-        let result = ffi::save_cache(self.paths.clone(), &self.key, None, self.cross_os_archive).await?;
+        let workspace = Self::find_github_workspace()?;
+        let patterns = self.build_patterns(&workspace);
+        let result = {
+            let _workspace_scope = ScopedCwd::new(&workspace)?;
+            ffi::save_cache(patterns, &self.key, None, self.cross_os_archive).await?
+        };
         let result = result
             .dyn_ref::<js_sys::Number>()
             .ok_or_else(|| JsError::new("saveCache didn't return a number"))
@@ -72,17 +78,42 @@ impl Entry {
         }
     }
 
+    fn build_patterns(&self, relative_to: &Path) -> Vec<JsString> {
+        let cwd = node::process::cwd();
+        let mut result = Vec::with_capacity(self.paths.len());
+        for path in self.paths.iter() {
+            let absolute = cwd.join(path);
+            let relative = absolute.relative_to(relative_to);
+            result.push(relative.into());
+        }
+        result
+    }
+
+    fn find_github_workspace() -> Result<Path, JsValue> {
+        let env = node::process::get_env();
+        let workspace = env
+            .get("GITHUB_WORKSPACE")
+            .ok_or_else(|| js_sys::Error::new("Unable to find GitHub workspace"))?;
+        Ok(workspace.into())
+    }
+
     pub async fn restore(&self) -> Result<Option<String>, JsValue> {
         crate::info!("Restoring the following paths: {:#?}", self.paths);
         crate::info!("The environment: {:#?}", crate::node::process::get_env());
-        let result = ffi::restore_cache(
-            self.paths.clone(),
-            &self.key,
-            self.restore_keys.clone(),
-            None,
-            self.cross_os_archive,
-        )
-        .await?;
+        let workspace = Self::find_github_workspace()?;
+        let patterns = self.build_patterns(&workspace);
+        crate::info!("Restoring the following patterns: {:#?}", patterns);
+        let result = {
+            let _workspace_scope = ScopedCwd::new(&workspace)?;
+            ffi::restore_cache(
+                patterns,
+                &self.key,
+                self.restore_keys.clone(),
+                None,
+                self.cross_os_archive,
+            )
+            .await?
+        };
         if result == JsValue::NULL || result == JsValue::UNDEFINED {
             Ok(None)
         } else {
@@ -99,14 +130,18 @@ impl Entry {
             .chain(self.restore_keys.iter())
             .cloned()
             .collect();
-        let paths = self.paths.clone();
         let options = {
             let options = js_sys::Map::new();
             options.set(&"compressionMethod".into(), &compression_method.into());
             options.set(&"enableCrossOsArchive".into(), &self.cross_os_archive.into());
             Object::from_entries(&options).expect("Failed to convert options map to object")
         };
-        let result = ffi::get_cache_entry(keys, paths, Some(options)).await?;
+        let workspace = Self::find_github_workspace()?;
+        let patterns = self.build_patterns(&workspace);
+        let result = {
+            let _workspace_scope = ScopedCwd::new(&workspace)?;
+            ffi::get_cache_entry(keys, patterns, Some(options)).await?
+        };
         if result == JsValue::NULL || result == JsValue::UNDEFINED {
             Ok(None)
         } else {
