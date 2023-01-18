@@ -52,10 +52,10 @@ impl Entry {
 
     pub async fn save(&self) -> Result<i64, JsValue> {
         use wasm_bindgen::JsCast;
-        let workspace = Self::find_github_workspace()?;
-        let patterns = self.build_patterns(&workspace);
+        let cache_root = self.caching_path_root()?;
+        let patterns = self.build_patterns(&cache_root);
         let result = {
-            let _workspace_scope = ScopedCwd::new(&workspace)?;
+            let _caching_scope = ScopedCwd::new(&cache_root)?;
             ffi::save_cache(patterns, &self.key, None, self.cross_os_archive).await?
         };
         let result = result
@@ -89,6 +89,10 @@ impl Entry {
         result
     }
 
+    fn caching_path_root(&self) -> Result<Path, JsValue> {
+        Ok(node::os::homedir())
+    }
+
     fn find_github_workspace() -> Result<Path, JsValue> {
         let env = node::process::get_env();
         let workspace = env
@@ -97,14 +101,21 @@ impl Entry {
         Ok(workspace.into())
     }
 
+    fn caching_root_key(&self) -> Result<String, JsValue> {
+        let root = self.caching_path_root()?;
+        let workspace = Self::find_github_workspace()?;
+        let relative = root.relative_to(workspace);
+        Ok(relative.to_string())
+    }
+
     pub async fn restore(&self) -> Result<Option<String>, JsValue> {
         crate::info!("Restoring the following paths: {:#?}", self.paths);
         crate::info!("The environment: {:#?}", crate::node::process::get_env());
-        let workspace = Self::find_github_workspace()?;
-        let patterns = self.build_patterns(&workspace);
+        let cache_root = self.caching_path_root()?;
+        let patterns = self.build_patterns(&cache_root);
         crate::info!("Restoring the following patterns: {:#?}", patterns);
         let result = {
-            let _workspace_scope = ScopedCwd::new(&workspace)?;
+            let _caching_scope = ScopedCwd::new(&cache_root)?;
             ffi::restore_cache(
                 patterns,
                 &self.key,
@@ -136,10 +147,10 @@ impl Entry {
             options.set(&"enableCrossOsArchive".into(), &self.cross_os_archive.into());
             Object::from_entries(&options).expect("Failed to convert options map to object")
         };
-        let workspace = Self::find_github_workspace()?;
-        let patterns = self.build_patterns(&workspace);
+        let cache_root = self.caching_path_root()?;
+        let patterns = self.build_patterns(&cache_root);
         let result = {
-            let _workspace_scope = ScopedCwd::new(&workspace)?;
+            let _caching_scope = ScopedCwd::new(&cache_root)?;
             ffi::get_cache_entry(keys, patterns, Some(options)).await?
         };
         if result == JsValue::NULL || result == JsValue::UNDEFINED {
