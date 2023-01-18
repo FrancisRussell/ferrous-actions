@@ -1,4 +1,3 @@
-use super::scoped_cwd::ScopedCwd;
 use crate::node;
 use crate::node::path::Path;
 use js_sys::JsString;
@@ -6,11 +5,45 @@ use std::collections::HashMap;
 use std::convert::Into;
 use wasm_bindgen::prelude::*;
 
+const WORKSPACE_ENV_VAR: &str = "GITHUB_WORKSPACE";
+
+#[derive(Debug)]
+pub struct ScopedWorkspace {
+    original_cwd: Path,
+    original_workspace: Option<String>,
+}
+
+impl ScopedWorkspace {
+    pub fn new(new_cwd: &Path) -> Result<ScopedWorkspace, JsValue> {
+        let original_cwd = node::process::cwd();
+        let original_workspace = node::process::get_env().get(WORKSPACE_ENV_VAR).cloned();
+        node::process::chdir(new_cwd)?;
+        node::process::set_var(WORKSPACE_ENV_VAR, &new_cwd.to_string());
+        Ok(ScopedWorkspace {
+            original_cwd,
+            original_workspace,
+        })
+    }
+}
+
+impl Drop for ScopedWorkspace {
+    fn drop(&mut self) {
+        if let Some(original_workspace) = self.original_workspace.as_deref() {
+            node::process::set_var(WORKSPACE_ENV_VAR, original_workspace);
+        } else {
+            node::process::remove_var(WORKSPACE_ENV_VAR);
+        }
+        node::process::chdir(&self.original_cwd)
+            .unwrap_or_else(|e| panic!("Unable to chdir back to original folder: {:?}", e));
+    }
+}
+
 pub struct Entry {
     key: JsString,
     paths: Vec<Path>,
     restore_keys: Vec<JsString>,
     cross_os_archive: bool,
+    relative_to: Option<Path>,
 }
 
 impl Entry {
@@ -20,6 +53,7 @@ impl Entry {
             paths: Vec::new(),
             restore_keys: Vec::new(),
             cross_os_archive: false,
+            relative_to: None,
         }
     }
 
@@ -30,6 +64,11 @@ impl Entry {
 
     pub fn path<P: Into<Path>>(&mut self, path: P) -> &mut Entry {
         self.paths(std::iter::once(path.into()))
+    }
+
+    pub fn root<P: Into<Path>>(&mut self, path: P) -> &mut Entry {
+        self.relative_to = Some(path.into());
+        self
     }
 
     pub fn permit_sharing_with_windows(&mut self, allow: bool) -> &mut Entry {
@@ -52,10 +91,9 @@ impl Entry {
 
     pub async fn save(&self) -> Result<i64, JsValue> {
         use wasm_bindgen::JsCast;
-        let cache_root = self.caching_path_root()?;
-        let patterns = self.build_patterns(&cache_root);
+        let patterns = self.build_patterns();
         let result = {
-            let _caching_scope = ScopedCwd::new(&cache_root)?;
+            let _caching_scope = self.build_action_scope()?;
             ffi::save_cache(patterns, &self.key, None, self.cross_os_archive).await?
         };
         let result = result
@@ -78,44 +116,33 @@ impl Entry {
         }
     }
 
-    fn build_patterns(&self, relative_to: &Path) -> Vec<JsString> {
+    fn build_patterns(&self) -> Vec<JsString> {
         let cwd = node::process::cwd();
         let mut result = Vec::with_capacity(self.paths.len());
         for path in self.paths.iter() {
-            let absolute = cwd.join(path);
-            let relative = absolute.relative_to(relative_to);
-            result.push(relative.into());
+            let pattern = if let Some(relative_to) = &self.relative_to {
+                let absolute = cwd.join(path);
+                let relative = absolute.relative_to(relative_to);
+                relative
+            } else {
+                path.clone()
+            };
+            result.push(pattern.into());
         }
         result
     }
 
-    fn caching_path_root(&self) -> Result<Path, JsValue> {
-        Ok(node::os::homedir())
-    }
-
-    fn find_github_workspace() -> Result<Path, JsValue> {
-        let env = node::process::get_env();
-        let workspace = env
-            .get("GITHUB_WORKSPACE")
-            .ok_or_else(|| js_sys::Error::new("Unable to find GitHub workspace"))?;
-        Ok(workspace.into())
-    }
-
-    fn caching_root_key(&self) -> Result<String, JsValue> {
-        let root = self.caching_path_root()?;
-        let workspace = Self::find_github_workspace()?;
-        let relative = root.relative_to(workspace);
-        Ok(relative.to_string())
+    fn build_action_scope(&self) -> Result<Option<ScopedWorkspace>, JsValue> {
+        self.relative_to.as_ref().map(ScopedWorkspace::new).transpose()
     }
 
     pub async fn restore(&self) -> Result<Option<String>, JsValue> {
         crate::info!("Restoring the following paths: {:#?}", self.paths);
         crate::info!("The environment: {:#?}", crate::node::process::get_env());
-        let cache_root = self.caching_path_root()?;
-        let patterns = self.build_patterns(&cache_root);
+        let patterns = self.build_patterns();
         crate::info!("Restoring the following patterns: {:#?}", patterns);
         let result = {
-            let _caching_scope = ScopedCwd::new(&cache_root)?;
+            let _caching_scope = self.build_action_scope()?;
             ffi::restore_cache(
                 patterns,
                 &self.key,
@@ -147,10 +174,9 @@ impl Entry {
             options.set(&"enableCrossOsArchive".into(), &self.cross_os_archive.into());
             Object::from_entries(&options).expect("Failed to convert options map to object")
         };
-        let cache_root = self.caching_path_root()?;
-        let patterns = self.build_patterns(&cache_root);
+        let patterns = self.build_patterns();
         let result = {
-            let _caching_scope = ScopedCwd::new(&cache_root)?;
+            let _caching_scope = self.build_action_scope()?;
             ffi::get_cache_entry(keys, patterns, Some(options)).await?
         };
         if result == JsValue::NULL || result == JsValue::UNDEFINED {
