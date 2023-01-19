@@ -1,7 +1,8 @@
 # Ferrous Actions
 [![CI](https://github.com/FrancisRussell/ferrous-actions-dev/workflows/CI/badge.svg)](https://github.com/FrancisRussell/ferrous-actions-dev/actions?query=workflow%3ACI)
 
-GitHub action for Rust, written in Rust and compiled to WebAssembly.
+GitHub action for easing Rust development, written in Rust and compiled to
+WebAssembly.
 
 ## About
 
@@ -10,6 +11,12 @@ Rust-related GitHub actions appears to be all but abandoned. This repository is
 an experiment in replacing those actions with ones written in Rust, but
 compiled down to WebAssembly. This should make them both portable across
 platforms and more easily maintainable by developers who only know Rust.
+
+Please note the the development repository for this action is located
+[here](https://github.com/FrancisRussell/ferrous-actions-dev/) whereas the
+release repository is located
+[here](https://github.com/FrancisRussell/ferrous-actions/). Issues should be
+filed against the former.
 
 ## Features at a glance
 
