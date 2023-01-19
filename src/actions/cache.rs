@@ -184,6 +184,7 @@ impl Entry {
 
     fn path_to_glob(path: &Path) -> String {
         let path = path.to_string();
+        // This should be valid even for absolute paths on Windows
         let path = path.replace(node::path::separator().as_ref(), "/");
         // We do not escape ']' as it would close the character set
         let mut result = String::with_capacity(path.len());
