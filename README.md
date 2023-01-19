@@ -11,6 +11,32 @@ an experiment in replacing those actions with ones written in Rust, but
 compiled down to WebAssembly. This should make them both portable across
 platforms and more easily maintainable by developers who only know Rust.
 
+## Features at a glance
+
+* Installs Rust toolchains via [Rustup](https://rustup.rs/).
+* Intelligent caching of Cargo home (crates, registry indices and Git
+  repositories):
+  * Separate caching of registry indices, Git repositories and crate files.
+  * Only uploads new versions of cache entries when they have changed.
+  * Parameterizable minimum update interval (for fast changing items like
+    registry indices).
+  * Capable of detecting and dropping unused crate files, Git repositories and
+    registry indices on Unix-like platforms (on Windows this is not possible so
+    cache entries are keyed with the hash of all present `Cargo.lock` files).
+  * Detects races between concurrent CI jobs (since a workflow may contains
+    multiple jobs) to update the same cache entry and avoids uploading multiple
+    versions.
+  * Separates caching of content from dependency tracking of each CI job to
+    permit sharing and avoid CI jobs with differing dependencies fighting over
+    what needs to be cached.
+  * Caches can be shared across platforms (Linux, Darwin and Windows).
+* Caching of build artifacts from `cargo install` operations to accelerate
+  installation.
+* Supports the usage of [cross](https://github.com/cross-rs/cross) for
+  cross-compilation.
+* Generates GitHub annotations from output of `cargo clippy`, `cargo build` and
+  `cargo check` operations.
+
 ## Usage
 
 Like all GitHub actions, this action is used via directives in a [GitHub
