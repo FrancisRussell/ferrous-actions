@@ -76,14 +76,10 @@ impl Group {
     }
 
     pub fn last_modified(&self) -> Option<DateTime<Utc>> {
-        let mut result = None;
-        for fingerprint in self.entries.values() {
-            result = match (result, fingerprint.modified()) {
-                (None, modified) | (modified, None) => modified,
-                (Some(a), Some(b)) => Some(std::cmp::max(a, b)),
-            };
-        }
-        result
+        self.entries
+            .values()
+            .filter_map(|fingerprint| fingerprint.modified())
+            .max()
     }
 }
 
