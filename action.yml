@@ -1,5 +1,6 @@
 name: 'Ferrous Actions'
-description: 'GitHub Rust actions written in Rust'
+author: 'Francis Russell'
+description: 'GitHub Rust toolchain actions written in Rust'
 inputs:
   command:
     description: 'The command to run'
@@ -53,3 +54,6 @@ runs:
   main: 'dist/main.js'
   post: 'dist/post.js'
   post-if: 'success()'
+branding:
+  icon: 'git-pull-request'
+  color: 'green'
