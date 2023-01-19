@@ -23,7 +23,7 @@ use std::str::FromStr;
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator, IntoStaticStr};
 
 const ATIMES_SUPPORTED_KEY: &str = "ACCESS_TIMES_SUPPORTED";
-const DEFAULT_CROSS_OS_SHARING: CrossPlatformSharing = CrossPlatformSharing::None;
+const DEFAULT_CROSS_OS_SHARING: CrossPlatformSharing = CrossPlatformSharing::All;
 const SCOPE_HASH_KEY: &str = "SCOPE_HASH";
 
 lazy_static! {
@@ -424,6 +424,7 @@ impl Cache {
         builder.set_key_attribute(Attribute::Platform, sharing_platform.to_string());
 
         let mut entry = builder.into_entry();
+        entry.root(find_cargo_home());
         let root_path = find_path(cache_type);
         let path = root_path.join(&group_id.path);
         entry.path(path);
@@ -689,6 +690,7 @@ fn build_cache_entry_dependencies(cache_type: CacheType, scope: &HashValue, job:
         key_builder.set_key_attribute(Attribute::Matrix, properties);
     }
     let mut cache_entry = key_builder.into_entry();
+    cache_entry.root(node::os::homedir());
     let path = dependency_file_path(cache_type, scope, job)?;
     cache_entry.path(path);
     Ok(cache_entry)
