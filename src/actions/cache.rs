@@ -6,6 +6,7 @@ use std::convert::Into;
 use wasm_bindgen::prelude::*;
 
 const WORKSPACE_ENV_VAR: &str = "GITHUB_WORKSPACE";
+const WORKSPACE_OVERRIDDEN_TAG: &str = "#WORKSPACE_OVERRIDEN";
 
 // Actually getting caching to work cross platform is complicated. First of all,
 // the action takes patterns not paths (which is unhelpful for apps that don't
@@ -44,6 +45,11 @@ const WORKSPACE_ENV_VAR: &str = "GITHUB_WORKSPACE";
 // location. This is a hack, but in general it means that we can reliably cache
 // and restore paths to locations that may change across time.
 
+/// Changes the current working directory and GITHUB_WORKSPACE to a specified
+/// path and changes it back when it is dropped. This enables us to:
+/// - supply consistent relative paths (patterns rather) to the actions API
+/// - avoid issues related to archive paths being encoded relative to
+///   `$GITHUB_WORKSPACE`.
 #[derive(Debug)]
 pub struct ScopedWorkspace {
     original_cwd: Path,
@@ -166,6 +172,12 @@ impl Entry {
             };
             let pattern = Self::path_to_glob(&path);
             result.push(pattern.into());
+        }
+        if self.relative_to.is_some() {
+            // If we are going to specify paths relative to some path that we also
+            // override GITHUB_WORKSPACE to, we add a comment so it will get
+            // incorporated into the path hash.
+            result.push(WORKSPACE_OVERRIDDEN_TAG.into());
         }
         result
     }
