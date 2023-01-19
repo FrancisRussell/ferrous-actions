@@ -1,7 +1,7 @@
 [package]
 name = "ferrous-actions"
 description = "GitHub actions for Rust written in Rust and compiled to WebAssembly"
-version = "0.1.0-beta.1"
+version = "0.1.0-beta.2"
 repository = "https://github.com/FrancisRussell/ferrous-actions-dev"
 license = "MIT"
 edition = "2021"
