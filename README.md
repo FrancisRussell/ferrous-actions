@@ -60,10 +60,10 @@ The following options are also available:
   repositories.
 * `min-recache-indices` (optional): minimum time before recaching registry
   indices.
-* `cross-platform-sharing` (optional, experimental): Attempt to share Cargo
+* `cross-platform-sharing` (optional): Attempt to share Cargo
   home caches across all platforms (`all`), only Unix-like platforms
   (`unix-like`), or make all caches platform-specific (`none`). The default is
-  `unix-like`.
+  `all`.
 
 All recaching intervals are specified in [human
 time](https://docs.rs/humantime/latest/humantime/). Specifying the recaching

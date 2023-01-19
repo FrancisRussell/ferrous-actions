@@ -23,7 +23,7 @@ use std::str::FromStr;
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator, IntoStaticStr};
 
 const ATIMES_SUPPORTED_KEY: &str = "ACCESS_TIMES_SUPPORTED";
-const DEFAULT_CROSS_OS_SHARING: CrossPlatformSharing = CrossPlatformSharing::UnixLike;
+const DEFAULT_CROSS_OS_SHARING: CrossPlatformSharing = CrossPlatformSharing::All;
 const SCOPE_HASH_KEY: &str = "SCOPE_HASH";
 
 lazy_static! {
