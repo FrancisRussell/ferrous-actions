@@ -95,7 +95,7 @@ impl Entry {
     }
 
     pub fn paths<I: IntoIterator<Item = P>, P: Into<Path>>(&mut self, paths: I) -> &mut Entry {
-        self.paths.extend(paths.into_iter().map(|p| p.into()));
+        self.paths.extend(paths.into_iter().map(Into::into));
         self
     }
 
@@ -156,15 +156,41 @@ impl Entry {
     fn build_patterns(&self) -> Vec<JsString> {
         let cwd = node::process::cwd();
         let mut result = Vec::with_capacity(self.paths.len());
-        for path in self.paths.iter() {
-            let pattern = if let Some(relative_to) = &self.relative_to {
+        for path in &self.paths {
+            // Rewrite path to be relative if we have a root
+            let path = if let Some(relative_to) = &self.relative_to {
                 let absolute = cwd.join(path);
-                let relative = absolute.relative_to(relative_to);
-                relative
+                absolute.relative_to(relative_to)
             } else {
                 path.clone()
             };
+            let pattern = Self::path_to_glob(&path);
             result.push(pattern.into());
+        }
+        result
+    }
+
+    fn path_to_glob(path: &Path) -> String {
+        let path = path.to_string();
+        let path = path.replace(node::path::separator().as_ref(), "/");
+        // We do not escape ']' as it would close the character set
+        let mut result = String::with_capacity(path.len());
+        let is_windows = node::os::platform() == "windows";
+        for c in path.chars() {
+            match c {
+                '*' | '?' | '#' | '~' | '!' | '[' => result.extend(['[', c, ']']),
+                '\\' => {
+                    // The glob syntax is platform specific, because of course it is. Blackslash is
+                    // escape on Unix-like platforms, even in a character set. See
+                    // `internal-pattern.ts`.
+                    if is_windows {
+                        result.push(c);
+                    } else {
+                        result.extend(['\\', c]);
+                    }
+                }
+                _ => result.push(c),
+            }
         }
         result
     }
