@@ -1,5 +1,5 @@
 # Ferrous Actions
-[![CI](https://github.com/FrancisRussell/ferrous-actions/workflows/CI/badge.svg)](https://github.com/FrancisRussell/ferrous-actions/actions?query=workflow%3ACI)
+[![CI](https://github.com/FrancisRussell/ferrous-actions-dev/workflows/CI/badge.svg)](https://github.com/FrancisRussell/ferrous-actions-dev/actions?query=workflow%3ACI)
 
 GitHub action for Rust, written in Rust and compiled to WebAssembly.
 
