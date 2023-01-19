@@ -17,9 +17,9 @@ jobs:
       - uses: actions/setup-node@v3
         with:
           node-version: 16.x
-      - run: find -L ~/.cargo
       - run: npm ci
       - run: npm run build
+      - run: npm run test
       - run: npm run generate-licenses
       - run: cargo install cargo-about
       - run: ./scripts/generate-rust-licenses
