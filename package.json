@@ -35,7 +35,7 @@
     "@actions/tool-cache": "^2.0.1"
   },
   "devDependencies": {
-    "@vercel/ncc": "^0.36.0",
+    "@vercel/ncc": "^0.36.1",
     "npm-license-text": "^1.0.3",
     "wasm-pack": "^0.10.1"
   }
