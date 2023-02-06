@@ -30,7 +30,7 @@ lazy_static = "1.4.0"
 parking_lot = "0.12.1"
 postcard = { version = "1.0.2", default-features = false, features = ["use-std"] }
 regex = { version = "1.7.0", default-features = false, features = [ "std" ] }
-serde_json = "1.0.87"
+serde_json = "1.0.92"
 serde = { version = "1.0", features = [ "derive" ] }
 shlex = "1.1.0"
 strum = { version = "0.24.1", features = ["derive"] }
