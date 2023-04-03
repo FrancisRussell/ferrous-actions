@@ -22,7 +22,7 @@ cargo_metadata = "0.15.1"
 chrono = { version = "0.4.23", default-features = false, features = ["wasmbind", "std", "clock"] }
 console_error_panic_hook = { version = "0.1.7", optional = true }
 derivative = "2.2.0"
-futures = { version = "0.3.25", default-features = false, features = [ "std" ]}
+futures = { version = "0.3.28", default-features = false, features = [ "std" ]}
 humantime = "2.1.0"
 itertools = "0.10.5"
 js-sys = "0.3.55"
