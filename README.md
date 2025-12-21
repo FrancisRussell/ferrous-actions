@@ -131,8 +131,6 @@ The following options are also available:
 * `default` (optional): Whether this toolchain should be set as the Rustup
   default compiler. This defaults to `true`. _This is different to actions-rs's
   behaviour_.
-* `override` (optional): Whether a Rustup ‘override’ should be set for the
-  current directory. Defaults to `false`.
 
 ### Cargo commands
 
