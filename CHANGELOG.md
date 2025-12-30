@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.1.0-beta.3
 
 * Use `getrandom` crate for random number generation and remove hacky
   `Math.random()` based random number generator.
@@ -10,6 +10,8 @@
 * Document `components` option for `install-rustup` in `README.md`.
 * Use new `lookupOnly` option to simplify cache peeking code.
 * Bump `@actions/cache` due to v3 deprecation.
+* Bump various NPM and Rust dependencies.
+* Add mistakenly omitted `override` option to `action.yml`.
 
 ## v0.1.0-beta.2
 
