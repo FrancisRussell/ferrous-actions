@@ -187,7 +187,7 @@ pub async fn install(toolchain_config: &ToolchainConfig) -> Result<(), Error> {
             Ok::<_, Error>(())
         })
         .buffer_unordered(MAX_CONCURRENT_PACKAGE_INSTALLS);
-    process_packages.try_collect().await?;
+    process_packages.try_collect::<()>().await?;
 
     if toolchain_config.set_default {
         let cargo_bin = get_toolchain_home(&toolchain)?.join("bin");
