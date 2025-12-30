@@ -31,7 +31,6 @@ getrandom = { version = "0.2.10", features = ["js"] }
 humantime = "2.1.0"
 itertools = "0.12.0"
 js-sys = "0.3.64"
-lazy_static = "1.4.0"
 parking_lot = "0.12.1"
 postcard = { version = "1.0.6", default-features = false, features = ["use-std"] }
 regex = { version = "1.9.1", default-features = false, features = ["std"] }

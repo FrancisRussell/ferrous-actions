@@ -432,9 +432,9 @@ pub mod ffi {
 mod test {
     use crate::node;
     use crate::node::path::Path;
-    use lazy_static::lazy_static;
     use parking_lot::Mutex;
     use std::collections::HashMap;
+    use std::sync::LazyLock;
     use wasm_bindgen::JsValue;
     use wasm_bindgen_test::wasm_bindgen_test;
 
@@ -444,9 +444,7 @@ mod test {
         Dir,
     }
 
-    lazy_static! {
-        static ref COUNTER: Mutex<usize> = Mutex::default();
-    }
+    static COUNTER: LazyLock<Mutex<usize>> = LazyLock::new(|| Mutex::default());
 
     fn get_random() -> u64 {
         use std::collections::hash_map::DefaultHasher;
