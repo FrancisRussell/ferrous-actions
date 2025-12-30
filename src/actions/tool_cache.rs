@@ -73,7 +73,7 @@ pub enum StreamCompression {
 }
 
 impl StreamCompression {
-    fn tar_flag(&self) -> Cow<str> {
+    fn tar_flag(&self) -> Cow<'_, str> {
         match self {
             StreamCompression::None => "",
             StreamCompression::Gzip => "z",

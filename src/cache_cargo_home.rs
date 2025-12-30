@@ -493,7 +493,7 @@ fn depth_to_match(depth: usize) -> Result<PathMatch, Error> {
     let pattern = if depth == 0 {
         ".".into()
     } else {
-        std::iter::repeat("*").take(depth).join("/")
+        std::iter::repeat_n("*", depth).join("/")
     };
     Ok(PathMatch::from_pattern(&pattern, &node::path::separator())?)
 }
@@ -535,12 +535,12 @@ enum CacheType {
 }
 
 impl CacheType {
-    fn short_name(&self) -> Cow<str> {
+    fn short_name(&self) -> Cow<'_, str> {
         let name: &str = self.into();
         name.into()
     }
 
-    fn friendly_name(&self) -> Cow<str> {
+    fn friendly_name(&self) -> Cow<'_, str> {
         match *self {
             CacheType::Indices => "registry indices",
             CacheType::Crates => "crate files",

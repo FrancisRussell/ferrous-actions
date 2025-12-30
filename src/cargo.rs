@@ -41,11 +41,11 @@ pub struct ToolchainVersion {
 }
 
 impl ToolchainVersion {
-    pub fn short(&self) -> Cow<str> {
+    pub fn short(&self) -> Cow<'_, str> {
         self.long.lines().next().unwrap_or_default().trim().into()
     }
 
-    pub fn long(&self) -> Cow<str> {
+    pub fn long(&self) -> Cow<'_, str> {
         self.long.as_str().into()
     }
 }
@@ -100,7 +100,7 @@ impl Cargo {
         subcommand: &str,
         args: &[String],
         input_manager: &input_manager::Manager,
-    ) -> Result<CompositeHook, Error> {
+    ) -> Result<CompositeHook<'_>, Error> {
         let mut hooks = CompositeHook::default();
         match subcommand {
             "build" | "check" | "clippy" => {

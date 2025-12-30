@@ -20,7 +20,7 @@ impl Ignores {
     }
 
     pub fn should_ignore(&self, name: &str, depth: usize) -> bool {
-        self.map.get(&depth).map_or(false, |names| names.contains(name))
+        self.map.get(&depth).is_some_and(|names| names.contains(name))
     }
 }
 
@@ -84,7 +84,7 @@ struct PathMatchVisitor<'a> {
     output_relative: bool,
 }
 
-impl<'a> PathMatchVisitor<'a> {
+impl PathMatchVisitor<'_> {
     fn full_path_to_relative(&self, full_path: &Path) -> Path {
         self.path_stack
             .back()
@@ -100,7 +100,7 @@ impl<'a> PathMatchVisitor<'a> {
 }
 
 #[async_trait(?Send)]
-impl<'a> Visitor for PathMatchVisitor<'a> {
+impl Visitor for PathMatchVisitor<'_> {
     async fn should_enter(&self, full: &Path) -> Result<bool, Error> {
         let result = if self.path_stack.len() >= self.matcher.max_depth() {
             false

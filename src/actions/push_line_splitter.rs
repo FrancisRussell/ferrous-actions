@@ -27,7 +27,7 @@ pub struct WriteBuffer<'a> {
     parent: &'a mut PushLineSplitter,
 }
 
-impl<'a> AsMut<[u8]> for WriteBuffer<'a> {
+impl AsMut<[u8]> for WriteBuffer<'_> {
     fn as_mut(&mut self) -> &mut [u8] {
         let buffer_len = self.parent.buffer.len();
         &mut self.parent.buffer[(buffer_len - self.length)..]
@@ -57,7 +57,7 @@ impl PushLineSplitter {
         self.post_write();
     }
 
-    pub fn write_via_buffer(&mut self, len: usize) -> WriteBuffer {
+    pub fn write_via_buffer(&mut self, len: usize) -> WriteBuffer<'_> {
         self.pre_write();
         let buffer_len = self.buffer.len();
         self.buffer.resize(buffer_len + len, 0u8);
@@ -79,7 +79,7 @@ impl PushLineSplitter {
         }
     }
 
-    pub fn next_line(&mut self) -> Option<Cow<str>> {
+    pub fn next_line(&mut self) -> Option<Cow<'_, str>> {
         if let Some((line_len, delim_len)) = self.lines.pop_front() {
             let slice = &self.buffer[self.taken..(self.taken + line_len)];
             let line = String::from_utf8_lossy(slice);
