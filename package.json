@@ -28,7 +28,7 @@
   },
   "homepage": "https://github.com/FrancisRussell/github-rust-actions/",
   "dependencies": {
-    "@actions/cache": "^4.0.0",
+    "@actions/cache": "^5.0.1",
     "@actions/core": "^2.0.1",
     "@actions/exec": "^1.1.1",
     "@actions/io": "^1.1.3",
