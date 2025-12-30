@@ -56,6 +56,7 @@ impl Hook for Composite<'_> {
     }
 }
 
+#[allow(unused)]
 #[derive(Clone, Default, Debug)]
 pub struct Null {}
 
