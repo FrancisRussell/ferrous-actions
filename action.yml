@@ -20,6 +20,9 @@ inputs:
   default:
     description: 'Whether this toolchain should be set as the default'
     required: false
+  override:
+    description: 'Whether to set a Rustup override for the current directory'
+    required: false
   args:
     description: 'Additional arguments to supply to the command'
     required: false
