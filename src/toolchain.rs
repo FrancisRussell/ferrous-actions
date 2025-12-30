@@ -5,10 +5,10 @@ use crate::node::{self};
 use crate::rustup::ToolchainConfig;
 use crate::{actions, info, Error};
 use async_recursion::async_recursion;
+use platforms::Platform;
 use rustup_toolchain_manifest::manifest::Package as ManifestPackage;
 use rustup_toolchain_manifest::Toolchain;
 use std::str::FromStr;
-use target_lexicon::Triple;
 
 const MAX_CONCURRENT_PACKAGE_INSTALLS: usize = 4;
 
@@ -37,8 +37,8 @@ fn compute_package_cache_key(package: &ManifestPackage) -> CacheEntry {
     builder.into_entry()
 }
 
-fn default_target_for_platform() -> Result<Triple, Error> {
-    let target = Triple::from_str(match (node::os::arch().as_str(), node::os::platform().as_str()) {
+fn default_target_for_platform() -> Result<Platform, Error> {
+    let target = Platform::find(match (node::os::arch().as_str(), node::os::platform().as_str()) {
         ("arm64", "linux") => "aarch64-unknown-linux-gnu",
         ("ia32", "linux") => "i686-unknown-linux-gnu",
         ("ia32", "win32") => "i686-pc-windows-msvc",
@@ -48,7 +48,7 @@ fn default_target_for_platform() -> Result<Triple, Error> {
         (arch, platform) => return Err(Error::UnsupportedPlatform(format!("{}-{}", platform, arch))),
     })
     .expect("Failed to parse hardcoded platform triple");
-    Ok(target)
+    Ok(target.clone())
 }
 
 #[async_recursion(?Send)]

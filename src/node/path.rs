@@ -9,19 +9,11 @@ pub struct Path {
     inner: JsString,
 }
 
-static SEPARATOR: LazyLock<String> = LazyLock::new(|| {
-    ffi::SEPARATOR
-        .dyn_ref::<JsString>()
-        .expect("separator wasn't a string")
-        .into()
-});
+static SEPARATOR: LazyLock<String> =
+    LazyLock::new(|| ffi::SEPARATOR.with(|v| v.dyn_ref::<JsString>().expect("separator wasn't a string").into()));
 
-static DELIMITER: LazyLock<String> = LazyLock::new(|| {
-    ffi::DELIMITER
-        .dyn_ref::<JsString>()
-        .expect("delimiter wasn't a string")
-        .into()
-});
+static DELIMITER: LazyLock<String> =
+    LazyLock::new(|| ffi::DELIMITER.with(|v| v.dyn_ref::<JsString>().expect("delimiter wasn't a string").into()));
 
 impl std::fmt::Display for Path {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
@@ -175,10 +167,10 @@ pub mod ffi {
 
     #[wasm_bindgen(module = "path")]
     extern "C" {
-        #[wasm_bindgen(js_name = "delimiter")]
+        #[wasm_bindgen(thread_local_v2, js_name = "delimiter")]
         pub static DELIMITER: Object;
 
-        #[wasm_bindgen(js_name = "sep")]
+        #[wasm_bindgen(thread_local_v2, js_name = "sep")]
         pub static SEPARATOR: Object;
 
         pub fn normalize(path: &JsString) -> JsString;

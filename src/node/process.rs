@@ -12,16 +12,14 @@ pub fn get_env() -> HashMap<String, String> {
     use js_sys::JsString;
     use wasm_bindgen::JsCast as _;
 
-    let env = &ffi::ENV;
-    let env = js_sys::Object::entries(
-        env.dyn_ref::<js_sys::Object>()
-            .expect("get_env didn't return an object"),
-    )
-    .iter()
-    .map(|o| o.dyn_into::<js_sys::Array>().expect("env entry was not an array"))
-    .map(|a| (JsString::from(a.at(0)), JsString::from(a.at(1))))
-    .map(|(k, v)| (String::from(k), String::from(v)))
-    .collect();
+    let env = ffi::ENV.with(|v| {
+        js_sys::Object::entries(v.dyn_ref::<js_sys::Object>().expect("get_env didn't return an object"))
+            .iter()
+            .map(|o| o.dyn_into::<js_sys::Array>().expect("env entry was not an array"))
+            .map(|a| (JsString::from(a.at(0)), JsString::from(a.at(1))))
+            .map(|(k, v)| (String::from(k), String::from(v)))
+            .collect()
+    });
     env
 }
 
@@ -37,12 +35,12 @@ pub fn set_var(name: &str, value: &str) {
     attributes.set(&"configurable".into(), &true.into());
     attributes.set(&"value".into(), value.as_ref());
     let attributes = Object::from_entries(&attributes).expect("Failed to convert attributes map to object");
-    Object::define_property(&ffi::ENV, &name, &attributes);
+    ffi::ENV.with(|env| Object::define_property(env, &name, &attributes));
 }
 
 /// Removes an environment variable
 pub fn remove_var(name: &str) {
-    js_sys::Reflect::delete_property(&ffi::ENV, &name.into()).expect("process.env wasn't an object");
+    ffi::ENV.with(|env| js_sys::Reflect::delete_property(env, &name.into()).expect("process.env wasn't an object"));
 }
 
 /// Changes the current working directory to the specified path
@@ -59,7 +57,7 @@ pub mod ffi {
 
     #[wasm_bindgen(module = "process")]
     extern "C" {
-        #[wasm_bindgen(js_name = "env")]
+        #[wasm_bindgen(thread_local_v2, js_name = "env")]
         pub static ENV: Object;
 
         pub fn cwd() -> JsString;

@@ -5,11 +5,7 @@ use std::sync::LazyLock;
 
 static EOL: LazyLock<String> = LazyLock::new(|| {
     use wasm_bindgen::JsCast as _;
-    ffi::EOL
-        .clone()
-        .dyn_into::<JsString>()
-        .expect("eol wasn't a string")
-        .into()
+    ffi::EOL.with(|v| v.dyn_ref::<JsString>().expect("eol wasn't a string").into())
 });
 
 /// Returns the end-of-line marker for the platform
@@ -49,7 +45,7 @@ pub mod ffi {
 
     #[wasm_bindgen(module = "os")]
     extern "C" {
-        #[wasm_bindgen(js_name = "EOL")]
+        #[wasm_bindgen(thread_local_v2, js_name = "EOL")]
         pub static EOL: Object;
 
         pub fn arch() -> JsString;
