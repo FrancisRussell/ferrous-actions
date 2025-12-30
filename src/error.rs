@@ -8,10 +8,10 @@ pub enum Error {
     Js(JsValue),
 
     #[error("Unable to parse option `{0}`, which was supplied as `{1}`")]
-    OptionParseError(String, String),
+    OptionParse(String, String),
 
     #[error("Unable to parse as an argument list: `{0}`")]
-    ArgumentsParseError(String),
+    ArgumentsParse(String),
 
     #[error("Unknown command: {0}")]
     UnknownCommand(String),
@@ -23,7 +23,7 @@ pub enum Error {
     ManifestNotUtf8,
 
     #[error("Manifest error: {0}")]
-    ManifestError(#[from] rustup_toolchain_manifest::Error),
+    Manifest(#[from] rustup_toolchain_manifest::Error),
 
     #[error("Unsupported platform: {0}")]
     UnsupportedPlatform(String),
@@ -50,7 +50,7 @@ pub enum Error {
     PathDoesNotExist(String),
 
     #[error("Error during path match construction: {0}")]
-    PathMatchPatternError(simple_path_match::Error),
+    PathMatchPattern(simple_path_match::Error),
 
     #[error("Required input was not supplied: {0}")]
     MissingInput(String),
@@ -73,6 +73,6 @@ impl From<JsValue> for Error {
 
 impl From<simple_path_match::Error> for Error {
     fn from(value: simple_path_match::Error) -> Error {
-        Error::PathMatchPatternError(value)
+        Error::PathMatchPattern(value)
     }
 }

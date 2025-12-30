@@ -107,7 +107,7 @@ impl Cargo {
                 let enabled = if let Some(enabled) = input_manager.get(Input::Annotations) {
                     enabled
                         .parse::<bool>()
-                        .map_err(|_| Error::OptionParseError("annotations".into(), enabled.to_string()))?
+                        .map_err(|_| Error::OptionParse("annotations".into(), enabled.to_string()))?
                 } else {
                     true
                 };
