@@ -10,7 +10,7 @@ const WORKFLOW_INPUT: &str = "internal-use-github-workflow";
 #[derive(Clone, Debug, Hash)]
 pub struct Job {
     workflow: String,
-    job_id: String,
+    id: String,
     matrix_properties: Option<BTreeMap<String, String>>,
 }
 
@@ -25,11 +25,11 @@ impl Job {
 
     pub fn from_env() -> Result<Job, Error> {
         let workflow = Self::get_json_input(WORKFLOW_INPUT)?;
-        let job_id = Self::get_json_input(JOB_INPUT)?;
+        let id = Self::get_json_input(JOB_INPUT)?;
         let matrix_properties = Self::get_json_input(MATRIX_INPUT)?;
         let result = Job {
             workflow,
-            job_id,
+            id,
             matrix_properties,
         };
         Ok(result)
@@ -39,8 +39,8 @@ impl Job {
         &self.workflow
     }
 
-    pub fn get_job_id(&self) -> &str {
-        &self.job_id
+    pub fn get_id(&self) -> &str {
+        &self.id
     }
 
     pub fn matrix_properties_as_string(&self) -> Option<String> {
