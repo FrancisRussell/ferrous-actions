@@ -27,7 +27,7 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm run test
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v6.0.0
         with:
           name: built-action
           path: |
