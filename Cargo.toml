@@ -27,7 +27,7 @@ chrono = { version = "0.4.26", default-features = false, features = ["wasmbind",
 console_error_panic_hook = { version = "0.1.7", optional = true }
 derivative = "2.2.0"
 futures = { version = "0.3.31", default-features = false, features = ["std"]}
-getrandom = { version = "0.2.10", features = ["js"] }
+getrandom = { version = "0.3.4", features = ["wasm_js"] }
 humantime = "2.1.0"
 itertools = "0.14.0"
 js-sys = "0.3.64"
