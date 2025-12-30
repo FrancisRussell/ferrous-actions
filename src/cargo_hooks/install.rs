@@ -51,7 +51,7 @@ impl Install {
                 } else {
                     arg_string += " ";
                 }
-                arg_string += &shlex::quote(arg);
+                arg_string += &shlex::try_quote(arg)?;
             }
             arg_string
         };
