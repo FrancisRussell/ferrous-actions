@@ -21,13 +21,13 @@ fn get_toolchain_config(input_manager: &InputManager) -> Result<ToolchainConfig,
     if let Some(set_default) = input_manager.get(Input::Default) {
         let set_default = set_default
             .parse::<bool>()
-            .map_err(|_| Error::OptionParseError(Input::Default.to_string(), set_default.to_string()))?;
+            .map_err(|_| Error::OptionParse(Input::Default.to_string(), set_default.to_string()))?;
         toolchain_config.set_default = set_default;
     }
     if let Some(set_override) = input_manager.get(Input::Override) {
         let set_override = set_override
             .parse::<bool>()
-            .map_err(|_| Error::OptionParseError(Input::Override.to_string(), set_override.to_string()))?;
+            .map_err(|_| Error::OptionParse(Input::Override.to_string(), set_override.to_string()))?;
         toolchain_config.set_override = set_override;
     }
     Ok(toolchain_config)
@@ -70,7 +70,7 @@ pub async fn main() -> Result<(), Error> {
             let use_cross = if let Some(use_cross) = input_manager.get(Input::UseCross) {
                 use_cross
                     .parse::<bool>()
-                    .map_err(|_| Error::OptionParseError("use-cross".into(), use_cross.to_string()))?
+                    .map_err(|_| Error::OptionParse("use-cross".into(), use_cross.to_string()))?
             } else {
                 false
             };
@@ -81,8 +81,7 @@ pub async fn main() -> Result<(), Error> {
                 Cargo::from_environment().await?
             };
             let cargo_args = input_manager.get(Input::Args).unwrap_or_default();
-            let cargo_args =
-                shlex::split(cargo_args).ok_or_else(|| Error::ArgumentsParseError(cargo_args.to_string()))?;
+            let cargo_args = shlex::split(cargo_args).ok_or_else(|| Error::ArgumentsParse(cargo_args.to_string()))?;
             let toolchain = input_manager.get(Input::Toolchain);
             cargo
                 .run(

@@ -80,6 +80,7 @@ impl Group {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct Cache {
+    #[allow(clippy::struct_field_names)]
     cache_type: CacheType,
     root: BTreeMap<AgnosticPath, Group>,
     root_path: String,
@@ -670,7 +671,7 @@ fn build_cache_entry_dependencies(cache_type: CacheType, scope: &HashValue, job:
     let mut key_builder = CacheKeyBuilder::new(&name);
     key_builder.add_key_data(scope);
     key_builder.set_key_attribute(Attribute::Workflow, job.get_workflow().to_string());
-    key_builder.set_key_attribute(Attribute::Job, job.get_job_id().to_string());
+    key_builder.set_key_attribute(Attribute::Job, job.get_id().to_string());
     if let Some(properties) = job.matrix_properties_as_string() {
         key_builder.set_key_attribute(Attribute::Matrix, properties);
     }

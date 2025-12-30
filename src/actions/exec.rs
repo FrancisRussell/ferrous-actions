@@ -87,7 +87,7 @@ impl AsRef<JsValue> for StreamToLines {
 
 /// Builder for executing a command
 pub struct Command {
-    command: Path,
+    path: Path,
     args: Vec<JsString>,
     #[allow(clippy::type_complexity)]
     outline: Option<Arc<Box<dyn Fn(&str)>>>,
@@ -117,7 +117,7 @@ impl Command {
 
     /// Executes the command and returns the status code
     pub async fn exec(&mut self) -> Result<i32, JsValue> {
-        let command = self.command.to_string();
+        let command = self.path.to_string();
         let command = Self::escape_command(command.as_str());
         let command: JsString = command.into();
         let args: Vec<JsString> = self.args.iter().map(JsString::to_string).collect();
@@ -222,7 +222,7 @@ impl<'a> From<&'a Path> for Command {
     /// Constructs a command that will execute the file at the specified path.
     fn from(path: &'a Path) -> Command {
         Command {
-            command: path.clone(),
+            path: path.clone(),
             args: Vec::new(),
             outline: None,
             errline: None,
