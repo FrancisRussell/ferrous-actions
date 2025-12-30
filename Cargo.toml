@@ -18,7 +18,7 @@ default = ["node_bindings", "github_actions_bindings", "action"]
 
 [dependencies]
 async-recursion = "1.0.4"
-async-trait = "0.1.74"
+async-trait = "0.1.89"
 base64 = "0.21.2"
 blake3 = { version = "1.4.1", default-features = false }
 cargo_metadata = "0.18.1"
