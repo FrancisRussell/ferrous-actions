@@ -1,5 +1,5 @@
 use crate::node::path::Path;
-use chrono::{DateTime, NaiveDateTime, Utc};
+use chrono::{DateTime, Utc};
 use js_sys::{BigInt, JsString, Object, Uint8Array};
 use std::collections::VecDeque;
 use wasm_bindgen::{JsCast, JsError, JsValue};
@@ -254,8 +254,7 @@ impl Metadata {
         };
         let secs: i64 = secs.try_into().expect("Seconds out of range");
         let subsec_nanos: u32 = subsec_nanos.try_into().expect("Nanoseconds out of range");
-        let naive = NaiveDateTime::from_timestamp_opt(secs, subsec_nanos).expect("File time out of bounds");
-        DateTime::from_utc(naive, Utc)
+        DateTime::from_timestamp(secs, subsec_nanos).expect("File time out of bounds")
     }
 
     /// The last time the file was accessed
