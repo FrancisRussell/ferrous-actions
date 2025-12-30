@@ -60,6 +60,9 @@ pub enum Error {
 
     #[error("Postcard serialization/deserialization error: {0}")]
     SerdePostcard(#[from] postcard::Error),
+
+    #[error("Shell quoting error: {0}")]
+    ShellQuote(#[from] shlex::QuoteError),
 }
 
 impl From<JsValue> for Error {

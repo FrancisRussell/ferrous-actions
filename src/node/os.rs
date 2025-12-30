@@ -1,18 +1,16 @@
 use super::path;
 use js_sys::JsString;
-use lazy_static::lazy_static;
 use std::borrow::Cow;
+use std::sync::LazyLock;
 
-lazy_static! {
-    static ref EOL: String = {
-        use wasm_bindgen::JsCast as _;
-        ffi::EOL
-            .clone()
-            .dyn_into::<JsString>()
-            .expect("eol wasn't a string")
-            .into()
-    };
-}
+static EOL: LazyLock<String> = LazyLock::new(|| {
+    use wasm_bindgen::JsCast as _;
+    ffi::EOL
+        .clone()
+        .dyn_into::<JsString>()
+        .expect("eol wasn't a string")
+        .into()
+});
 
 /// Returns the end-of-line marker for the platform
 pub fn eol() -> Cow<'static, str> {

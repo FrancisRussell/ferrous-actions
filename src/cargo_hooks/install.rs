@@ -51,7 +51,7 @@ impl Install {
                 } else {
                     arg_string += " ";
                 }
-                arg_string += &shlex::quote(arg);
+                arg_string += &shlex::try_quote(arg)?;
             }
             arg_string
         };
@@ -110,7 +110,7 @@ impl Install {
         };
         key_builder.set_attribute(Attribute::ArgsTruncated, arg_string);
         let mut cache_entry = key_builder.into_entry();
-        cache_entry.path(&Path::from(&self.build_dir));
+        cache_entry.path(Path::from(&self.build_dir));
         cache_entry
     }
 
@@ -123,7 +123,7 @@ impl Install {
 
 #[async_trait(?Send)]
 impl Hook for Install {
-    fn additional_cargo_options(&self) -> Vec<Cow<str>> {
+    fn additional_cargo_options(&self) -> Vec<Cow<'_, str>> {
         vec!["--target-dir".into(), self.build_dir.as_str().into()]
     }
 

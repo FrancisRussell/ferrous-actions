@@ -78,7 +78,7 @@ impl Annotation {
 
 #[async_trait(?Send)]
 impl Hook for Annotation {
-    fn additional_cargo_options(&self) -> Vec<Cow<str>> {
+    fn additional_cargo_options(&self) -> Vec<Cow<'_, str>> {
         vec!["--message-format=json".into()]
     }
 

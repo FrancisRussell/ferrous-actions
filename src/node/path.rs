@@ -1,6 +1,6 @@
 use js_sys::JsString;
-use lazy_static::lazy_static;
 use std::borrow::Cow;
+use std::sync::LazyLock;
 use wasm_bindgen::JsCast as _;
 
 /// Represents a path for the underlying platform
@@ -9,23 +9,19 @@ pub struct Path {
     inner: JsString,
 }
 
-lazy_static! {
-    static ref SEPARATOR: String = {
-        ffi::SEPARATOR
-            .dyn_ref::<JsString>()
-            .expect("separator wasn't a string")
-            .into()
-    };
-}
+static SEPARATOR: LazyLock<String> = LazyLock::new(|| {
+    ffi::SEPARATOR
+        .dyn_ref::<JsString>()
+        .expect("separator wasn't a string")
+        .into()
+});
 
-lazy_static! {
-    static ref DELIMITER: String = {
-        ffi::DELIMITER
-            .dyn_ref::<JsString>()
-            .expect("delimiter wasn't a string")
-            .into()
-    };
-}
+static DELIMITER: LazyLock<String> = LazyLock::new(|| {
+    ffi::DELIMITER
+        .dyn_ref::<JsString>()
+        .expect("delimiter wasn't a string")
+        .into()
+});
 
 impl std::fmt::Display for Path {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {

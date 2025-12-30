@@ -12,7 +12,6 @@ use crate::node::os::homedir;
 use crate::node::path::Path;
 use crate::{actions, error, info, node, notice, safe_encoding, warning, Error};
 use chrono::{DateTime, Utc};
-use lazy_static::lazy_static;
 use rustup_toolchain_manifest::HashValue;
 use serde::{Deserialize, Serialize};
 use simple_path_match::{PathMatch, PathMatchBuilder};
@@ -20,21 +19,20 @@ use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::hash::Hash as _;
 use std::str::FromStr;
+use std::sync::LazyLock;
 use strum::{Display, EnumIter, EnumString, IntoEnumIterator, IntoStaticStr};
 
 const ATIMES_SUPPORTED_KEY: &str = "ACCESS_TIMES_SUPPORTED";
 const DEFAULT_CROSS_OS_SHARING: CrossPlatformSharing = CrossPlatformSharing::All;
 const SCOPE_HASH_KEY: &str = "SCOPE_HASH";
 
-lazy_static! {
-    static ref CARGO_HOME: String = {
-        node::process::get_env()
-            .get("CARGO_HOME")
-            .map(String::as_str)
-            .map_or_else(|| homedir().join(".cargo"), Path::from)
-            .to_string()
-    };
-}
+static CARGO_HOME: LazyLock<String> = LazyLock::new(|| {
+    node::process::get_env()
+        .get("CARGO_HOME")
+        .map(String::as_str)
+        .map_or_else(|| homedir().join(".cargo"), Path::from)
+        .to_string()
+});
 
 #[derive(Clone, Copy, Debug, EnumString)]
 enum CrossPlatformSharing {
@@ -493,7 +491,7 @@ fn depth_to_match(depth: usize) -> Result<PathMatch, Error> {
     let pattern = if depth == 0 {
         ".".into()
     } else {
-        std::iter::repeat("*").take(depth).join("/")
+        std::iter::repeat_n("*", depth).join("/")
     };
     Ok(PathMatch::from_pattern(&pattern, &node::path::separator())?)
 }
@@ -535,12 +533,12 @@ enum CacheType {
 }
 
 impl CacheType {
-    fn short_name(&self) -> Cow<str> {
+    fn short_name(&self) -> Cow<'_, str> {
         let name: &str = self.into();
         name.into()
     }
 
-    fn friendly_name(&self) -> Cow<str> {
+    fn friendly_name(&self) -> Cow<'_, str> {
         match *self {
             CacheType::Indices => "registry indices",
             CacheType::Crates => "crate files",

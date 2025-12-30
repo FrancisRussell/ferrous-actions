@@ -4,7 +4,7 @@ use std::borrow::Cow;
 
 #[async_trait(?Send)]
 pub trait Hook {
-    fn additional_cargo_options(&self) -> Vec<Cow<str>> {
+    fn additional_cargo_options(&self) -> Vec<Cow<'_, str>> {
         Vec::new()
     }
 
@@ -28,8 +28,8 @@ impl<'a> Composite<'a> {
 }
 
 #[async_trait(?Send)]
-impl<'a> Hook for Composite<'a> {
-    fn additional_cargo_options(&self) -> Vec<Cow<str>> {
+impl Hook for Composite<'_> {
+    fn additional_cargo_options(&self) -> Vec<Cow<'_, str>> {
         let mut result = Vec::new();
         for hook in &self.hooks {
             result.extend(hook.additional_cargo_options());
@@ -56,6 +56,7 @@ impl<'a> Hook for Composite<'a> {
     }
 }
 
+#[allow(unused)]
 #[derive(Clone, Default, Debug)]
 pub struct Null {}
 

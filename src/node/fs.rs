@@ -1,5 +1,5 @@
 use crate::node::path::Path;
-use chrono::{DateTime, NaiveDateTime, Utc};
+use chrono::{DateTime, Utc};
 use js_sys::{BigInt, JsString, Object, Uint8Array};
 use std::collections::VecDeque;
 use wasm_bindgen::{JsCast, JsError, JsValue};
@@ -254,8 +254,7 @@ impl Metadata {
         };
         let secs: i64 = secs.try_into().expect("Seconds out of range");
         let subsec_nanos: u32 = subsec_nanos.try_into().expect("Nanoseconds out of range");
-        let naive = NaiveDateTime::from_timestamp_opt(secs, subsec_nanos).expect("File time out of bounds");
-        DateTime::from_utc(naive, Utc)
+        DateTime::from_timestamp(secs, subsec_nanos).expect("File time out of bounds")
     }
 
     /// The last time the file was accessed
@@ -432,9 +431,9 @@ pub mod ffi {
 mod test {
     use crate::node;
     use crate::node::path::Path;
-    use lazy_static::lazy_static;
     use parking_lot::Mutex;
     use std::collections::HashMap;
+    use std::sync::LazyLock;
     use wasm_bindgen::JsValue;
     use wasm_bindgen_test::wasm_bindgen_test;
 
@@ -444,9 +443,7 @@ mod test {
         Dir,
     }
 
-    lazy_static! {
-        static ref COUNTER: Mutex<usize> = Mutex::default();
-    }
+    static COUNTER: LazyLock<Mutex<usize>> = LazyLock::new(|| Mutex::default());
 
     fn get_random() -> u64 {
         use std::collections::hash_map::DefaultHasher;
