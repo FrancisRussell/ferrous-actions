@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+* No notable changes yet.
+
 ## v0.1.0-beta.3
 
 * Use `getrandom` crate for random number generation and remove hacky
