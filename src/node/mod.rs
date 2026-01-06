@@ -1,3 +1,6 @@
+/// Child processes
+pub mod child_process;
+
 /// Filesystem
 pub mod fs;
 
