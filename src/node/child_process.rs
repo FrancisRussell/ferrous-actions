@@ -1,6 +1,8 @@
 use super::path::Path;
+use crate::error;
 use futures::channel::oneshot;
 use futures::future::{FutureExt as _, Shared};
+use futures::AsyncRead;
 use js_sys::{JsString, Object};
 use parking_lot::Mutex;
 use std::borrow::Cow;
@@ -9,41 +11,31 @@ use std::sync::Arc;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::{JsCast as _, JsValue};
 
-pub trait Direction {
-    type Callback;
-}
-
-pub struct Source;
-
-impl Direction for Source {
-    type Callback = Box<dyn FnMut(Option<&[u8]>)>;
-}
-
-enum StdioEnum<D: Direction> {
+enum StdioEnum {
     Ignore,
     Inherit,
-    Piped(D::Callback),
+    Piped,
 }
 
-impl<D: Direction> StdioEnum<D> {
+impl StdioEnum {
     fn nodejs_name(&self) -> Cow<'static, str> {
         match self {
             StdioEnum::Inherit => "inherit",
             StdioEnum::Ignore => "ignore",
-            StdioEnum::Piped(_) => "pipe",
+            StdioEnum::Piped => "pipe",
         }
         .into()
     }
 }
 
 /// Where output of a standard stream can be redirected
-pub struct Stdio<D: Direction> {
-    inner: StdioEnum<D>,
+pub struct Stdio {
+    inner: StdioEnum,
 }
 
-impl<D: Direction> Stdio<D> {
+impl Stdio {
     /// Constructs a `Stdio` which causes output to be discarded
-    pub fn ignore() -> Stdio<D> {
+    pub fn ignore() -> Stdio {
         Stdio {
             inner: StdioEnum::Ignore,
         }
@@ -51,7 +43,7 @@ impl<D: Direction> Stdio<D> {
 
     /// Constructs a `Stdio` which causes output to be send to the same location
     /// as it would for the parent process
-    pub fn inherit() -> Stdio<D> {
+    pub fn inherit() -> Stdio {
         Stdio {
             inner: StdioEnum::Inherit,
         }
@@ -59,9 +51,9 @@ impl<D: Direction> Stdio<D> {
 
     /// Constructs a `Stdio` which causes output to be sent or received by the
     /// specified callback.
-    pub fn piped(callback: D::Callback) -> Stdio<D> {
+    pub fn piped() -> Stdio {
         Stdio {
-            inner: StdioEnum::Piped(callback),
+            inner: StdioEnum::Piped,
         }
     }
 }
@@ -71,8 +63,8 @@ pub struct Command {
     path: Path,
     args: Vec<JsString>,
     cwd: Option<Path>,
-    stdout: Stdio<Source>,
-    stderr: Stdio<Source>,
+    stdout: Stdio,
+    stderr: Stdio,
 }
 
 impl<'a> From<&'a Path> for Command {
@@ -94,23 +86,31 @@ struct ChildStateMutable {
 }
 
 struct ChildState {
-    subprocess: Object,
-    error_callback: Closure<dyn FnMut(JsValue)>,
-    close_callback: Closure<dyn FnMut(JsValue, JsValue)>,
-    new_data_callbacks: Vec<Closure<dyn FnMut(JsValue)>>,
-    stream_closed_callbacks: Vec<Closure<dyn Fn()>>,
-    mutable: Arc<Mutex<ChildStateMutable>>,
+    _subprocess: Object,
+    _error_callback: Closure<dyn FnMut(JsValue)>,
+    _close_callback: Closure<dyn FnMut(JsValue, JsValue)>,
+    _mutable: Arc<Mutex<ChildStateMutable>>,
     #[allow(clippy::type_complexity)]
     completion: Shared<Pin<Box<dyn futures::Future<Output = Result<ExitStatus, JsValue>>>>>,
 }
 
 pub struct Child {
     state: Arc<ChildState>,
+    stdout_handle: Option<ChildOutputStream>,
+    stderr_handle: Option<ChildOutputStream>,
 }
 
 impl Child {
     pub fn wait(&self) -> impl futures::Future<Output = Result<ExitStatus, JsValue>> {
         self.state.completion.clone()
+    }
+
+    pub fn take_stdout(&mut self) -> Option<ChildOutputStream> {
+        self.stdout_handle.take()
+    }
+
+    pub fn take_stderr(&mut self) -> Option<ChildOutputStream> {
+        self.stderr_handle.take()
     }
 }
 
@@ -191,53 +191,32 @@ impl Command {
         });
         let completion: Pin<Box<dyn futures::Future<Output = Result<ExitStatus, JsValue>>>> = Box::pin(completion);
 
-        let mut new_data_callbacks = Vec::new();
-        let mut stream_closed_callbacks = Vec::new();
-
-        for (name, mode) in [("stdout", &mut self.stdout.inner), ("stderr", &mut self.stderr.inner)] {
-            if matches!(mode, StdioEnum::Piped(_)) {
-                // The child takes ownership of any callbacks so stdio/stderr are reset to
-                // inherit if callbacks have been set for them.
-                let mut stdio = StdioEnum::Inherit;
-                std::mem::swap(mode, &mut stdio);
-                let mut buffer = Vec::new();
-                if let StdioEnum::Piped(callback) = stdio {
-                    let callback_new_data = Arc::new(Mutex::new(callback));
-                    let callback_end_of_stream = callback_new_data.clone();
-                    let new_data_closure: Closure<dyn FnMut(JsValue)> = Closure::new(move |data: JsValue| {
-                        let data: js_sys::Uint8Array = data.into();
-                        let num_bytes = usize::try_from(data.length()).expect("Array too large");
-                        if num_bytes > buffer.len() {
-                            buffer.resize(num_bytes, 0u8);
-                        }
-                        data.copy_to(&mut buffer[..num_bytes]);
-                        callback_new_data.lock()(Some(&buffer[..num_bytes]));
-                    });
-                    let stream_closed_closure: Closure<dyn Fn()> = Closure::new(move || {
-                        callback_end_of_stream.lock()(None);
-                    });
-
-                    let stream = js_sys::Reflect::get(&subprocess, &name.into())?.dyn_into::<js_sys::Object>()?;
-                    let on_fn_stream = js_sys::Reflect::get(&stream, &"on".into())?.dyn_into::<js_sys::Function>()?;
-                    on_fn_stream.call2(&stream, &"data".into(), new_data_closure.as_ref())?;
-                    on_fn_stream.call2(&stream, &"close".into(), stream_closed_closure.as_ref())?;
-                    new_data_callbacks.push(new_data_closure);
-                    stream_closed_callbacks.push(stream_closed_closure);
-                }
+        let mut stdout_handle = None;
+        let mut stderr_handle = None;
+        for (name, mode, handle) in [
+            ("stdout", &mut self.stdout.inner, &mut stdout_handle),
+            ("stderr", &mut self.stderr.inner, &mut stderr_handle),
+        ] {
+            if matches!(mode, StdioEnum::Piped) {
+                *handle = {
+                    let stream_js = js_sys::Reflect::get(&subprocess, &name.into())?.dyn_into::<js_sys::Object>()?;
+                    let handle = ChildOutputStream::try_from(stream_js)?;
+                    Some(handle)
+                };
             }
         }
 
         let child_state = ChildState {
-            subprocess,
-            error_callback,
-            close_callback,
-            mutable: child_state_mutable,
+            _subprocess: subprocess,
+            _error_callback: error_callback,
+            _close_callback: close_callback,
+            _mutable: child_state_mutable,
             completion: completion.shared(),
-            new_data_callbacks,
-            stream_closed_callbacks,
         };
         Ok(Child {
             state: Arc::new(child_state),
+            stdout_handle,
+            stderr_handle,
         })
     }
 
@@ -248,15 +227,148 @@ impl Command {
     }
 
     /// Sets where standard error should be directed
-    pub fn stderr(&mut self, redirect: Stdio<Source>) -> &mut Command {
+    pub fn stderr(&mut self, redirect: Stdio) -> &mut Command {
         self.stderr = redirect;
         self
     }
 
     /// Sets where standard output should be directed
-    pub fn stdout(&mut self, redirect: Stdio<Source>) -> &mut Command {
+    pub fn stdout(&mut self, redirect: Stdio) -> &mut Command {
         self.stdout = redirect;
         self
+    }
+}
+
+#[derive(Default)]
+struct ChildOutputStreamStateShared {
+    waker: Option<futures::task::Waker>,
+    ended: bool,
+    error: Option<JsValue>,
+}
+
+pub struct ChildOutputStream {
+    stream: Object,
+    readable_closure: Closure<dyn Fn()>,
+    end_closure: Closure<dyn Fn()>,
+    error_closure: Closure<dyn Fn(JsValue)>,
+    shared: Arc<Mutex<ChildOutputStreamStateShared>>,
+    read_fn: js_sys::Function,
+    off_fn: js_sys::Function,
+    destroy_fn: js_sys::Function,
+}
+
+impl TryFrom<Object> for ChildOutputStream {
+    type Error = JsValue;
+
+    fn try_from(stream: Object) -> Result<Self, Self::Error> {
+        // Pause the stream
+        let pause_fn = js_sys::Reflect::get(&stream, &"pause".into())?.dyn_into::<js_sys::Function>()?;
+        pause_fn.call0(&stream)?;
+
+        let on_fn = js_sys::Reflect::get(&stream, &"on".into())?.dyn_into::<js_sys::Function>()?;
+        let shared: Arc<Mutex<ChildOutputStreamStateShared>> = Arc::default();
+        let shared_readable = shared.clone();
+        let readable_closure: Closure<dyn Fn()> = Closure::new(move || {
+            let waker = shared_readable.lock().waker.take();
+            if let Some(waker) = waker {
+                waker.wake();
+            }
+        });
+        on_fn.call2(&stream, &"readable".into(), readable_closure.as_ref())?;
+
+        let shared_end = shared.clone();
+        let end_closure: Closure<dyn Fn()> = Closure::new(move || {
+            let mut state = shared_end.lock();
+            state.ended = true;
+            if let Some(waker) = state.waker.take() {
+                waker.wake();
+            }
+        });
+        on_fn.call2(&stream, &"end".into(), end_closure.as_ref())?;
+
+        let shared_error = shared.clone();
+        let error_closure: Closure<dyn Fn(JsValue)> = Closure::new(move |e: JsValue| {
+            let mut state = shared_error.lock();
+            state.error.get_or_insert(e);
+            if let Some(waker) = state.waker.take() {
+                waker.wake();
+            }
+        });
+        on_fn.call2(&stream, &"error".into(), error_closure.as_ref())?;
+
+        let read_fn = js_sys::Reflect::get(&stream, &"read".into())?.dyn_into::<js_sys::Function>()?;
+        let off_fn = js_sys::Reflect::get(&stream, &"off".into())?.dyn_into::<js_sys::Function>()?;
+        let destroy_fn = js_sys::Reflect::get(&stream, &"destroy".into())?.dyn_into::<js_sys::Function>()?;
+        Ok(ChildOutputStream {
+            stream,
+            readable_closure,
+            end_closure,
+            error_closure,
+            shared,
+            read_fn,
+            off_fn,
+            destroy_fn,
+        })
+    }
+}
+
+impl AsyncRead for ChildOutputStream {
+    fn poll_read(
+        self: Pin<&mut Self>,
+        context: &mut futures::task::Context<'_>,
+        buf: &mut [u8],
+    ) -> futures::task::Poll<Result<usize, std::io::Error>> {
+        use futures::task::Poll;
+
+        // A read limit of 1GiB is specified by Node
+        let max_read = std::cmp::min(buf.len(), 64 * 1024 * 1024);
+        let data = match self.read_fn.call1(&self.stream, &JsValue::from(max_read)) {
+            Ok(value) => value,
+            Err(e) => {
+                self.shared.lock().error.get_or_insert(e);
+                JsValue::NULL
+            }
+        };
+
+        if data.is_null_or_undefined() {
+            let mut guard = self.shared.lock();
+            if let Some(error) = &guard.error {
+                Poll::Ready(Err(std::io::Error::other(format!("{:?}", error))))
+            } else if guard.ended {
+                Poll::Ready(Ok(0))
+            } else {
+                guard.waker = Some(context.waker().clone());
+                Poll::Pending
+            }
+        } else {
+            let data: js_sys::Uint8Array = data.into();
+            let num_bytes = usize::try_from(data.length()).expect("Array too large");
+            data.copy_to(&mut buf[..num_bytes]);
+            Poll::Ready(Ok(num_bytes))
+        }
+    }
+}
+
+impl Drop for ChildOutputStream {
+    fn drop(&mut self) {
+        // Unregister any callbacks
+        for (name, closure) in [
+            ("readable", self.readable_closure.as_ref()),
+            ("end", self.end_closure.as_ref()),
+            ("error", self.error_closure.as_ref()),
+        ] {
+            if let Err(e) = self.off_fn.call2(&self.stream, &name.into(), closure) {
+                error!(
+                    "Failed to unregister {} closure from child output stream: {:?}",
+                    name, e
+                );
+            }
+        }
+
+        // Close the stream
+        if let Err(e) = self.destroy_fn.call0(&self.stream) {
+            error!("Failed to call destroy on child output stream: {:?}", e);
+        }
     }
 }
 
@@ -280,38 +392,57 @@ mod test {
 
     #[wasm_bindgen_test]
     async fn invoke_spawn() {
-        let mut command = Command::from(&Path::from("ls"));
-        let stdout_callback: Box<dyn FnMut(Option<&[u8]>)> = Box::new(|data: Option<&[u8]>| {
-            if let Some(data) = data {
-                let escaped: String = data
-                    .iter()
-                    .flat_map(|b| std::ascii::escape_default(*b))
-                    .map(|c| c as char)
-                    .collect();
-                info!("[STDOUT DATA] {}", escaped);
-            } else {
-                info!("[STDOUT EOF]");
-            }
-        });
-        let stderr_callback: Box<dyn FnMut(Option<&[u8]>)> = Box::new(|data: Option<&[u8]>| {
-            if let Some(data) = data {
-                let escaped: String = data
-                    .iter()
-                    .flat_map(|b| std::ascii::escape_default(*b))
-                    .map(|c| c as char)
-                    .collect();
-                info!("[STDERR DATA] {}", escaped);
-            } else {
-                info!("[STDERR EOF]");
-            }
-        });
+        use futures::AsyncReadExt as _;
 
+        let mut command = Command::from(&Path::from("ls"));
         command
             .arg("/tmp")
             .current_dir(&Path::from("/tmp"))
-            .stdout(Stdio::piped(stdout_callback))
-            .stderr(Stdio::piped(stderr_callback));
-        let child = command.spawn().expect("Spawn failure");
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        let mut child = command.spawn().expect("Spawn failure");
+
+        // Read streams
+        let stdout_data = if let Some(mut stream) = child.take_stdout() {
+            let mut buffer = Vec::new();
+            stream
+                .read_to_end(&mut buffer)
+                .await
+                .expect("Failed to read stdout to end.");
+            Some(buffer)
+        } else {
+            None
+        };
+        let stderr_data = if let Some(mut stream) = child.take_stderr() {
+            let mut buffer = Vec::new();
+            stream
+                .read_to_end(&mut buffer)
+                .await
+                .expect("Failed to read stderr to end.");
+            Some(buffer)
+        } else {
+            None
+        };
+
+        // Wait for process completion
         info!("Spawn result was: {:?}", child.wait().await);
+
+        // Print data
+        if let Some(data) = stdout_data {
+            let escaped: String = data
+                .iter()
+                .flat_map(|b| std::ascii::escape_default(*b))
+                .map(|c| c as char)
+                .collect();
+            info!("[STDOUT DATA] {}", escaped);
+        }
+        if let Some(data) = stderr_data {
+            let escaped: String = data
+                .iter()
+                .flat_map(|b| std::ascii::escape_default(*b))
+                .map(|c| c as char)
+                .collect();
+            info!("[STDERR DATA] {}", escaped);
+        }
     }
 }
