@@ -12,7 +12,7 @@ jobs:
     name: Build and unit tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/cache@v5.0.1
         with:
           path: |
@@ -44,7 +44,7 @@ jobs:
     steps:
       - run: mkdir -p ~/.cache  ~/.local
         if: ${{ matrix.platform  != 'windows-latest' }}
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/download-artifact@v7.0.0
         with:
           name: built-action
