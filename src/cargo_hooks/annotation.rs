@@ -1,6 +1,5 @@
 use super::Hook;
 use crate::actions::core::AnnotationLevel;
-use crate::actions::exec::Command;
 use crate::warning;
 use async_trait::async_trait;
 use cargo_metadata::diagnostic::{DiagnosticLevel, DiagnosticSpan};
@@ -82,12 +81,8 @@ impl Hook for Annotation {
         vec!["--message-format=json".into()]
     }
 
-    fn modify_command(&self, command: &mut Command) {
-        use crate::actions::exec::Stdio;
-
-        let subcommand = self.subcommand.clone();
-        command
-            .outline(move |line| Self::process_json_record(&subcommand, line))
-            .stdout(Stdio::null());
+    async fn outline(&mut self, line: &str) -> bool {
+        Self::process_json_record(&self.subcommand, line);
+        true
     }
 }

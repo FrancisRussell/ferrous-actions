@@ -1,10 +1,10 @@
 use crate::action_paths::get_action_cache_dir;
-use crate::actions::exec::Command;
 use crate::actions::io;
 use crate::cargo_hooks::{
     Annotation as AnnotationHook, Composite as CompositeHook, Hook as CargoHook, Install as CargoInstallHook,
 };
 use crate::input_manager::{self, Input};
+use crate::node::child_process::{Command, Stdio};
 use crate::node::path::Path;
 use crate::node::process;
 use crate::{node, nonce, Error};
@@ -68,8 +68,7 @@ impl Cargo {
     }
 
     pub async fn get_installed(&self) -> Result<Vec<String>, Error> {
-        use parking_lot::Mutex;
-        use std::sync::Arc;
+        use futures::{AsyncBufReadExt as _, StreamExt as _};
 
         // This was added to help remove non-Rustup installed cargo-fmt and rustfmt on
         // the GitHub runners. However the binaries do not appear to be
@@ -77,20 +76,20 @@ impl Cargo {
 
         let match_install =
             regex::Regex::new(r"^(([[:word:]]|-)+) v([[:digit:]]|\.)+:").expect("Regex compilation failed");
-        let installs: Arc<Mutex<Vec<String>>> = Arc::default();
-        let installs_captured = installs.clone();
-        Command::from(&self.path)
+        let mut installs = Vec::new();
+        let mut child = Command::from(&self.path)
             .args(["install", "--list"])
-            .outline(move |line| {
-                if let Some(captures) = match_install.captures(line) {
-                    let name = captures.get(1).expect("Capture missing").as_str();
-                    installs_captured.lock().push(name.to_string());
-                }
-            })
-            .exec()
-            .await
-            .map_err(Error::Js)?;
-        let installs = installs.lock().drain(..).collect();
+            .stdout(Stdio::piped())
+            .spawn()?;
+        let mut lines = futures::io::BufReader::new(child.take_stdout().expect("Child stdout was missing")).lines();
+        while let Some(line) = lines.next().await {
+            let line = line?;
+            if let Some(captures) = match_install.captures(&line) {
+                let name = captures.get(1).expect("Capture missing").as_str();
+                installs.push(name.to_string());
+            }
+        }
+        child.wait_success().await?;
         Ok(installs)
     }
 
@@ -137,31 +136,27 @@ impl Cargo {
         toolchain: Option<&str>,
         cwd: Option<&Path>,
     ) -> Result<ToolchainVersion, Error> {
-        use crate::actions::exec::Stdio;
-        use parking_lot::Mutex;
-        use std::sync::Arc;
+        use futures::{AsyncBufReadExt as _, StreamExt as _};
 
-        let rustc_path = io::which("rustc", true).await.map_err(Error::Js)?;
+        let rustc_path = io::which("rustc", true).await?;
+        let mut output = String::new();
         let mut command = Command::from(&rustc_path);
-        let output: Arc<Mutex<String>> = Arc::default();
-        let output_captured = output.clone();
         if let Some(toolchain) = toolchain {
             command.arg(format!("+{}", toolchain).as_str());
         }
         if let Some(cwd) = cwd {
             command.current_dir(cwd);
         }
-        command.arg("-Vv");
-        command
-            .outline(move |line| {
-                let mut out = output_captured.lock();
-                *out += line;
-                *out += "\n";
-            })
-            .stdout(Stdio::null());
-        command.exec().await?;
-        let long = output.lock().trim().to_string();
-        Ok(ToolchainVersion { long })
+        command.arg("-Vv").stdout(Stdio::piped());
+        let mut child = command.spawn()?;
+        let mut lines = futures::io::BufReader::new(child.take_stdout().expect("stdout unexpectedly missing")).lines();
+        while let Some(line) = lines.next().await {
+            let line = line?;
+            output += &line;
+            output += "\n";
+        }
+        child.wait_success().await?;
+        Ok(ToolchainVersion { long: output })
     }
 
     pub async fn run<'a, I>(
@@ -174,6 +169,8 @@ impl Cargo {
     where
         I: IntoIterator<Item = &'a str>,
     {
+        use futures::{AsyncBufReadExt as _, StreamExt as _};
+
         let args: Vec<String> = args.into_iter().map(Into::into).collect();
         let mut final_args = Vec::with_capacity(args.len());
         if let Some(toolchain) = toolchain {
@@ -186,9 +183,21 @@ impl Cargo {
         final_args.extend(hooks.additional_cargo_options().into_iter().map(Cow::into_owned));
         final_args.extend(args);
         let mut command = Command::from(&self.path);
-        command.args(final_args);
+        command.args(final_args).stdout(Stdio::piped());
         hooks.modify_command(&mut command);
-        if let Err(e) = command.exec().await.map_err(Error::Js) {
+
+        let mut child = command.spawn()?;
+        let child_stdout = child.take_stdout().expect("Child stdout was missing");
+        let mut stdout_lines = futures::io::BufReader::new(child_stdout).lines();
+
+        while let Some(line) = stdout_lines.next().await {
+            let line = line?;
+            if !hooks.outline(&line).await {
+                crate::info!("{}", line);
+            }
+        }
+
+        if let Err(e) = child.wait_success().await.map_err(Error::Js) {
             hooks.failed().await;
             Err(e)
         } else {

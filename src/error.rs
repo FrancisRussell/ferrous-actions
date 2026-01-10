@@ -63,6 +63,9 @@ pub enum Error {
 
     #[error("Shell quoting error: {0}")]
     ShellQuote(#[from] shlex::QuoteError),
+
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
 }
 
 impl From<JsValue> for Error {

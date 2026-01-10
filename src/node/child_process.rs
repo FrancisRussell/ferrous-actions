@@ -9,7 +9,7 @@ use std::borrow::Cow;
 use std::pin::Pin;
 use std::sync::Arc;
 use wasm_bindgen::closure::Closure;
-use wasm_bindgen::{JsCast as _, JsValue};
+use wasm_bindgen::{JsCast as _, JsError, JsValue};
 
 enum StdioEnum {
     Ignore,
@@ -111,6 +111,20 @@ impl Child {
 
     pub fn take_stderr(&mut self) -> Option<ChildOutputStream> {
         self.stderr_handle.take()
+    }
+
+    pub async fn wait_success(&self) -> Result<(), JsValue> {
+        let status = self.wait().await?;
+        match status {
+            ExitStatus::Signal(name) => Err(JsError::new(&format!("Command was killed by signal {}", name)).into()),
+            ExitStatus::Code(code) => {
+                if code == 0 {
+                    Ok(())
+                } else {
+                    Err(JsError::new(&format!("Command exited with status code {}", code)).into())
+                }
+            }
+        }
     }
 }
 
