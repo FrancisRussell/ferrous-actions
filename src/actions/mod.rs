@@ -1,5 +1,3 @@
-mod noop_stream;
-
 /// The cache API (saving and restoring from a remote cache)
 pub mod cache;
 
