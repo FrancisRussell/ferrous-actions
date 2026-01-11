@@ -86,12 +86,27 @@ struct ChildStateMutable {
 }
 
 struct ChildState {
-    _subprocess: Object,
-    _error_callback: Closure<dyn FnMut(JsValue)>,
-    _close_callback: Closure<dyn FnMut(JsValue, JsValue)>,
+    subprocess: Object,
+    off_fn: js_sys::Function,
+    error_callback: Closure<dyn FnMut(JsValue)>,
+    close_callback: Closure<dyn FnMut(JsValue, JsValue)>,
     _mutable: Rc<Mutex<ChildStateMutable>>,
     #[allow(clippy::type_complexity)]
     completion: Shared<Pin<Box<dyn futures::Future<Output = Result<ExitStatus, JsValue>>>>>,
+}
+
+impl Drop for ChildState {
+    fn drop(&mut self) {
+        // Unregister any callbacks
+        for (name, closure) in [
+            ("error", self.error_callback.as_ref()),
+            ("close", self.close_callback.as_ref()),
+        ] {
+            if let Err(e) = self.off_fn.call2(&self.subprocess, &name.into(), closure) {
+                error!("Failed to unregister {} closure from subprocess object: {:?}", name, e);
+            }
+        }
+    }
 }
 
 pub struct Child {
@@ -128,7 +143,7 @@ impl Child {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum ExitStatus {
     /// The process exited with this exit code.
     Code(i32),
@@ -194,9 +209,10 @@ impl Command {
 
         let subprocess = ffi::spawn(&self.path.to_js_string(), self.args.clone(), options)?;
         // Register callbacks
-        let on_fn_subprocess = js_sys::Reflect::get(&subprocess, &"on".into())?.dyn_into::<js_sys::Function>()?;
-        on_fn_subprocess.call2(&subprocess, &"error".into(), error_callback.as_ref())?;
-        on_fn_subprocess.call2(&subprocess, &"close".into(), close_callback.as_ref())?;
+        let on_fn = js_sys::Reflect::get(&subprocess, &"on".into())?.dyn_into::<js_sys::Function>()?;
+        let off_fn = js_sys::Reflect::get(&subprocess, &"off".into())?.dyn_into::<js_sys::Function>()?;
+        on_fn.call2(&subprocess, &"error".into(), error_callback.as_ref())?;
+        on_fn.call2(&subprocess, &"close".into(), close_callback.as_ref())?;
 
         let child_state_mutable_completion = child_state_mutable.clone();
         let completion = close_receiver.map(move |_| {
@@ -221,9 +237,10 @@ impl Command {
         }
 
         let child_state = ChildState {
-            _subprocess: subprocess,
-            _error_callback: error_callback,
-            _close_callback: close_callback,
+            subprocess,
+            off_fn,
+            error_callback,
+            close_callback,
             _mutable: child_state_mutable,
             completion: completion.shared(),
         };
@@ -404,59 +421,148 @@ mod test {
     use crate::info;
     use wasm_bindgen_test::wasm_bindgen_test;
 
+    fn is_platform_unix_like() -> bool {
+        let platform = crate::node::os::platform();
+        match platform.as_str() {
+            "linux" | "darwin" | "freebsd" | "openbsd" | "netbsd" | "aix" | "sunos" => true,
+            _ => false,
+        }
+    }
+
     #[wasm_bindgen_test]
-    async fn invoke_spawn() {
-        use futures::AsyncReadExt as _;
+    async fn exit_status_success() {
+        if !is_platform_unix_like() {
+            info!("Test not run as a Unix-like platform is required");
+            return;
+        }
 
-        let mut command = Command::from(&Path::from("ls"));
-        command
-            .arg("/tmp")
-            .current_dir(&Path::from("/tmp"))
+        let mut command = Command::from(&Path::from("true"));
+        let status = command
+            .spawn()
+            .expect("Spawn failure")
+            .wait()
+            .await
+            .expect("Failed to wait");
+        assert_eq!(status, ExitStatus::Code(0));
+    }
+
+    #[wasm_bindgen_test]
+    async fn exit_status_failed() {
+        if !is_platform_unix_like() {
+            info!("Test not run as a Unix-like platform is required");
+            return;
+        }
+
+        let mut command = Command::from(&Path::from("false"));
+        let status = command
+            .spawn()
+            .expect("Spawn failure")
+            .wait()
+            .await
+            .expect("Failed to wait");
+        assert_eq!(status, ExitStatus::Code(1));
+    }
+
+    #[wasm_bindgen_test]
+    async fn exit_status_signal() {
+        if !is_platform_unix_like() {
+            info!("Test not run as a Unix-like platform is required");
+            return;
+        }
+
+        let mut command = Command::from(&Path::from("/bin/sh"));
+        let status = command
+            .args(["-c", "kill -9 $$"])
+            .spawn()
+            .expect("Spawn failure")
+            .wait()
+            .await
+            .expect("Failed to wait");
+        assert_eq!(status, ExitStatus::Signal("SIGKILL".into()));
+    }
+
+    #[wasm_bindgen_test]
+    async fn stdout_piping() {
+        use futures::io::AsyncReadExt as _;
+
+        if !is_platform_unix_like() {
+            info!("Test not run as a Unix-like platform is required");
+            return;
+        }
+
+        let test_string = "Hello stdout\nThis\nis\na\nmulti-line\ntest\nstring";
+        let mut command = Command::from(&Path::from("/bin/sh"));
+        let mut child = command
+            .args([
+                "-c",
+                &format!(
+                    "echo {}",
+                    shlex::Quoter::new().quote(test_string).expect("Failed to quote string")
+                ),
+            ])
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
-        let mut child = command.spawn().expect("Spawn failure");
+            .spawn()
+            .expect("Spawn failure");
+        let mut stdout = String::new();
+        child
+            .take_stdout()
+            .expect("stdout missing")
+            .read_to_string(&mut stdout)
+            .await
+            .expect("read_to_string failed");
+        child.wait_success().await.expect("Command failed");
+        assert_eq!(
+            stdout.lines().collect::<Vec<_>>(),
+            test_string.lines().collect::<Vec<_>>()
+        );
+    }
 
-        // Read streams
-        let stdout_data = if let Some(mut stream) = child.take_stdout() {
-            let mut buffer = Vec::new();
-            stream
-                .read_to_end(&mut buffer)
-                .await
-                .expect("Failed to read stdout to end.");
-            Some(buffer)
-        } else {
-            None
-        };
-        let stderr_data = if let Some(mut stream) = child.take_stderr() {
-            let mut buffer = Vec::new();
-            stream
-                .read_to_end(&mut buffer)
-                .await
-                .expect("Failed to read stderr to end.");
-            Some(buffer)
-        } else {
-            None
-        };
+    #[wasm_bindgen_test]
+    async fn stderr_piping() {
+        use futures::io::AsyncReadExt as _;
 
-        // Wait for process completion
-        info!("Spawn result was: {:?}", child.wait().await);
-
-        // Print data
-        if let Some(data) = stdout_data {
-            let escaped: String = data
-                .iter()
-                .flat_map(|b| std::ascii::escape_default(*b))
-                .map(|c| c as char)
-                .collect();
-            info!("[STDOUT DATA] {}", escaped);
+        if !is_platform_unix_like() {
+            info!("Test not run as a Unix-like platform is required");
+            return;
         }
-        if let Some(data) = stderr_data {
-            let escaped: String = data
-                .iter()
-                .flat_map(|b| std::ascii::escape_default(*b))
-                .map(|c| c as char)
-                .collect();
-            info!("[STDERR DATA] {}", escaped);
+
+        let test_string = "Hello stderr\nThis\nis\na\nmulti-line\ntest\nstring";
+        let mut command = Command::from(&Path::from("/bin/sh"));
+        let mut child = command
+            .args([
+                "-c",
+                &format!(
+                    "echo {} >&2",
+                    shlex::Quoter::new().quote(test_string).expect("Failed to quote string")
+                ),
+            ])
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("Spawn failure");
+        let mut stderr = String::new();
+        child
+            .take_stderr()
+            .expect("stderr missing")
+            .read_to_string(&mut stderr)
+            .await
+            .expect("read_to_string failed");
+        child.wait_success().await.expect("Command failed");
+        assert_eq!(
+            stderr.lines().collect::<Vec<_>>(),
+            test_string.lines().collect::<Vec<_>>()
+        );
+    }
+
+    #[wasm_bindgen_test]
+    async fn drop_while_running() {
+        if !is_platform_unix_like() {
+            info!("Test not run as a Unix-like platform is required");
+            return;
         }
+
+        let mut command = Command::from(&Path::from("/bin/sh"));
+        let child = command.args(["-c", "sleep 1"]).spawn().expect("Spawn failure");
+        drop(child);
+        crate::system::sleep::sleep(&std::time::Duration::from_secs(2)).await;
     }
 }
