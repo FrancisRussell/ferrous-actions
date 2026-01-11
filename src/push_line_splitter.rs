@@ -3,9 +3,11 @@ use std::collections::VecDeque;
 
 /// A platform-agnostic line splitter.
 ///
-/// This is part of a work-around for
+/// This code was originally written as a work around for
 /// <https://github.com/FrancisRussell/ferrous-actions-dev/issues/81>. It treats any group of CR and
-/// LF characters with no repeated characters as a line break.
+/// LF characters with no repeated characters as a line break. @actions/exec is
+/// no longer used but producing lossy strings in the presence of invalid UTF-8
+/// rather than an error is still useful.
 ///
 /// `close()` must be called when the input source has hit EOF so final lines
 /// may be returned.
@@ -22,24 +24,6 @@ pub struct PushLineSplitter {
     closed: bool,
 }
 
-pub struct WriteBuffer<'a> {
-    length: usize,
-    parent: &'a mut PushLineSplitter,
-}
-
-impl AsMut<[u8]> for WriteBuffer<'_> {
-    fn as_mut(&mut self) -> &mut [u8] {
-        let buffer_len = self.parent.buffer.len();
-        &mut self.parent.buffer[(buffer_len - self.length)..]
-    }
-}
-
-impl Drop for WriteBuffer<'_> {
-    fn drop(&mut self) {
-        self.parent.post_write();
-    }
-}
-
 impl PushLineSplitter {
     fn pre_write(&mut self) {
         assert!(!self.closed, "Data written after close");
@@ -50,21 +34,10 @@ impl PushLineSplitter {
         self.update_scan();
     }
 
-    #[allow(dead_code)]
     pub fn write(&mut self, data: &[u8]) {
         self.pre_write();
         self.buffer.extend(data);
         self.post_write();
-    }
-
-    pub fn write_via_buffer(&mut self, len: usize) -> WriteBuffer<'_> {
-        self.pre_write();
-        let buffer_len = self.buffer.len();
-        self.buffer.resize(buffer_len + len, 0u8);
-        WriteBuffer {
-            length: len,
-            parent: self,
-        }
     }
 
     pub fn close(&mut self) {

@@ -1,5 +1,4 @@
 mod noop_stream;
-mod push_line_splitter;
 
 /// The cache API (saving and restoring from a remote cache)
 pub mod cache;

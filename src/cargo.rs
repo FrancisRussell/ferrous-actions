@@ -4,6 +4,7 @@ use crate::cargo_hooks::{
     Annotation as AnnotationHook, Composite as CompositeHook, Hook as CargoHook, Install as CargoInstallHook,
 };
 use crate::input_manager::{self, Input};
+use crate::lossy_line_splitter::LossyLineSplitter;
 use crate::node::child_process::{Command, Stdio};
 use crate::node::path::Path;
 use crate::node::process;
@@ -169,7 +170,7 @@ impl Cargo {
     where
         I: IntoIterator<Item = &'a str>,
     {
-        use futures::{AsyncBufReadExt as _, StreamExt as _};
+        use futures::StreamExt as _;
 
         let args: Vec<String> = args.into_iter().map(Into::into).collect();
         let mut final_args = Vec::with_capacity(args.len());
@@ -188,7 +189,9 @@ impl Cargo {
 
         let mut child = command.spawn()?;
         let child_stdout = child.take_stdout().expect("Child stdout was missing");
-        let mut stdout_lines = futures::io::BufReader::new(child_stdout).lines();
+
+        // Output from builds is more unpredicatable so use the lossy line splitter.
+        let mut stdout_lines = LossyLineSplitter::new(child_stdout);
 
         while let Some(line) = stdout_lines.next().await {
             let line = line?;
