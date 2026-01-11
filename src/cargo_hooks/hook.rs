@@ -1,4 +1,4 @@
-use crate::actions::exec::Command;
+use crate::node::child_process::Command;
 use async_trait::async_trait;
 use std::borrow::Cow;
 
@@ -10,6 +10,11 @@ pub trait Hook {
 
     fn modify_command(&self, command: &mut Command) {
         let _ = command;
+    }
+
+    async fn outline(&mut self, line: &str) -> bool {
+        let _ = line;
+        false
     }
 
     async fn succeeded(&mut self) {}
@@ -41,6 +46,15 @@ impl Hook for Composite<'_> {
         for hook in &self.hooks {
             hook.modify_command(command);
         }
+    }
+
+    async fn outline(&mut self, line: &str) -> bool {
+        for hook in &mut self.hooks {
+            if hook.outline(line).await {
+                return true;
+            }
+        }
+        false
     }
 
     async fn succeeded(&mut self) {

@@ -1,9 +1,7 @@
-use crate::actions::exec::Command;
 use crate::actions::{core, io, tool_cache};
+use crate::node::child_process::Command;
 use crate::node::path::Path;
 use crate::{debug, info, node, Error};
-use parking_lot::Mutex;
-use std::sync::Arc;
 
 const NO_DEFAULT_TOOLCHAIN_NAME: &str = "none";
 
@@ -73,18 +71,14 @@ impl Rustup {
                     .map_err(Error::Js)?;
                 info!("Downloaded to: {:?}", rustup_script);
                 node::fs::chmod(&rustup_script, 0x755).await.map_err(Error::Js)?;
-                Command::from(&rustup_script)
-                    .args(args)
-                    .exec()
-                    .await
-                    .map_err(Error::Js)?;
+                Command::from(&rustup_script).args(args).spawn()?.wait_success().await?;
             }
             "windows" => {
                 let rustup_exe = tool_cache::download_tool("https://win.rustup.rs")
                     .await
                     .map_err(Error::Js)?;
                 info!("Downloaded to: {:?}", rustup_exe);
-                Command::from(&rustup_exe).args(args).exec().await.map_err(Error::Js)?;
+                Command::from(&rustup_exe).args(args).spawn()?.wait_success().await?;
             }
             _ => return Err(Error::UnsupportedPlatform(platform)),
         }
@@ -95,11 +89,7 @@ impl Rustup {
     }
 
     pub async fn update(&self) -> Result<(), Error> {
-        Command::from(&self.path)
-            .arg("update")
-            .exec()
-            .await
-            .map_err(Error::Js)?;
+        Command::from(&self.path).arg("update").spawn()?.wait_success().await?;
         Ok(())
     }
 
@@ -118,15 +108,15 @@ impl Rustup {
         for component in &config.components {
             args.extend(["-c".into(), component.clone()]);
         }
-        Command::from(&self.path).args(args).exec().await.map_err(Error::Js)?;
+        Command::from(&self.path).args(args).spawn()?.wait_success().await?;
         for (flag, option_name) in [(config.set_default, "default"), (config.set_override, "override")] {
             if flag {
                 Command::from(&self.path)
                     .arg(option_name)
                     .arg(config.name.clone())
-                    .exec()
-                    .await
-                    .map_err(Error::Js)?;
+                    .spawn()?
+                    .wait_success()
+                    .await?;
             }
         }
         Ok(())
@@ -134,23 +124,20 @@ impl Rustup {
 
     #[allow(dead_code)]
     pub async fn installed_toolchains(&self) -> Result<Vec<String>, Error> {
-        let args: Vec<_> = ["toolchain", "list"].into_iter().map(String::from).collect();
+        use futures::{AsyncBufReadExt as _, StreamExt as _};
 
-        let toolchains: Arc<Mutex<Vec<String>>> = Arc::default();
-        {
-            let match_default = regex::Regex::new(r" *\(default\) *$").expect("Regex compilation failed");
-            let toolchains = Arc::clone(&toolchains);
-            Command::from(&self.path)
-                .args(args)
-                .outline(move |line| {
-                    let toolchain = match_default.replace(line, "");
-                    toolchains.lock().push(toolchain.to_string());
-                })
-                .exec()
-                .await
-                .map_err(Error::Js)?;
+        let match_default = regex::Regex::new(r" *\(default\) *$").expect("Regex compilation failed");
+        let args: Vec<_> = ["toolchain", "list"].into_iter().map(String::from).collect();
+        let mut toolchains = Vec::new();
+        let mut child = Command::from(&self.path).args(args).spawn()?;
+        let mut lines =
+            futures::io::BufReader::new(child.take_stdout().expect("Child stdout unexpectedly missing")).lines();
+        while let Some(line) = lines.next().await {
+            let line = line?;
+            let toolchain = match_default.replace(&line, "");
+            toolchains.push(toolchain.to_string());
         }
-        let toolchains = toolchains.lock().drain(..).collect();
+        child.wait_success().await?;
         Ok(toolchains)
     }
 
@@ -160,9 +147,9 @@ impl Rustup {
             .arg("component")
             .arg("add")
             .arg(name)
-            .exec()
-            .await
-            .map_err(Error::Js)?;
+            .spawn()?
+            .wait_success()
+            .await?;
         Ok(())
     }
 

@@ -2,7 +2,11 @@
 
 ## Unreleased
 
-* No notable changes yet.
+* Remove use of `@actions/exec` and bind to NodeJS's child process
+  functionality directly. Although the `exec` library was useful, the inability
+  to preserve `stdout` and `stderr` as separate streams was unacceptable for
+  processing compiler generated JSON while letting human-readable debug output
+  through untouched. This fixes issue #271.
 
 ## v0.1.0-beta.3
 
