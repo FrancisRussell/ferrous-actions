@@ -7,7 +7,7 @@ use js_sys::{JsString, Object};
 use parking_lot::Mutex;
 use std::borrow::Cow;
 use std::pin::Pin;
-use std::sync::Arc;
+use std::rc::Rc;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::{JsCast as _, JsError, JsValue};
 
@@ -89,13 +89,13 @@ struct ChildState {
     _subprocess: Object,
     _error_callback: Closure<dyn FnMut(JsValue)>,
     _close_callback: Closure<dyn FnMut(JsValue, JsValue)>,
-    _mutable: Arc<Mutex<ChildStateMutable>>,
+    _mutable: Rc<Mutex<ChildStateMutable>>,
     #[allow(clippy::type_complexity)]
     completion: Shared<Pin<Box<dyn futures::Future<Output = Result<ExitStatus, JsValue>>>>>,
 }
 
 pub struct Child {
-    state: Arc<ChildState>,
+    state: Rc<ChildState>,
     stdout_handle: Option<ChildOutputStream>,
     stderr_handle: Option<ChildOutputStream>,
 }
@@ -155,7 +155,7 @@ impl Command {
     }
 
     pub fn spawn(&mut self) -> Result<Child, JsValue> {
-        let child_state_mutable: Arc<Mutex<ChildStateMutable>> = Arc::default();
+        let child_state_mutable: Rc<Mutex<ChildStateMutable>> = Rc::default();
 
         // Handler for spawn errors
         let child_state_mutable_error = child_state_mutable.clone();
@@ -228,7 +228,7 @@ impl Command {
             completion: completion.shared(),
         };
         Ok(Child {
-            state: Arc::new(child_state),
+            state: Rc::new(child_state),
             stdout_handle,
             stderr_handle,
         })
@@ -265,7 +265,7 @@ pub struct ChildOutputStream {
     readable_closure: Closure<dyn Fn()>,
     end_closure: Closure<dyn Fn()>,
     error_closure: Closure<dyn Fn(JsValue)>,
-    shared: Arc<Mutex<ChildOutputStreamStateShared>>,
+    shared: Rc<Mutex<ChildOutputStreamStateShared>>,
     read_fn: js_sys::Function,
     off_fn: js_sys::Function,
     destroy_fn: js_sys::Function,
@@ -280,7 +280,7 @@ impl TryFrom<Object> for ChildOutputStream {
         pause_fn.call0(&stream)?;
 
         let on_fn = js_sys::Reflect::get(&stream, &"on".into())?.dyn_into::<js_sys::Function>()?;
-        let shared: Arc<Mutex<ChildOutputStreamStateShared>> = Arc::default();
+        let shared: Rc<Mutex<ChildOutputStreamStateShared>> = Rc::default();
         let shared_readable = shared.clone();
         let readable_closure: Closure<dyn Fn()> = Closure::new(move || {
             let waker = shared_readable.lock().waker.take();
