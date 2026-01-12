@@ -417,151 +417,112 @@ pub mod ffi {
 
 #[cfg(test)]
 mod test {
-    use super::*;
+    use super::{Command, ExitStatus, Path, Stdio};
     use crate::info;
+    use futures::io::AsyncReadExt as _;
     use wasm_bindgen_test::wasm_bindgen_test;
 
-    fn is_platform_unix_like() -> bool {
-        let platform = crate::node::os::platform();
-        match platform.as_str() {
-            "linux" | "darwin" | "freebsd" | "openbsd" | "netbsd" | "aix" | "sunos" => true,
-            _ => false,
-        }
+    fn is_posix() -> bool {
+        matches!(
+            crate::node::os::platform().as_str(),
+            "linux" | "darwin" | "freebsd" | "openbsd" | "netbsd" | "aix" | "sunos"
+        )
+    }
+
+    macro_rules! skip_if_not_posix {
+        () => {
+            if !is_posix() {
+                info!("Test not run as a Posix platform is required");
+                return;
+            }
+        };
+    }
+
+    async fn run(cmd: &str, args: &[&str]) -> ExitStatus {
+        Command::from(&Path::from(cmd))
+            .args(args.into_iter().map(|s| *s))
+            .spawn()
+            .expect("Spawn failure")
+            .wait()
+            .await
+            .expect("Failed to wait")
+    }
+
+    async fn read_stdout(command: &mut Command) -> String {
+        let mut child = command.stdout(Stdio::piped()).spawn().expect("Spawn failure");
+        let mut out = String::new();
+        child
+            .take_stdout()
+            .expect("stdout missing")
+            .read_to_string(&mut out)
+            .await
+            .expect("read failed");
+
+        child.wait_success().await.expect("Command failed");
+        out
+    }
+
+    async fn read_stderr(command: &mut Command) -> String {
+        let mut child = command.stderr(Stdio::piped()).spawn().expect("Spawn failure");
+        let mut out = String::new();
+        child
+            .take_stderr()
+            .expect("stderr missing")
+            .read_to_string(&mut out)
+            .await
+            .expect("read failed");
+        child.wait_success().await.expect("Command failed");
+        out
     }
 
     #[wasm_bindgen_test]
     async fn exit_status_success() {
-        if !is_platform_unix_like() {
-            info!("Test not run as a Unix-like platform is required");
-            return;
-        }
-
-        let mut command = Command::from(&Path::from("true"));
-        let status = command
-            .spawn()
-            .expect("Spawn failure")
-            .wait()
-            .await
-            .expect("Failed to wait");
-        assert_eq!(status, ExitStatus::Code(0));
+        skip_if_not_posix!();
+        assert_eq!(run("true", &[]).await, ExitStatus::Code(0));
     }
 
     #[wasm_bindgen_test]
     async fn exit_status_failed() {
-        if !is_platform_unix_like() {
-            info!("Test not run as a Unix-like platform is required");
-            return;
-        }
-
-        let mut command = Command::from(&Path::from("false"));
-        let status = command
-            .spawn()
-            .expect("Spawn failure")
-            .wait()
-            .await
-            .expect("Failed to wait");
-        assert_eq!(status, ExitStatus::Code(1));
+        skip_if_not_posix!();
+        assert_eq!(run("false", &[]).await, ExitStatus::Code(1));
     }
 
     #[wasm_bindgen_test]
     async fn exit_status_signal() {
-        if !is_platform_unix_like() {
-            info!("Test not run as a Unix-like platform is required");
-            return;
-        }
-
-        let mut command = Command::from(&Path::from("/bin/sh"));
-        let status = command
-            .args(["-c", "kill -9 $$"])
-            .spawn()
-            .expect("Spawn failure")
-            .wait()
-            .await
-            .expect("Failed to wait");
-        assert_eq!(status, ExitStatus::Signal("SIGKILL".into()));
+        skip_if_not_posix!();
+        assert_eq!(
+            run("/bin/sh", &["-c", "kill -9 $$"]).await,
+            ExitStatus::Signal("SIGKILL".into())
+        );
     }
 
     #[wasm_bindgen_test]
     async fn stdout_piping() {
-        use futures::io::AsyncReadExt as _;
-
-        if !is_platform_unix_like() {
-            info!("Test not run as a Unix-like platform is required");
-            return;
-        }
-
-        let test_string = "Hello stdout\nThis\nis\na\nmulti-line\ntest\nstring";
-        let mut command = Command::from(&Path::from("/bin/sh"));
-        let mut child = command
-            .args([
-                "-c",
-                &format!(
-                    "echo {}",
-                    shlex::Quoter::new().quote(test_string).expect("Failed to quote string")
-                ),
-            ])
-            .stdout(Stdio::piped())
-            .spawn()
-            .expect("Spawn failure");
-        let mut stdout = String::new();
-        child
-            .take_stdout()
-            .expect("stdout missing")
-            .read_to_string(&mut stdout)
-            .await
-            .expect("read_to_string failed");
-        child.wait_success().await.expect("Command failed");
-        assert_eq!(
-            stdout.lines().collect::<Vec<_>>(),
-            test_string.lines().collect::<Vec<_>>()
-        );
+        skip_if_not_posix!();
+        let text = "Hello stdout\nThis\nis\na\nmulti-line\ntest\nstring";
+        let quoted = shlex::Quoter::new().quote(text).unwrap();
+        let output =
+            read_stdout(&mut Command::from(&Path::from("/bin/sh")).args(["-c", &format!("echo {}", quoted)])).await;
+        assert_eq!(output.lines().collect::<Vec<_>>(), text.lines().collect::<Vec<_>>());
     }
 
     #[wasm_bindgen_test]
     async fn stderr_piping() {
-        use futures::io::AsyncReadExt as _;
-
-        if !is_platform_unix_like() {
-            info!("Test not run as a Unix-like platform is required");
-            return;
-        }
-
-        let test_string = "Hello stderr\nThis\nis\na\nmulti-line\ntest\nstring";
-        let mut command = Command::from(&Path::from("/bin/sh"));
-        let mut child = command
-            .args([
-                "-c",
-                &format!(
-                    "echo {} >&2",
-                    shlex::Quoter::new().quote(test_string).expect("Failed to quote string")
-                ),
-            ])
-            .stderr(Stdio::piped())
-            .spawn()
-            .expect("Spawn failure");
-        let mut stderr = String::new();
-        child
-            .take_stderr()
-            .expect("stderr missing")
-            .read_to_string(&mut stderr)
-            .await
-            .expect("read_to_string failed");
-        child.wait_success().await.expect("Command failed");
-        assert_eq!(
-            stderr.lines().collect::<Vec<_>>(),
-            test_string.lines().collect::<Vec<_>>()
-        );
+        skip_if_not_posix!();
+        let text = "Hello stderr\nThis\nis\na\nmulti-line\ntest\nstring";
+        let quoted = shlex::Quoter::new().quote(text).unwrap();
+        let output =
+            read_stderr(&mut Command::from(&Path::from("/bin/sh")).args(["-c", &format!("echo {} >&2", quoted)])).await;
+        assert_eq!(output.lines().collect::<Vec<_>>(), text.lines().collect::<Vec<_>>());
     }
 
     #[wasm_bindgen_test]
     async fn drop_while_running() {
-        if !is_platform_unix_like() {
-            info!("Test not run as a Unix-like platform is required");
-            return;
-        }
-
-        let mut command = Command::from(&Path::from("/bin/sh"));
-        let child = command.args(["-c", "sleep 1"]).spawn().expect("Spawn failure");
+        skip_if_not_posix!();
+        let child = Command::from(&Path::from("/bin/sh"))
+            .args(["-c", "sleep 1"])
+            .spawn()
+            .expect("Spawn failure");
         drop(child);
         crate::system::sleep::sleep(&std::time::Duration::from_secs(2)).await;
     }
