@@ -7,6 +7,7 @@
   to preserve `stdout` and `stderr` as separate streams was unacceptable for
   processing compiler generated JSON while letting human-readable debug output
   through untouched. This fixes issue #271.
+* Bump `actions/io` from 1.1.3 to 2.0.0.
 
 ## v0.1.0-beta.3
 
