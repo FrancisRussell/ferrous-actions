@@ -11,6 +11,7 @@ use std::rc::Rc;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::{JsCast as _, JsError, JsValue};
 
+#[derive(Debug, Copy, Clone)]
 enum StdioEnum {
     Ignore,
     Inherit,
@@ -29,6 +30,7 @@ impl StdioEnum {
 }
 
 /// Where output of a standard stream can be redirected
+#[derive(Debug, Copy, Clone)]
 pub struct Stdio {
     inner: StdioEnum,
 }
@@ -41,7 +43,7 @@ impl Stdio {
         }
     }
 
-    /// Constructs a `Stdio` which causes output to be send to the same location
+    /// Constructs a `Stdio` which causes output to be sent to the same location
     /// as it would for the parent process
     pub fn inherit() -> Stdio {
         Stdio {
@@ -49,8 +51,8 @@ impl Stdio {
         }
     }
 
-    /// Constructs a `Stdio` which causes output to be sent or received by the
-    /// specified callback.
+    /// Constructs a `Stdio` which causes any output to be relayed to the parent
+    /// process via a pipe
     pub fn piped() -> Stdio {
         Stdio {
             inner: StdioEnum::Piped,
@@ -59,6 +61,7 @@ impl Stdio {
 }
 
 /// Builder for executing a command
+#[derive(Debug, Clone)]
 pub struct Command {
     path: Path,
     args: Vec<JsString>,
@@ -80,11 +83,12 @@ impl<'a> From<&'a Path> for Command {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 struct ChildStateMutable {
     result: Option<Result<ExitStatus, JsValue>>,
 }
 
+#[derive(Debug)]
 struct ChildState {
     subprocess: Object,
     off_fn: js_sys::Function,
@@ -109,6 +113,8 @@ impl Drop for ChildState {
     }
 }
 
+/// Handle to a spawned subprocess
+#[derive(Debug)]
 pub struct Child {
     state: Rc<ChildState>,
     stdout_handle: Option<ChildOutputStream>,
@@ -116,18 +122,29 @@ pub struct Child {
 }
 
 impl Child {
+    /// Waits for the child process to exit, returning either the exit status
+    /// or an error if one occurred.
     pub fn wait(&self) -> impl futures::Future<Output = Result<ExitStatus, JsValue>> {
         self.state.completion.clone()
     }
 
+    /// Returns the standard output stream of the child. Returns `None` if the
+    /// stream was already taken, or the `Command` that spawned the child
+    /// was not configured to pipe standard output.
     pub fn take_stdout(&mut self) -> Option<ChildOutputStream> {
         self.stdout_handle.take()
     }
 
+    /// Returns the standard error stream of the child. Returns `None` if the
+    /// stream was already taken, or the `Command` that spawned the child
+    /// was not configured to pipe standard error.
     pub fn take_stderr(&mut self) -> Option<ChildOutputStream> {
         self.stderr_handle.take()
     }
 
+    /// Waits for the child process to exit. An error is produced if waiting
+    /// failed, or the child did not produce an exit code indicating
+    /// success.
     pub async fn wait_success(&self) -> Result<(), JsValue> {
         let status = self.wait().await?;
         match status {
@@ -143,6 +160,7 @@ impl Child {
     }
 }
 
+/// The exit status of a child process
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum ExitStatus {
     /// The process exited with this exit code.
@@ -169,6 +187,7 @@ impl Command {
         self
     }
 
+    /// Spawn a subprocess with the built configuration
     pub fn spawn(&mut self) -> Result<Child, JsValue> {
         let child_state_mutable: Rc<Mutex<ChildStateMutable>> = Rc::default();
 
@@ -270,13 +289,15 @@ impl Command {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 struct ChildOutputStreamStateShared {
     waker: Option<futures::task::Waker>,
     ended: bool,
     error: Option<JsValue>,
 }
 
+/// Handle to a output stream from a child process
+#[derive(Debug)]
 pub struct ChildOutputStream {
     stream: Object,
     readable_closure: Closure<dyn Fn()>,
