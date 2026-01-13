@@ -29,7 +29,7 @@
   "homepage": "https://github.com/FrancisRussell/github-rust-actions/",
   "dependencies": {
     "@actions/cache": "^5.0.1",
-    "@actions/core": "^2.0.1",
+    "@actions/core": "^2.0.2",
     "@actions/io": "^2.0.0",
     "@actions/tool-cache": "^2.0.1"
   },
