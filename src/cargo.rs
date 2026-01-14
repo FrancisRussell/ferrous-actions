@@ -11,6 +11,9 @@ use crate::node::process;
 use crate::{node, nonce, Error};
 use std::borrow::Cow;
 
+const CRATE_NAME_PATTERN: &str = r"(([[:word:]]|-)+)";
+const SEMVER_PATTERN: &str = r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?";
+
 async fn create_empty_dir() -> Result<Path, Error> {
     let nonce = nonce::build(8);
     let path = get_action_cache_dir()?
@@ -75,8 +78,8 @@ impl Cargo {
         // the GitHub runners. However the binaries do not appear to be
         // cargo-managed either.
 
-        let match_install =
-            regex::Regex::new(r"^(([[:word:]]|-)+) v([[:digit:]]|\.)+:").expect("Regex compilation failed");
+        let cargo_line_pattern = format!("^{} v{}:", CRATE_NAME_PATTERN, SEMVER_PATTERN);
+        let match_install = regex_lite::Regex::new(&cargo_line_pattern).expect("Regex compilation failed");
         let mut installs = Vec::new();
         let mut child = Command::from(&self.path)
             .args(["install", "--list"])
