@@ -8,6 +8,9 @@
   processing compiler generated JSON while letting human-readable debug output
   through untouched. This fixes issue #271.
 * Bump `actions/io` from 1.1.3 to 2.0.0.
+* Switch to `regex-lite` from `regex`.
+* Bump `simple-path-match` to remove dependency on `syn` version 1.
+* Remove unused `derivative` dependency.
 
 ## v0.1.0-beta.3
 
