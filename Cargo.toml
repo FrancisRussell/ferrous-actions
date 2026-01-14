@@ -41,7 +41,6 @@ strum = { version = "0.27.2", features = ["derive"] }
 thiserror = "2.0.17"
 wasm-bindgen = "0.2.87"
 wasm-bindgen-futures = "0.4.36"
-wasm-bindgen-test = "0.3"
 
 [dependencies.rustup-toolchain-manifest]
 git = "https://github.com/FrancisRussell/rustup-toolchain-manifest.git"
