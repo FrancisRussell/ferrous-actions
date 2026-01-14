@@ -126,7 +126,7 @@ impl Rustup {
     pub async fn installed_toolchains(&self) -> Result<Vec<String>, Error> {
         use futures::{AsyncBufReadExt as _, StreamExt as _};
 
-        let match_default = regex::Regex::new(r" *\(default\) *$").expect("Regex compilation failed");
+        let match_default = regex_lite::Regex::new(r" *\(default\) *$").expect("Regex compilation failed");
         let args: Vec<_> = ["toolchain", "list"].into_iter().map(String::from).collect();
         let mut toolchains = Vec::new();
         let mut child = Command::from(&self.path).args(args).spawn()?;
