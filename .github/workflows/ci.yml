@@ -45,7 +45,7 @@ jobs:
       - run: mkdir -p ~/.cache  ~/.local
         if: ${{ matrix.platform  != 'windows-latest' }}
       - uses: actions/checkout@v6
-      - uses: actions/download-artifact@v7.0.0
+      - uses: actions/download-artifact@v8.0.1
         with:
           name: built-action
       - id: restore-cargo-cache
