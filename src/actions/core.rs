@@ -2,49 +2,6 @@ use crate::node::path::Path;
 use js_sys::{JsString, Number, Object};
 use wasm_bindgen::JsValue;
 
-/// Formats and outputs a GitHub actions log line at debug level
-#[macro_export]
-macro_rules! debug {
-    ($($arg:tt)*) => {{
-        $crate::actions::core::debug(std::format!($($arg)*).as_str());
-    }};
-}
-
-/// Formats and outputs a GitHub actions log line at info level
-#[macro_export]
-macro_rules! info {
-    ($($arg:tt)*) => {{
-        $crate::actions::core::info(std::format!($($arg)*).as_str());
-    }};
-}
-
-/// Formats and outputs a GitHub actions log line at notice level (this will be
-/// an annotation)
-#[macro_export]
-macro_rules! notice {
-    ($($arg:tt)*) => {{
-        $crate::actions::core::notice(std::format!($($arg)*).as_str());
-    }};
-}
-
-/// Formats and outputs a GitHub actions log line at warning level (this will be
-/// an annotation)
-#[macro_export]
-macro_rules! warning {
-    ($($arg:tt)*) => {{
-        $crate::actions::core::warning(std::format!($($arg)*).as_str());
-    }};
-}
-
-/// Formats and outputs a GitHub actions log line at error level (this will be
-/// an annotation)
-#[macro_export]
-macro_rules! error {
-    ($($arg:tt)*) => {{
-        $crate::actions::core::error(std::format!($($arg)*).as_str());
-    }};
-}
-
 /// Outputs a GitHub actions log line at debug level
 pub fn debug<S: Into<JsString>>(message: S) {
     ffi::debug(&message.into());
