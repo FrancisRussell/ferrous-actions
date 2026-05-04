@@ -4,11 +4,11 @@
   "private": true,
   "description": "GitHub actions for Rust written in Rust and compiled to WebAssembly",
   "scripts": {
-    "build": "wasm-pack build -t nodejs --out-name lib --no-pack && ncc build --minify pkg/lib.js -o dist && cp phase-wrappers/* dist",
+    "build": "wasm-pack build -t nodejs --out-name lib --no-pack && esbuild --bundle --platform=node --format=cjs --conditions=import --minify pkg/lib.js --outfile=dist/index.js --log-override:duplicate-object-key=silent && cp -a pkg/lib_bg.wasm dist/ && cp -a phase-wrappers/* dist",
     "format": "cargo fmt",
     "format-check": "cargo fmt -- --check",
     "lint": "cargo clippy",
-    "test": "NODE_PATH=node_modules wasm-pack test --node",
+    "test": "NODE_PATH=node_modules wasm-pack test --node -- --no-default-features --features node_bindings",
     "generate-licenses": "npm-license-text . LICENSE-3RD-PARTY-JAVASCRIPT || echo 'Ignoring error from npm-license-text'"
   },
   "repository": {
@@ -28,13 +28,13 @@
   },
   "homepage": "https://github.com/FrancisRussell/github-rust-actions/",
   "dependencies": {
-    "@actions/cache": "^5.0.2",
-    "@actions/core": "^2.0.2",
-    "@actions/io": "^2.0.0",
-    "@actions/tool-cache": "^3.0.0"
+    "@actions/cache": "^6.0.0",
+    "@actions/core": "^3.0.1",
+    "@actions/io": "^3.0.2",
+    "@actions/tool-cache": "^4.0.0"
   },
   "devDependencies": {
-    "@vercel/ncc": "^0.38.1",
+    "esbuild": "^0.28.0",
     "npm-license-text": "^1.0.3",
     "wasm-pack": "^0.14.0"
   }
