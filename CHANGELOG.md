@@ -15,6 +15,9 @@
 * Bump `simple-path-match` to remove dependency on `syn` version 1.
 * Remove unused `derivative` dependency.
 * Switch from `ncc` to `esbuild` due to ESM support.
+* Switch from `npm-license-text` to `generate-license-file`. Aside from being
+  unmaintained, the former also included licenses for development dependencies
+  which should not have been included.
 
 ## v0.1.0-beta.3
 

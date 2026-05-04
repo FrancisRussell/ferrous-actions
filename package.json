@@ -9,7 +9,7 @@
     "format-check": "cargo fmt -- --check",
     "lint": "cargo clippy",
     "test": "NODE_PATH=node_modules wasm-pack test --node -- --no-default-features --features node_bindings",
-    "generate-licenses": "npm-license-text . LICENSE-3RD-PARTY-JAVASCRIPT || echo 'Ignoring error from npm-license-text'"
+    "generate-licenses": "generate-license-file -i package.json -o LICENSE-3RD-PARTY-JAVASCRIPT --overwrite --ci --no-spinner"
   },
   "repository": {
     "type": "git",
@@ -35,7 +35,7 @@
   },
   "devDependencies": {
     "esbuild": "^0.28.0",
-    "npm-license-text": "^1.0.3",
+    "generate-license-file": "^4.1.1",
     "wasm-pack": "^0.14.0"
   }
 }
