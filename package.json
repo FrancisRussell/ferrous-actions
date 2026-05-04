@@ -36,6 +36,6 @@
   "devDependencies": {
     "@vercel/ncc": "^0.38.1",
     "npm-license-text": "^1.0.3",
-    "wasm-pack": "^0.13.1"
+    "wasm-pack": "^0.14.0"
   }
 }
