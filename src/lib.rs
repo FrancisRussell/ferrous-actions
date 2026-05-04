@@ -17,13 +17,19 @@
 //! breaking ways and are mainly exposed and documented to enable more insight
 //! into this crate's internals and for experimentation purposes.
 
+pub mod log;
+
 /// Bindings for [node.js](https://nodejs.org/docs/latest/api/)
 #[cfg(feature = "node_bindings")]
 pub mod node;
 
+#[cfg(feature = "node_bindings")]
+mod system;
+
 /// Bindings for the [GitHub Actions Toolkit](https://github.com/actions/toolkit)
 #[cfg(feature = "github_actions_bindings")]
 pub mod actions;
+
 
 cfg_if::cfg_if! {
 if #[cfg(feature = "action")] {
@@ -51,7 +57,6 @@ mod push_line_splitter;
 mod run;
 mod rustup;
 mod safe_encoding;
-mod system;
 mod toolchain;
 mod utils;
 

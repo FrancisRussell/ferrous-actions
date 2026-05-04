@@ -7,10 +7,14 @@
   to preserve `stdout` and `stderr` as separate streams was unacceptable for
   processing compiler generated JSON while letting human-readable debug output
   through untouched. This fixes issue #271.
-* Bump `actions/io` from 1.1.3 to 2.0.0.
+* Bump `actions/core` from 2.0.1 to 3.0.1.
+* Bump `actions/cache` from 5.0.1 to 6.0.0.
+* Bump `actions/io` from 1.1.3 to 3.0.2.
+* Bump `actions/tool-cache` from 2.0.1 to 4.0.0.
 * Switch to `regex-lite` from `regex`.
 * Bump `simple-path-match` to remove dependency on `syn` version 1.
 * Remove unused `derivative` dependency.
+* Switch from `ncc` to `esbuild` due to ESM support.
 
 ## v0.1.0-beta.3
 
