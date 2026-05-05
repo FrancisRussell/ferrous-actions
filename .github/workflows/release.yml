@@ -17,6 +17,7 @@ jobs:
         # Fetch all history and tags
         with:
           fetch-depth: 0
+          persist-credentials: false
       - name: Install dependencies
         run: sudo apt-get install -y --no-install-recommends node-semver
       - uses: actions/setup-node@v6
@@ -47,7 +48,6 @@ jobs:
         run: |
           set -euo pipefail
           git remote add release https://FrancisRussell:${{ secrets.PERSONAL_ACCESS_TOKEN }}@github.com/FrancisRussell/ferrous-actions.git
-          git config --unset "http.https://github.com/.extraheader" || true
           git push -f release "refs/tags/${GITHUB_REF_NAME}"
       - name: Update semver-compatible floating tag
         run: |
