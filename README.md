@@ -53,7 +53,7 @@ For practicality and implementation reasons, Ferrous Actions is structured as
 a ‘mono-action’, meaning that all operations are implemented as sub-commands of
 a single action rather than being separated. The `command` parameter is always compulsory.
 
-In all following examples, `FrancisRussell/ferrous-actions@v0.1.0-beta.3`
+In all following examples, `FrancisRussell/ferrous-actions@v1`
 should be replaced by the version of the action that this README is for. An
 example of the usage of Ferrous actions in a real project can be found
 [here](https://github.com/FrancisRussell/zoog/blob/develop/.github/workflows/ci.yml).
@@ -73,7 +73,7 @@ have occurred and avoid needlessly uploading them back to the cache.
 
 Example invocation:
 ```yml
-- uses: FrancisRussell/ferrous-actions@v0.1.0-beta.3
+- uses: FrancisRussell/ferrous-actions@v1
   name: Cargo cache
   with:
     command: cache
@@ -112,7 +112,7 @@ Ferrous actions can download Rustup and install a specified Rust toolchain.
 
 Example invocation:
 ```yml
-- uses: FrancisRussell/ferrous-actions@v0.1.0-beta.3
+- uses: FrancisRussell/ferrous-actions@v1
   name: Install Rustup
   with:
     command: install-rustup
@@ -143,7 +143,7 @@ this case is `cargo SUBCOMMAND` where `SUBCOMMAND` is a single token.
 
 Example invocation:
 ```yml
-- uses: FrancisRussell/ferrous-actions@v0.1.0-beta.3
+- uses: FrancisRussell/ferrous-actions@v1
   name: Cargo build
   with:
     command: cargo build
@@ -184,7 +184,7 @@ From the user-perspective this means:
 
 Example invocation:
 ```yml
-- uses: FrancisRussell/ferrous-actions@v0.1.0-beta.3
+- uses: FrancisRussell/ferrous-actions@v1
   name: Install grcov
   with:
     command: cargo install
@@ -211,7 +211,7 @@ annotations are output which can be viewed via the GitHub UI.
 
 Example invocation:
 ```yml
-- uses: FrancisRussell/ferrous-actions@v0.1.0-beta.3
+- uses: FrancisRussell/ferrous-actions@v1
   name: Cargo clippy
   with:
     command: cargo clippy
@@ -230,7 +230,7 @@ that the [cross](https://github.com/cross-rs/cross) tool is used.
 
 Example invocation:
 ```yml
-- uses: FrancisRussell/ferrous-actions@v0.1.0-beta.3
+- uses: FrancisRussell/ferrous-actions@v1
   name: Cargo build
   with:
     command: cargo build
