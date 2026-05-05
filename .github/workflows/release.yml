@@ -10,6 +10,8 @@ jobs:
     name: Create release
     runs-on: ubuntu-latest
     environment: release
+    env:
+      RELEASE_TAG_REGEX: '^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$'
     steps:
       - uses: actions/checkout@v6
         # Fetch all history and tags
@@ -20,6 +22,13 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 20.x
+      - name: Validate release tag
+        run: |
+          set -euo pipefail
+          if ! echo "$GITHUB_REF_NAME" | grep -Eq "$RELEASE_TAG_REGEX"; then
+            echo "Invalid release tag: $GITHUB_REF_NAME" >&2
+            exit 1
+          fi
       - name: Create release commit
         run: |
           set -euo pipefail
@@ -32,23 +41,60 @@ jobs:
           git add -f dist LICENSE-3RD-PARTY-JAVASCRIPT LICENSE-3RD-PARTY-RUST
           git rm -rf .github
           git config --global user.name "$GITHUB_ACTOR"
-          git config --global user.email "$GITHUB_ACTOR@users.noreply.github.com"
+          git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
           git config --unset "http.https://github.com/.extraheader"
-          git commit -m "Release $GITHUB_REF_NAME"
+          git commit -m "Release ${GITHUB_REF_NAME}"
           git tag -f "$GITHUB_REF_NAME"
-      - name: Push release branch and tag
+      - name: Push release tag
         run: |
           set -euo pipefail
           git remote add release https://FrancisRussell:${{ secrets.PERSONAL_ACCESS_TOKEN }}@github.com/FrancisRussell/ferrous-actions.git
-          git push -f release "HEAD:refs/heads/release/$GITHUB_REF_NAME"
-          git push -f release "refs/tags/$GITHUB_REF_NAME"
-      - name: Update branch `latest` to latest release
+          git push -f release "refs/tags/${GITHUB_REF_NAME}"
+      - name: Update semver-compatible floating tag
         run: |
           set -euo pipefail
-          LATEST_TAG=$(semver $(git tag -l 'v*') | tail -n1)
-          if [[ -n "$LATEST_TAG" ]]; then
-            echo "Pushing tag $LATEST_TAG to branch latest..."
-            git push -f release "refs/tags/$LATEST_TAG:refs/heads/latest"
+          VERSION="${GITHUB_REF_NAME#v}"
+          MAJOR=$(echo "$VERSION" | cut -d. -f1)
+          MINOR=$(echo "$VERSION" | cut -d. -f2)
+          if [[ "$MAJOR" -eq 0 ]]; then
+            FLOATING_TAG="v0.${MINOR}"
+            FLOATING_PATTERN="v0.${MINOR}.*"
+          else
+            FLOATING_TAG="v${MAJOR}"
+            FLOATING_PATTERN="v${MAJOR}.*.*"
+          fi
+          # -r '*' means we avoid pre-release tags
+          LATEST_VERSION=$(semver -r '*' $(git tag -l "$FLOATING_PATTERN" | grep -E "$RELEASE_TAG_REGEX") | tail -n1)
+          if [[ -n "$LATEST_VERSION" ]]; then
+            LATEST_VERSION_TAG="v${LATEST_VERSION}"
+            if [[ "$LATEST_VERSION_TAG" != "$GITHUB_REF_NAME" ]]; then
+              # It's important to skip in this case because we'd push a commit without build artifacts.
+              echo "${GITHUB_REF_NAME} is not the latest stable release for ${FLOATING_TAG}, skipping."
+            else
+              git tag -f "$FLOATING_TAG" "$LATEST_VERSION_TAG"
+              echo "Pushing tag ${LATEST_VERSION_TAG} to ${FLOATING_TAG}..."
+              git push -f release "refs/tags/${FLOATING_TAG}"
+            fi
+          else
+            echo "Could not find a non-prerelease tag to push to ${FLOATING_TAG} so doing nothing."
+          fi
+      - name: Update branch `latest`
+        run: |
+          set -euo pipefail
+          LATEST_VERSION=$(semver -r '*' $(git tag -l | grep -E "$RELEASE_TAG_REGEX") | tail -n1)
+          if [[ -z "$LATEST_VERSION" ]]; then
+            # If we failed to find a non-prelease tag then search for latest prerelease
+            LATEST_VERSION=$(semver -p -r '*' $(git tag -l | grep -E "$RELEASE_TAG_REGEX") | tail -n1)
+          fi
+          if [[ -n "$LATEST_VERSION" ]]; then
+            LATEST_TAG="v${LATEST_VERSION}"
+            if [[ "$LATEST_TAG" != "$GITHUB_REF_NAME" ]]; then
+              # It's important to skip in this case because we'd push a commit without build artifacts.
+              echo "${GITHUB_REF_NAME} is not the latest release, skipping latest branch update."
+            else
+              echo "Pushing tag ${LATEST_TAG} to branch latest..."
+              git push -f release "refs/tags/${LATEST_TAG}:refs/heads/latest"
+            fi
           else
             echo "Failed to identify the latest release" >&2
             exit 1
