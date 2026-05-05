@@ -1,6 +1,6 @@
 {
   "name": "ferrous-actions",
-  "version": "0.1.0-beta.4-develop",
+  "version": "1.0.0",
   "private": true,
   "description": "GitHub actions for Rust written in Rust and compiled to WebAssembly",
   "scripts": {
@@ -13,7 +13,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git@github.com:FrancisRussell/github-rust-actions.git"
+    "url": "https://github.com/FrancisRussell/ferrous-actions-dev.git"
   },
   "keywords": [
     "actions",
@@ -24,9 +24,9 @@
   "author": "Francis Russell",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/FrancisRussell/github-rust-actions/issues"
+    "url": "https://github.com/FrancisRussell/ferrous-actions-dev/issues"
   },
-  "homepage": "https://github.com/FrancisRussell/github-rust-actions/",
+  "homepage": "https://github.com/FrancisRussell/ferrous-actions-dev",
   "dependencies": {
     "@actions/cache": "^6.0.0",
     "@actions/core": "^3.0.1",

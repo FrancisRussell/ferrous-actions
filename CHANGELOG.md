@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.0.0
 
 * Remove use of `@actions/exec` and bind to NodeJS's child process
   functionality directly. Although the `exec` library was useful, the inability
@@ -18,6 +18,7 @@
 * Switch from `npm-license-text` to `generate-license-file`. Aside from being
   unmaintained, the former also included licenses for development dependencies
   which should not have been included.
+* Have releases update floating stable tags to make it easer to track updates.
 
 ## v0.1.0-beta.3
 
