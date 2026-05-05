@@ -36,7 +36,6 @@ jobs:
           npm run build
           npm run test
           npm run generate-licenses
-          cargo install cargo-about --features=cli
           ./scripts/generate-rust-licenses
           git add -f dist LICENSE-3RD-PARTY-JAVASCRIPT LICENSE-3RD-PARTY-RUST
           git rm -rf .github
