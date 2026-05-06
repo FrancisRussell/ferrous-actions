@@ -53,7 +53,7 @@ inputs:
     description: 'DO NOT SET THIS INPUT - used to identify matrix properties'
     default: ${{ toJSON(matrix) }}
 runs:
-  using: 'node20'
+  using: 'node24'
   main: 'dist/main.js'
   post: 'dist/post.js'
   post-if: 'success()'
