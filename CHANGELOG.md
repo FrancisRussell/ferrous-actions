@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.1.0
+
+* Bump node from version 20 to 24.
+
 ## v1.0.0
 
 * Remove use of `@actions/exec` and bind to NodeJS's child process
